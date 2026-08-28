@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>รายงานวัสดุเสียหาย | Damage Report</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="auth.js?v=20260714-4"></script>
+    <link rel="stylesheet" href="theme.css">
+    <script src="theme.js" defer></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Kanit', sans-serif;
+            background: var(--bg-body);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.08) 0%, transparent 30%),
+                radial-gradient(circle at 90% 90%, rgba(255, 255, 255, 0.06) 0%, transparent 28%),
+                var(--bg-body);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .page-wrapper {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1.5rem 2rem;
+        }
+
+        /* HEADER */
+        .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .page-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .page-title h1 {
+            font-size: 1.6rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #f87171, #fbbf24);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.5rem 1rem;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--muted);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-family: 'Kanit', sans-serif;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .back-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+
+        /* KPI CARDS */
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .kpi-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 1.2rem 1.4rem;
+            text-align: center;
+            backdrop-filter: blur(12px);
+        }
+
+        .kpi-label { font-size: 0.78rem; color: var(--muted); margin-bottom: 0.4rem; }
+        .kpi-value { font-size: 1.8rem; font-weight: 700; color: #f87171; }
+
+        /* FILTERS */
+        .filter-bar {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+            align-items: center;
+        }
+
+        .filter-bar input, .filter-bar select {
+            padding: 0.5rem 0.85rem;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: 'Kanit', sans-serif;
+            font-size: 0.88rem;
+        }
+
+        .filter-bar input::placeholder {
+            color: var(--muted);
+            opacity: 1;
+        }
+
+        .filter-bar input[type="date"] {
+            color: var(--text);
+            background: var(--input-bg);
+        }
+
+        .filter-bar input[type="date"]::-webkit-datetime-edit,
+        .filter-bar input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+        .filter-bar input[type="date"]::-webkit-datetime-edit-text,
+        .filter-bar input[type="date"]::-webkit-datetime-edit-month-field,
+        .filter-bar input[type="date"]::-webkit-datetime-edit-day-field,
+        .filter-bar input[type="date"]::-webkit-datetime-edit-year-field {
+            color: var(--text);
+        }
+
+        .btn-refresh {
+            background: rgba(245, 158, 11, 0.15);
+            border-color: rgba(245, 158, 11, 0.35);
+            color: #fbbf24;
+        }
+        .btn-refresh:hover { background: rgba(245, 158, 11, 0.3); }
+
+        /* VIEW TOGGLE STYLES */
+        .view-toggle-container {
+            display: flex;
+            background: var(--glass-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 4px;
+            gap: 4px;
+            margin-bottom: 1.5rem;
+            width: fit-content;
+        }
+
+        .toggle-tab {
+            padding: 0.5rem 1.2rem;
+            border-radius: 9px;
+            font-family: 'Kanit', sans-serif;
+            font-size: 0.88rem;
+            font-weight: 500;
+            color: var(--muted);
+            border: 1px solid transparent;
+            background: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .toggle-tab:hover {
+            color: var(--text);
+        }
+
+        .toggle-tab.active {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            color: #f87171;
+        }
+
+        /* TABLE */
+        .table-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+            backdrop-filter: blur(12px);
+        }
+
+        .table-responsive { overflow-x: auto; }
+
+        table { width: 100%; border-collapse: collapse; }
+
+        thead tr { background: rgba(239, 68, 68, 0.08); }
+
+        th {
+            padding: 0.9rem 1rem;
+            text-align: left;
+            font-size: 0.78rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            white-space: nowrap;
+            border-bottom: 1px solid var(--border);
+        }
+
+        td {
+            padding: 0.85rem 1rem;
+            font-size: 0.88rem;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            vertical-align: middle;
+        }
+
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: rgba(255,255,255,0.02); }
+
+        .badge-damage {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #f87171;
+        }
+
+        .badge-status {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 500;
+        }
+        .badge-status.pending {
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: #f59e0b;
+        }
+        .badge-status.delivered {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: #10b981;
+        }
+
+        .btn-issue {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            color: #10b981;
+            padding: 0.35rem 0.75rem;
+            font-size: 0.82rem;
+            border-radius: 8px;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-left: 0.5rem;
+            vertical-align: middle;
+        }
+        .btn-issue:hover {
+            background: rgba(16, 185, 129, 0.35);
+        }
+
+        .qty-diff {
+            font-weight: 600;
+            color: #f87171;
+        }
+
+        .item-name {
+            font-weight: 500;
+            color: #e2e8f0;
+        }
+
+        .reason-text {
+            color: var(--muted);
+            font-size: 0.83rem;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--muted);
+        }
+        .empty-state .emoji { font-size: 2.5rem; margin-bottom: 0.75rem; }
+
+        .log-bar {
+            margin-top: 1rem;
+            padding: 0.5rem 1rem;
+            background: var(--glass-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.8rem;
+            color: var(--muted);
+            min-height: 2rem;
+        }
+
+        /* MODAL */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(5, 8, 17, 0.85);
+            backdrop-filter: blur(10px);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: var(--modal-bg);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            width: 92%;
+            max-width: 440px;
+            padding: 2rem;
+            animation: modalSlide 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+        }
+        @keyframes modalSlide {
+            from { transform: translateY(20px); opacity: 0; }
+            to   { transform: translateY(0);    opacity: 1; }
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.25rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .modal-header h2 { font-size: 1.15rem; color: #34d399; }
+        .modal-close { background: none; border: none; color: var(--muted); font-size: 1.3rem; cursor: pointer; line-height:1; }
+        .modal-close:hover { color: var(--text-main); }
+        .modal-info-box {
+            background: rgba(16,185,129,0.05);
+            border: 1px solid rgba(16,185,129,0.15);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1.1rem;
+            font-size: 0.88rem;
+            color: var(--muted);
+        }
+        .modal-info-box strong { color: #34d399; }
+        .form-group { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1.1rem; }
+        .form-group label { font-size: 0.85rem; color: var(--muted); font-weight: 500; }
+        .form-group input {
+            width: 100%;
+            padding: 0.65rem 1rem;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-main);
+            font-family: 'Kanit', sans-serif;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16,185,129,0.15);
+        }
+        .modal-actions {
+            display: flex; gap: 0.75rem; justify-content: flex-end;
+            padding-top: 1rem; border-top: 1px solid var(--border);
+        }
+        .btn-cancel-modal {
+            padding: 0.5rem 1rem; border-radius: 10px;
+            background: rgba(255,255,255,0.05);
+            color: var(--muted); border: 1px solid var(--border);
+            font-family: 'Kanit'; font-size: 0.85rem; cursor: pointer;
+        }
+        .btn-cancel-modal:hover { background: var(--surface-strong); color: var(--text-main); }
+        .btn-confirm-issue {
+            padding: 0.5rem 1.1rem; border-radius: 10px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #ffffff; border: none;
+            font-family: 'Kanit'; font-size: 0.85rem; font-weight: 600;
+            cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+            box-shadow: 0 4px 12px rgba(16,185,129,0.25);
+        }
+        .btn-confirm-issue:disabled { opacity: 0.5; cursor: not-allowed; }
+        .spinner-sm {
+            display: inline-block; width: 14px; height: 14px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #ffffff; border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+
+<body>
+    <!-- Issue Confirm Modal -->
+    <div class="modal" id="issueModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>✅ ยืนยันการจ่ายวัสดุทดแทน</h2>
+                <button class="modal-close" onclick="closeIssueModal()">✕</button>
+            </div>
+            <div class="modal-info-box" id="issueModalInfo"></div>
+            <div class="form-group">
+                <label>👤 ชื่อผู้จ่ายวัสดุ <span style="color:#ef4444;">*</span></label>
+                <input type="text" id="issuerName" placeholder="ระบุชื่อผู้จ่ายวัสดุทดแทน..." autocomplete="off">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel-modal" onclick="closeIssueModal()">ยกเลิก</button>
+                <button class="btn-confirm-issue" id="confirmIssueBtn" onclick="confirmIssueWithName()">
+                    ✅ ยืนยันจ่ายของแล้ว
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="page-wrapper">
+        <div class="page-header">
+            <div class="page-title">
+                <span style="font-size:1.8rem;">⚠️</span>
+                <h1>รายงานวัสดุเสียหาย</h1>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+                <div id="user-display-area"></div>
+                <button onclick="auth.logout()"
+                    style="padding:0.4rem 0.9rem; background:rgba(248,113,113,0.1); border:1px solid rgba(248,113,113,0.3); color:#f87171; border-radius:8px; cursor:pointer; font-family:'Kanit'; font-size:0.8rem; transition:all 0.2s;"
+                    onmouseover="this.style.background='rgba(248,113,113,0.2)'"
+                    onmouseout="this.style.background='rgba(248,113,113,0.1)'">
+                    🚪 ออกจากระบบ
+                </button>
+                <a href="production.html" class="back-btn">← กลับหน้าฝ่ายผลิต</a>
+            </div>
+        </div>
+
+        <!-- KPI -->
+        <div class="kpi-row">
+            <div class="kpi-card">
+                <div class="kpi-label">รายการทั้งหมด</div>
+                <div class="kpi-value" id="kpiTotal">—</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">รวมจำนวนที่เสียหาย</div>
+                <div class="kpi-value" id="kpiDamageQty">—</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">วันนี้</div>
+                <div class="kpi-value" id="kpiToday">—</div>
+            </div>
+        </div>
+
+        <!-- FILTERS -->
+        <div class="filter-bar">
+            <input type="date" id="filterDateFrom" placeholder="วันที่เริ่ม">
+            <input type="date" id="filterDateTo" placeholder="วันที่สิ้นสุด">
+            <input type="text" id="filterItem" placeholder="🔍 ค้นหาชื่อวัสดุ..." style="min-width:200px;">
+            <button class="btn btn-refresh" onclick="loadData()">🔄 รีเฟรช</button>
+        </div>
+
+        <!-- VIEW TOGGLE TABS -->
+        <div class="view-toggle-container">
+            <button id="tabSummary" class="toggle-tab active" onclick="switchView('summary')">📊 สรุปยอดตามวัสดุ</button>
+            <button id="tabDetails" class="toggle-tab" onclick="switchView('details')">📜 ประวัติแบบละเอียด</button>
+        </div>
+
+        <!-- TABLE -->
+        <div class="table-card">
+            <div class="table-responsive">
+                <table>
+                    <thead id="tableHeader">
+                        <!-- Rendered dynamically -->
+                    </thead>
+                    <tbody id="tableBody">
+                        <tr><td style="text-align:center;padding:2rem;" class="empty-state"><div class="emoji">⏳</div><p>กำลังโหลด...</p></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="log-bar" id="logBar">พร้อมใช้งาน</div>
+    </div>
+
+    <script>
+        let db = null;
+        let allLogs = [];
+        let currentView = 'summary'; // default view to avoid duplicates
+
+        function getDb() {
+            if (db) return db;
+            db = (window.auth && window.auth.supabase)
+                ? window.auth.supabase
+                : (window.supabase && window.SUPABASE_CONFIG
+                    ? window.supabase.createClient(window.SUPABASE_CONFIG.URL, window.SUPABASE_CONFIG.KEY)
+                    : null);
+            return db;
+        }
+
+        function log(msg) {
+            document.getElementById('logBar').textContent = `[${new Date().toLocaleTimeString('th-TH')}] ${msg}`;
+        }
+
+        function esc(s) {
+            return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function switchView(view) {
+            currentView = view;
+            document.getElementById('tabSummary').classList.toggle('active', view === 'summary');
+            document.getElementById('tabDetails').classList.toggle('active', view === 'details');
+            renderTable();
+        }
+
+        async function loadData() {
+            const db = getDb();
+            if (!db) { log('❌ ไม่สามารถเชื่อมต่อฐานข้อมูลได้'); return; }
+            log('กำลังโหลดข้อมูล...');
+            document.getElementById('tableBody').innerHTML =
+                `<tr><td colspan="6"><div class="empty-state"><div class="emoji">⏳</div><p>กำลังโหลด...</p></div></td></tr>`;
+
+            try {
+                const { data, error } = await db
+                    .from('damaged_materials')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(500);
+                if (error) throw error;
+
+                allLogs = data || [];
+
+                renderTable();
+                log(`โหลดสำเร็จ ${allLogs.length} รายการ`);
+            } catch (err) {
+                log(`โหลดล้มเหลว: ${err.message}`);
+                document.getElementById('tableBody').innerHTML =
+                    `<tr><td colspan="6" style="text-align:center;color:#f87171;padding:2rem;">❌ ${err.message}</td></tr>`;
+            }
+        }
+
+        function getFiltered() {
+            const dateFrom = document.getElementById('filterDateFrom').value;
+            const dateTo = document.getElementById('filterDateTo').value;
+            const searchItem = document.getElementById('filterItem').value.trim().toLowerCase();
+
+            return allLogs.filter(r => {
+                const created = r.created_at ? r.created_at.substring(0, 10) : '';
+                if (dateFrom && created < dateFrom) return false;
+                if (dateTo && created > dateTo) return false;
+                if (searchItem && !String(r.item_name || '').toLowerCase().includes(searchItem)) return false;
+                return true;
+            });
+        }
+
+        function renderTable() {
+            const rows = getFiltered();
+            const thead = document.getElementById('tableHeader');
+            const tbody = document.getElementById('tableBody');
+
+            // Update KPIs (based on filtered list)
+            document.getElementById('kpiTotal').textContent = rows.length;
+            const totalDmg = rows.reduce((s, r) => s + (r.quantity || 0), 0);
+            document.getElementById('kpiDamageQty').textContent = totalDmg.toLocaleString('th-TH');
+            
+            const today = new Date().toISOString().substring(0, 10);
+            const todayCount = rows.filter(r => (r.created_at || '').startsWith(today)).length;
+            document.getElementById('kpiToday').textContent = todayCount;
+
+            if (!rows.length) {
+                thead.innerHTML = '';
+                tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="emoji">✅</div><p>ไม่มีรายการข้อมูลชำรุด</p></div></td></tr>`;
+                return;
+            }
+
+            if (currentView === 'summary') {
+                // 1) Render Summary Aggregated View (NO Duplicates of item_name)
+                thead.innerHTML = `
+                    <tr>
+                        <th style="width:50px;">#</th>
+                        <th>ชื่อวัสดุที่ชำรุด</th>
+                        <th>รวมเสียหายสะสม (ชิ้น)</th>
+                        <th>ค้างส่งมอบ (ชิ้น)</th>
+                        <th>ความถี่ที่ชำรุด (ครั้ง)</th>
+                        <th>เสียหายล่าสุดเมื่อ</th>
+                    </tr>
+                `;
+
+                const grouped = {};
+                rows.forEach(r => {
+                    const name = r.item_name || 'ไม่ระบุชื่อ';
+                    if (!grouped[name]) {
+                        grouped[name] = {
+                            item_name: name,
+                            total_qty: 0,
+                            count: 0,
+                            pending_qty: 0,
+                            latest_date: r.created_at
+                        };
+                    }
+                    grouped[name].total_qty += (r.quantity || 0);
+                    grouped[name].count += 1;
+                    if (r.status === 'pending') {
+                        grouped[name].pending_qty += (r.quantity || 0);
+                    }
+                    if (new Date(r.created_at) > new Date(grouped[name].latest_date)) {
+                        grouped[name].latest_date = r.created_at;
+                    }
+                });
+
+                const aggregatedList = Object.values(grouped).sort((a, b) => b.total_qty - a.total_qty);
+
+                tbody.innerHTML = aggregatedList.map((item, i) => {
+                    const d = new Date(item.latest_date);
+                    const dateStr = d.toLocaleDateString('th-TH');
+                    const timeStr = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+                    const pendingText = item.pending_qty > 0 
+                        ? `<span style="color:#f59e0b;font-weight:600;background:rgba(245,158,11,0.1);padding:2px 8px;border-radius:12px;">⏳ ค้าง ${item.pending_qty} ชิ้น</span>` 
+                        : `<span style="color:var(--muted);">0</span>`;
+                    return `<tr>
+                        <td style="color:var(--muted);">${i + 1}</td>
+                        <td><span class="item-name">${esc(item.item_name)}</span></td>
+                        <td><span class="qty-diff" style="font-size:1rem;">-${item.total_qty}</span></td>
+                        <td>${pendingText}</td>
+                        <td style="color:#e2e8f0;font-weight:500;">${item.count} ครั้ง</td>
+                        <td style="white-space:nowrap;">
+                            <div style="font-size:0.88rem;">${dateStr}</div>
+                            <div style="font-size:0.75rem;color:var(--muted);">${timeStr}</div>
+                        </td>
+                    </tr>`;
+                }).join('');
+
+            } else {
+                // 2) Render Detailed List View (Traceable logs)
+                thead.innerHTML = `
+                    <tr>
+                        <th style="width:50px;">#</th>
+                        <th>วันที่/เวลา</th>
+                        <th>เลขออเดอร์</th>
+                        <th>ชื่อวัสดุ</th>
+                        <th>จำนวน</th>
+                        <th>เหตุผล</th>
+                        <th>ผู้จ่าย</th>
+                        <th>สถานะการจัดส่ง</th>
+                    </tr>
+                `;
+
+                tbody.innerHTML = rows.map((r, i) => {
+                    const d = new Date(r.created_at);
+                    const dateStr = d.toLocaleDateString('th-TH');
+                    const timeStr = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+                    
+                    let statusHtml = '';
+                    if (r.status === 'pending') {
+                        statusHtml = `<span class="badge-status pending">⏳ รอจ่ายของ</span>
+                                     <button class="btn-issue" onclick="openIssueModal('${r.id}')">✔️ จ่ายของแล้ว</button>`;
+                    } else {
+                        statusHtml = `<span class="badge-status delivered">✅ จ่ายแล้ว</span>`;
+                    }
+
+                    return `<tr>
+                        <td style="color:var(--muted);">${i + 1}</td>
+                        <td style="white-space:nowrap;">
+                            <div style="font-size:0.88rem;">${dateStr}</div>
+                            <div style="font-size:0.75rem;color:var(--muted);">${timeStr}</div>
+                        </td>
+                        <td><span style="font-family:monospace;color:var(--muted); font-size:0.88rem;">${esc(r.order_number || '-')}</span></td>
+                        <td><span class="item-name">${esc(r.item_name)}</span></td>
+                        <td><span class="qty-diff">-${r.quantity}</span></td>
+                        <td><span class="badge-damage">${esc(r.reason || 'เสียหาย')}</span></td>
+                        <td>${r.delivered_by
+                            ? `<span style="color:#10b981; font-weight:500;">👤 ${esc(r.delivered_by)}</span>`
+                            : `<span style="color:var(--muted);">—</span>`
+                        }</td>
+                        <td>${statusHtml}</td>
+                    </tr>`;
+                }).join('');
+            }
+        }
+
+        let pendingIssueId = null;
+
+        function openIssueModal(id) {
+            const row = allLogs.find(r => String(r.id) === String(id));
+            pendingIssueId = id;
+            document.getElementById('issueModalInfo').innerHTML = row
+                ? `<div style="margin-bottom:0.5rem;">
+                       <span style="color:var(--muted); font-size:0.8rem;">วัสดุที่จะยืนยันว่าจ่ายแล้ว</span><br>
+                       <strong>${esc(row.item_name || '-')}</strong>
+                   </div>
+                   <div style="color:var(--muted); font-size:0.82rem;">
+                       จำนวน: <strong style="color:#f87171;">-${row.quantity || 0} ชิ้น</strong>
+                       ${row.order_number ? ` &nbsp;&bull;&nbsp; เลขออเดอร์: <strong style="color:#fbbf24;">${esc(row.order_number)}</strong>` : ''}
+                   </div>`
+                : '<div>ยืนยันการจ่ายวัสดุทดแทน</div>';
+            document.getElementById('issuerName').value = '';
+            document.getElementById('issuerName').style.borderColor = '';
+            document.getElementById('issueModal').classList.add('active');
+            setTimeout(() => document.getElementById('issuerName').focus(), 100);
+        }
+
+        function closeIssueModal() {
+            document.getElementById('issueModal').classList.remove('active');
+            pendingIssueId = null;
+        }
+
+        document.getElementById('issueModal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('issueModal')) closeIssueModal();
+        });
+
+        async function confirmIssueWithName() {
+            if (!pendingIssueId) return;
+            const name = document.getElementById('issuerName').value.trim();
+            if (!name) {
+                document.getElementById('issuerName').style.borderColor = '#ef4444';
+                document.getElementById('issuerName').focus();
+                log('⚠️ กรุณาระบุชื่อผู้จ่ายวัสดุ');
+                return;
+            }
+            const btn = document.getElementById('confirmIssueBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-sm"></span> กำลังบันทึก...';
+            try {
+                const db = getDb();
+                const now = new Date().toISOString();
+                const { error } = await db
+                    .from('damaged_materials')
+                    .update({ status: 'delivered', delivered_by: name })
+                    .eq('id', pendingIssueId);
+                if (error) throw error;
+
+                // Sync with stock_movement_log
+                // Try multiple matching patterns to account for different reason formats
+                try {
+                    // 1) Match 'ref: <id>' pattern (most common)
+                    const { error: e1 } = await db
+                        .from('stock_movement_log')
+                        .update({ dispatched: true, dispatched_by: name, dispatched_at: now })
+                        .like('reason', `%ref: ${pendingIssueId}%`);
+
+                    // 2) Also try matching by order_id if present in the damaged row
+                    const row = allLogs.find(r => String(r.id) === String(pendingIssueId));
+                    if (row && row.order_id) {
+                        const { error: e2 } = await db
+                            .from('stock_movement_log')
+                            .update({ dispatched: true, dispatched_by: name, dispatched_at: now })
+                            .like('reason', `%order_id: ${row.order_id}%`);
+                        if (e2) console.warn('Failed to sync stock_movement_log by order_id:', e2);
+                    }
+
+                    if (e1) console.warn('Failed to sync stock_movement_log by ref:', e1);
+                } catch (syncErr) {
+                    console.warn('Failed to sync stock_movement_log:', syncErr);
+                }
+
+                log(`✅ ยืนยันจ่ายของทดแทนเรียบร้อย — โดย ${name}`);
+                closeIssueModal();
+                await loadData();
+            } catch (err) {
+                log(`❌ ไม่สามารถยืนยันได้: ${err.message}`);
+                alert(`เกิดข้อผิดพลาด: ${err.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '✅ ยืนยันจ่ายของแล้ว';
+            }
+        }
+
+        // Auto-filter on input change
+        ['filterDateFrom', 'filterDateTo', 'filterItem'].forEach(id => {
+            document.getElementById(id).addEventListener('input', renderTable);
+        });
+
+        // ─── Realtime Subscription ────────────────────────────────────────────
+        let realtimeChannel = null;
+
+        function startRealtime() {
+            const db = getDb();
+            if (!db) return;
+            realtimeChannel = db
+                .channel('damage-report-realtime')
+                .on('postgres_changes', {
+                    event: '*',           // INSERT, UPDATE, DELETE
+                    schema: 'public',
+                    table: 'damaged_materials'
+                }, (payload) => {
+                    log(`🔴 อัปเดตเรียลไทม์ (${payload.eventType}) — กำลังโหลดใหม่...`);
+                    loadData();
+                })
+                .subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                        log('🟢 เชื่อมต่อเรียลไทม์สำเร็จ — ข้อมูลจะอัปเดตอัตโนมัติ');
+                    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                        log(`⚠️ เรียลไทม์ขาดการเชื่อมต่อ (${status}) — ลองใหม่...`);
+                        // Retry after 5 seconds
+                        setTimeout(startRealtime, 5000);
+                    }
+                });
+        }
+
+        // Stop realtime when leaving the page
+        window.addEventListener('beforeunload', () => {
+            if (realtimeChannel) db.removeChannel(realtimeChannel);
+        });
+
+        // Initial load then start listening
+        loadData().then(startRealtime);
+    </script>
+</body>
+
+</html>

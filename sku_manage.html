@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>จัดการ SKU | Stock Record</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="auth.js?v=20260714-4"></script>
+    <link rel="stylesheet" href="theme.css">
+    <link rel="stylesheet" href="sku_manage.css?v=20260712-2">
+    <script src="theme.js" defer></script>
+</head>
+<body>
+    <div class="page-shell">
+        <header class="page-header">
+            <div class="header-top">
+                <a href="index.html" class="back-link">← กลับหน้าหลัก</a>
+                <button class="theme-toggle-button" id="themeToggleBtn" type="button">🌙 โหมดมืด</button>
+            </div>
+            <div class="header-content">
+                <div class="logo-badge">📦</div>
+                <div>
+                    <h1>จัดการ SKU</h1>
+                    <p>ค้นหา แก้ไข และเพิ่มข้อมูล SKU ได้จากหน้าเดียว</p>
+                </div>
+            </div>
+        </header>
+
+        <main class="card">
+            <div class="toolbar">
+                <input id="skuSearch" class="search-input" type="text" placeholder="ค้นหา SKU / ชื่อสินค้า / ขนาด">
+                <button id="newSkuBtn" class="btn btn-primary" type="button">＋ SKU ใหม่</button>
+            </div>
+
+            <div id="formStatus" class="status-message" role="status" aria-live="polite"></div>
+
+            <div class="layout-grid">
+                <section class="panel list-panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>รายการ SKU</h2>
+                            <p>คลิกที่แถวเพื่อแก้ไข</p>
+                        </div>
+                        <span id="skuCount" class="count-badge">0 รายการ</span>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>SKU</th>
+                                    <th>ชื่อสินค้า</th>
+                                    <th>ขนาด</th>
+                                </tr>
+                            </thead>
+                            <tbody id="skuTableBody">
+                                <tr>
+                                    <td colspan="3" class="empty-state">กำลังโหลดข้อมูล...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="panel form-panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>รายละเอียด SKU</h2>
+                            <p>บันทึกข้อมูลและอัปเดตข้อมูล SKU</p>
+                        </div>
+                    </div>
+
+                    <form id="skuForm" class="sku-form">
+                        <div class="input-group full-width">
+                            <label for="productCode">SKU / Product Code</label>
+                            <input id="productCode" name="productCode" type="text" required readonly placeholder="สร้างอัตโนมัติจากตัวเลือกด้านล่าง">
+                        </div>
+                        <div class="input-group full-width">
+                            <label for="name">ชื่อสินค้า</label>
+                            <input id="name" name="name" type="text" required placeholder="เช่น ประตูบานคู่...">
+                        </div>
+                        <div class="input-group full-width">
+                            <label for="productImageFile">รูปสินค้า</label>
+                            <div class="sku-image-uploader">
+                                <div id="skuImagePreview" class="sku-image-preview"><span>📷</span><small>ยังไม่มีรูปสินค้า</small></div>
+                                <div class="sku-image-controls">
+                                    <input id="productImageFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+                                    <small>รองรับ JPG, PNG, WEBP, GIF ขนาดไม่เกิน 5 MB</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label for="productType">ประเภทสินค้า</label>
+                            <select id="productType" name="productType" required>
+                                <option value="">-- เลือกประเภทสินค้า --</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label for="panelCount">จำนวนบาน</label>
+                            <select id="panelCount" name="panelCount" required>
+                                <option value="">-- เลือกจำนวนบาน --</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label for="heightCode">ความกว้าง</label>
+                            <select id="heightCode" name="heightCode" required>
+                                <option value="">-- เลือกความกว้าง --</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label for="widthCode">ความสูง</label>
+                            <select id="widthCode" name="widthCode" required>
+                                <option value="">-- เลือกความสูง --</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label for="size">ขนาดที่บันทึก</label>
+                            <input id="size" name="size" type="text" required readonly placeholder="สร้างอัตโนมัติ">
+                        </div>
+                        <div class="input-group">
+                            <label for="patternCode">รหัสลาย</label>
+                            <select id="patternCode" name="patternCode" required>
+                                <option value="">-- เลือกลาย --</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label for="pattern">ชื่อลาย</label>
+                            <input id="pattern" name="pattern" type="text" readonly placeholder="แสดงตามรหัสลาย">
+                        </div>
+                        <div class="input-group">
+                            <label for="frameColor">สีกรอบ</label>
+                            <select id="frameColor" name="frameColor">
+                                <option value="">-- ไม่ระบุ --</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label for="glassColor">สีกระจก</label>
+                            <select id="glassColor" name="glassColor">
+                                <option value="">-- ไม่ระบุ --</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label for="netId">สถานะมุ้ง</label>
+                            <select id="netId" name="netId">
+                                <option value="">-- ไม่ระบุ --</option>
+                            </select>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary" id="submitBtn">💾 บันทึก SKU</button>
+                            <button type="button" class="btn btn-outline" id="deleteBtn">🗑️ ลบ</button>
+                            <button type="reset" class="btn btn-secondary" id="resetBtn">ล้างฟอร์ม</button>
+                        </div>
+                    </form>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script src="sku_reference.js?v=20260710-1"></script>
+    <script src="sku_manage.js?v=20260822-1"></script>
+</body>
+</html>

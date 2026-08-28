@@ -1,0 +1,2039 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>แดชบอร์ดสต็อก | Stock Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Config (Supabase Keys - gitignored, ดูตัวอย่างใน config.example.js) -->
+    <script src="config.js"></script>
+    <script src="auth.js?v=20260714-4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="theme.css">
+    <script src="theme.js" defer></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; outline-color: var(--primary); }
+
+        body {
+            font-family: 'Kanit', 'Outfit', sans-serif;
+            background: var(--bg-body);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+            font-size: 16px;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.08) 0%, transparent 30%),
+                radial-gradient(circle at 90% 90%, rgba(255, 255, 255, 0.06) 0%, transparent 28%),
+                var(--bg-body);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .glass-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .glass-card:hover {
+            border-color: var(--primary);
+            box-shadow: 0 8px 40px 0 rgba(0, 0, 0, 0.5), 0 0 15px var(--primary-glow);
+            transform: translateY(-2px);
+        }
+
+        .page-wrapper {
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 1.5rem 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header */
+        .header {
+            display: flex; justify-content: space-between; align-items: flex-end;
+            margin-bottom: 2.5rem; gap: 1rem; flex-wrap: wrap;
+        }
+        .header-left h1 {
+            font-size: 2rem; font-weight: 700;
+            background: linear-gradient(135deg, #818cf8, #c084fc);
+            -webkit-background-clip: text; background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .page-title { font-family: 'Outfit', sans-serif; letter-spacing: -0.02em; }
+        .header-left p { color: var(--text); font-size: 0.95rem; margin-top: 4px; }
+        .header-right { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+        .nav-back {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text);
+            text-decoration: none;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        .nav-back:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+        .nav-back-primary { color: var(--primary); border-color: var(--primary); }
+        .nav-back-warning { color: var(--warning); border-color: rgba(245,158,11,0.4); }
+        .nav-back-danger { color: var(--error-color); border-color: rgba(239,68,68,0.4); }
+
+        /* Filter Bar */
+        .filter-bar {
+            display: flex; gap: 1.2rem; margin-bottom: 2.2rem; flex-wrap: wrap; align-items: flex-end;
+            background: var(--bg-card); backdrop-filter: blur(20px);
+            border: 1px solid var(--border); border-radius: 20px;
+            padding: 1.2rem 1.8rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+        .filter-bar label { font-size: 0.8rem; color: var(--text); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+        .filter-group { display: flex; flex-direction: column; }
+        .filter-actions { margin-left: auto; margin-top: auto; }
+        .filter-bar select, .filter-bar input[type="date"] {
+            font-family: inherit;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.6rem 1rem;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .filter-bar select option {
+            background: var(--bg-card);
+            color: var(--text);
+        }
+        .filter-bar select:focus, .filter-bar input:focus { outline: none; border-color: var(--primary); background: var(--bg-card); box-shadow: 0 0 0 3px var(--primary-glow); }
+
+        /* KPI Cards */
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1.5rem; margin-bottom: 2.5rem; }
+        .kpi-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 1.8rem;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .kpi-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--card-accent, var(--primary));
+            box-shadow: 0 15px 35px -10px rgba(0,0,0,0.5), 0 0 15px var(--card-glow, var(--primary-glow));
+        }
+        .kpi-card::after {
+            content: '';
+            position: absolute;
+            top: -50%; left: -50%; width: 200%; height: 200%;
+            background: radial-gradient(circle, var(--card-glow, var(--primary-glow)) 0%, transparent 70%);
+            opacity: 0; transition: opacity 0.4s; pointer-events: none;
+        }
+        .kpi-card:hover::after { opacity: 0.3; }
+        
+        .kpi-label { font-size: 1rem; color: var(--text); margin-bottom: 0.8rem; font-weight: 500; letter-spacing: 0.02em; }
+        .kpi-value { font-size: 2.5rem; font-weight: 700; color: var(--text); line-height: 1; margin-bottom: 0.4rem; }
+        .kpi-sub { font-size: 1rem; color: var(--text); font-weight: 400; }
+        .kpi-icon {
+            font-size: 2.2rem;
+            margin-bottom: 1rem;
+            width: 48px; height: 48px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 14px;
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid var(--border);
+            transition: transform 0.3s;
+        }
+        .kpi-card:hover .kpi-icon { transform: scale(1.1) rotate(-5deg); }
+        
+        .kpi-card.green { --card-accent: #10b981; --card-glow: rgba(16, 185, 129, 0.2); }
+        .kpi-card.yellow { --card-accent: #f59e0b; --card-glow: rgba(245, 158, 11, 0.2); }
+        .kpi-card.red { --card-accent: #ef4444; --card-glow: rgba(239, 68, 68, 0.2); }
+        .kpi-card.purple { --card-accent: #a855f7; --card-glow: rgba(168, 85, 247, 0.2); }
+        .kpi-card.blue { --card-accent: #3b82f6; --card-glow: rgba(59, 130, 246, 0.2); }
+
+        /* Charts Row */
+        .charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; margin-bottom: 2.5rem; }
+        @media (max-width: 1024px) { .charts-grid { grid-template-columns: 1fr; } }
+
+        .chart-card {
+            background: var(--bg-card); backdrop-filter: blur(20px);
+            border: 1px solid var(--border); border-radius: 24px;
+            padding: 1.8rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            position: relative;
+            overflow: hidden;
+        }
+        .chart-card::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%;
+            background: var(--primary); opacity: 0.5;
+        }
+        .chart-card h3 { font-size: 0.95rem; font-weight: 600; color: var(--text); margin-bottom: 1.2rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .chart-canvas-wrapper { position: relative; height: 220px; }
+
+        /* Platform Badges & List */
+        .platform-list { display: flex; flex-direction: column; gap: 1rem; }
+        .platform-row { display: flex; align-items: center; gap: 1rem; padding: 0.5rem 0; }
+        .platform-name { min-width: 80px; font-size: 0.95rem; font-weight: 600; color: var(--text); }
+        .platform-bar-bg { 
+            flex: 1; height: 10px; background: rgba(255,255,255,0.05); 
+            border-radius: 20px; overflow: hidden; border: 1px solid var(--border);
+        }
+        .platform-bar { 
+            height: 100%; border-radius: 20px; 
+            transition: width 1.2s cubic-bezier(0.34, 1.56, 0.64, 1); 
+            width: var(--bar-width, 0%);
+            background: var(--bar-color, transparent);
+            box-shadow: 0 0 10px var(--bar-glow, transparent);
+        }
+        .platform-bar.shopee { --bar-color: #f97316; --bar-glow: rgba(249,115,22,0.25); }
+        .platform-bar.lazada { --bar-color: #3b82f6; --bar-glow: rgba(59,130,246,0.25); }
+        .platform-bar.tiktok { --bar-color: #a855f7; --bar-glow: rgba(168,85,247,0.25); }
+        .platform-bar.other { --bar-color: #64748b; --bar-glow: rgba(100,116,139,0.25); }
+        .platform-value { font-size: 0.9rem; font-weight: 700; color: var(--primary-bright); min-width: 70px; text-align: right; }
+
+        /* Orders Table */
+        .table-card {
+            background: var(--bg-card); backdrop-filter: blur(20px);
+            border: 1px solid var(--border); border-radius: 24px; overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .table-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 1.5rem 2rem; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 1rem;
+            background: rgba(255,255,255,0.02);
+        }
+        .table-header h3 { font-size: 1.1rem; font-weight: 700; color: var(--text); margin: 0; }
+        .table-header-left {
+            display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+        }
+        .table-header-left h3 { margin: 0; }
+        .table-header-left .header-tag {
+            color: var(--muted); font-weight: 400; font-size: 0.9rem;
+        }
+        .table-header-actions {
+            display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+        }
+        .btn-small {
+            padding: 0.55rem 1rem; font-size: 0.85rem; border-radius: 8px;
+        }
+        .search-input {
+            font-family: inherit;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.7rem 1.2rem;
+            border-radius: 14px;
+            font-size: 0.95rem;
+            width: 320px;
+            transition: all 0.3s;
+            max-width: 100%;
+        }
+        .search-input:focus { outline: none; border-color: var(--primary); width: 380px; box-shadow: 0 0 15px var(--primary-glow); }
+        .table-header .table-header-actions { min-width: 180px; }
+        .table-header .table-header-left, .table-header .table-header-actions { width: auto; }
+        @media (max-width: 720px) {
+            .table-header { flex-direction: column; align-items: stretch; }
+            .table-header-left, .table-header-actions { width: 100%; justify-content: space-between; }
+        }
+        .search-input:focus { outline: none; border-color: var(--primary); width: 380px; box-shadow: 0 0 15px var(--primary-glow); }
+        .search-input::placeholder { color: var(--text); opacity: 0.6; }
+        
+        .table-responsive { overflow: hidden; padding: 0.75rem; background: var(--bg-card); border-radius: 22px; box-shadow: inset 0 1px 0 var(--surface-shadow); }
+        table { width: 100%; border-collapse: collapse; border-spacing: 0; font-size: 0.88rem; table-layout: fixed; }
+        th { 
+            color: var(--text); font-weight: 700; padding: 0.95rem 0.6rem; text-align: left; 
+            white-space: nowrap;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-card-strong);
+            position: sticky; top: 0; z-index: 20;
+            vertical-align: bottom;
+            line-height: 1.3;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+            font-size: 0.78rem;
+            backdrop-filter: blur(14px);
+        }
+        td { padding: 0.85rem 0.55rem; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.45; }
+        
+        /* Precisely balanced percentages for wide product detail columns */
+        .col-date { width: 8%; position: relative; padding-bottom: 2rem; }
+        .col-platform { width: 6%; }
+        .col-order-tracking { width: 12%; position: relative; padding-bottom: 1.4rem; }
+        .col-name { width: 22%; }
+        .col-logistics { width: 14%; }
+        .col-book { width: 6%; }
+        .col-note { width: 12%; }
+        
+        /* Header wrapping */
+        th div { display: block; white-space: normal; word-break: keep-all; }
+        
+/* Order/tracking column: compact inline labels with copy buttons */
+        .col-order-tracking div {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 100%;
+        }
+        .col-order-tracking div span {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .col-logistics .customer-info {
+            display: grid;
+            gap: 0.3rem;
+        }
+        .customer-field {
+            display: flex;
+            gap: 0.5rem;
+            align-items: flex-start;
+            flex-wrap: wrap;
+        }
+        .customer-field .field-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--text);
+            min-width: 88px;
+            white-space: nowrap;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+        }
+        .customer-field .field-value {
+            color: var(--text);
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 0.85rem;
+        }
+        .product-details { margin-top: 0.65rem; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem; }
+        .product-detail { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.78rem; color: var(--text); }
+        .product-detail strong { color: var(--text); font-weight: 600; }
+        .production-number-text {
+            color: var(--text);
+            background: linear-gradient(135deg, rgba(79, 70, 229, 0.14), rgba(59, 130, 246, 0.08));
+            border: 1px solid rgba(99, 102, 241, 0.42);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            width: 100%;
+            margin-bottom: 0.65rem;
+            padding: 0.55rem 0.75rem;
+            border-radius: 10px;
+            box-shadow: 0 8px 20px rgba(30, 41, 59, 0.08);
+        }
+        .production-number-label {
+            color: var(--text);
+            font-size: 0.78rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .production-number-value {
+            color: var(--primary-bright);
+            font-size: 1.25rem;
+            font-weight: 900;
+            line-height: 1;
+            white-space: nowrap;
+        }
+        .production-number-value.is-missing {
+            color: var(--muted);
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+        .sub-text { font-size: 0.8rem; color: var(--text); margin-top: 4px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ship-by {
+            margin-top: 6px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--status-pending-text, #fbbf24);
+            font-weight: 800;
+        }
+        .ship-by strong {
+            background: rgba(251, 191, 36, 0.08);
+            padding: 2px 8px;
+            border-radius: 8px;
+            color: var(--status-pending-text, #fbbf24);
+            font-weight: 900;
+            margin-left: 4px;
+            font-size: 0.95rem;
+        }
+        
+        /* Product name column: FULL visibility with wrapping */
+        .col-name div {
+            white-space: normal !important;
+            word-break: break-word;
+            line-height: 1.35;
+        }
+        
+        .mono { font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 0.85rem; }
+        .price-text { color: var(--primary-bright); font-weight: 700; font-size: 1.1rem; }
+        
+        tbody tr:hover { background: rgba(255,255,255,0.03); }
+        .badge {
+            padding: 5px 12px; border-radius: 99px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; border: 1px solid transparent;
+        }
+        .badge-pending {
+            background: #b91c1c;
+            color: #ffffff;
+            border-color: #ef4444;
+            font-weight: 800;
+            box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2), 0 6px 16px rgba(127, 29, 29, 0.3);
+        }
+        .badge-shipping { background: var(--status-shipping-bg); color: var(--status-shipping-text); border-color: rgba(99, 102, 241, 0.2); }
+        .badge-success { background: var(--status-success-bg); color: var(--status-success-text); border-color: rgba(16, 185, 129, 0.2); }
+        .badge-cancel { background: var(--status-cancel-bg); color: var(--status-cancel-text); border-color: rgba(239, 68, 68, 0.2); }
+        .badge-returned { background: rgba(168, 85, 247, 0.2); color: #a855f7; border-color: rgba(168, 85, 247, 0.3); }
+        .badge-producing { background: rgba(249, 115, 22, 0.2); color: #fb923c; border-color: rgba(249, 115, 22, 0.3); }
+        .badge-proddone { background: rgba(16, 185, 129, 0.2); color: #34d399; border-color: rgba(16, 185, 129, 0.25); }
+
+        .badge-shopee { background: rgba(249, 115, 22, 0.2); color: #f97316; border-color: rgba(249, 115, 22, 0.3); font-weight: 700; }
+        .badge-lazada { background: rgba(59, 130, 246, 0.2); color: #3b82f6; border-color: rgba(59, 130, 246, 0.3); font-weight: 700; }
+        .badge-tiktok { background: rgba(255, 255, 255, 0.1); color: var(--text); border-color: rgba(255, 255, 255, 0.2); font-weight: 700; }
+        .badge-other { background: rgba(148,163,184,0.1); color: var(--text); }
+
+        /* Inline Status Select */
+        .status-select {
+            font-family: 'Kanit', sans-serif;
+            font-size: 0.8rem; font-weight: 500;
+            border: none; border-radius: 20px;
+            padding: 3px 10px; cursor: pointer;
+            transition: all 0.2s; appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            padding-right: 24px;
+        }
+        .status-select:focus { outline: none; box-shadow: 0 0 0 2px var(--primary-glow); }
+        .status-select.s-pending {
+            background-color: #b91c1c;
+            color: #ffffff;
+            font-weight: 800;
+            box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+        }
+        .status-select.s-shipping { background-color: rgba(99,102,241,0.15); color: #818cf8; }
+        .status-select.s-delivered { background-color: rgba(16,185,129,0.15); color: #34d399; }
+        .status-select.s-returned { background-color: rgba(168, 85, 247, 0.15); color: #a855f7; }
+        .status-select.s-cancelled { background-color: rgba(239,68,68,0.15); color: #f87171; }
+        .status-select.s-producing { background-color: rgba(249,115,22,0.15); color: #fb923c; }
+        .status-select.s-proddone { background-color: rgba(16,185,129,0.15); color: #34d399; }
+        .status-select option { background: var(--bg-card); color: var(--text); }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; border: 2px solid transparent; background-clip: content-box; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); border-radius: 10px; border: 2px solid transparent; background-clip: content-box; }
+
+        /* Log Console */
+        .log-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 2rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            max-height: 150px;
+            overflow-y: auto;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.08);
+            scroll-behavior: smooth;
+            display: none; /* Hidden by default, show for debugging */
+        }
+        .log-entry { margin-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 2px; color: var(--text); display: flex; align-items: center; }
+        .log-entry.success { color: #10b981; }
+        .log-entry.error { color: #ef4444; }
+        .log-entry.info { color: #3b82f6; }
+        .log-time { color: var(--text); margin-right: 8px; flex-shrink: 0; }
+        .log-msg { word-break: break-all; }
+
+        .status-text-warning { color: var(--warning); }
+        .status-text-success { color: var(--success-color); }
+        .status-text-error { color: var(--error-color); }
+        .text-muted { color: var(--text); }
+        .empty-state small { color: var(--text); }
+
+        .saving-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #fbbf24; margin-left: 6px; animation: pulse-opacity 0.8s infinite; }
+        @keyframes pulse-opacity { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        
+        .interactive-cell { display: flex; align-items: center; gap: 8px; }
+        .copy-btn { display: inline-flex; align-items: center; justify-content: center; background: rgba(99, 102, 241, 0.18); border: 1px solid rgba(99, 102, 241, 0.35); color: #eff6ff; border-radius: 8px; cursor: pointer; opacity: 1; transition: all 0.2s; font-size: 0.95rem; padding: 4px 8px; min-width: 34px; min-height: 28px; }
+        .copy-btn:hover { transform: translateY(-1px); background: rgba(99, 102, 241, 0.26); }
+        .copy-btn:active { transform: translateY(0); }
+        
+        .call-link { color: var(--green); text-decoration: none; font-weight: 500; transition: 0.2s; display: inline-flex; align-items: center; gap: 4px; }
+        .call-link:hover { color: #34d399; text-decoration: underline; }
+        .nowrap-cell { white-space: nowrap; }
+        .mono-muted { color: var(--muted); }
+        .product-code { margin-top: 0; color: var(--primary-bright); font-weight: 600; }
+        .product-name { font-weight: 500; word-break: break-word; margin-top: 2px; }
+        .center-cell { text-align: center; }
+        .center-primary { text-align: center; color: var(--primary); }
+        .pattern-cell { color: var(--accent-blue); }
+        .book-actions { display: flex; flex-direction: column; gap: 0.5rem; }
+        .action-link-button { background:none;border:none;cursor:pointer;font-family:inherit;text-align:left;padding:0; transition: color 0.2s; }
+        .action-link-button.primary { color: #93c5fd; font-size: 0.9rem; font-weight: 600; }
+        .action-link-button.primary:hover { color: #bfdbfe; }
+        .action-link-button.secondary { color: var(--text); font-size: 0.85rem; }
+        .action-link-button.secondary:hover { color: var(--text); }
+        .book-actions { display: flex; flex-direction: row; flex-wrap: wrap; gap: 0.25rem; align-items: center; margin-bottom: 0.35rem; }
+        .book-status { display: inline-flex; align-items: center; gap: 0.35rem; margin-bottom: 0.25rem; }
+        .book-status .badge { font-size: 0.68rem; padding: 3px 8px; border-radius: 10px; }
+        .action-link-button.primary, .action-link-button.secondary { font-size: 0.78rem; padding: 0.2rem 0.4rem; border-radius: 8px; }
+        .action-link-button.primary { background: rgba(99,102,241,0.12); }
+        .action-link-button.secondary { background: rgba(255,255,255,0.06); }
+        .col-book .btn-compact { padding: 0.2rem 0.45rem; font-size: 0.68rem; min-width: 44px; line-height: 1.2; }
+        .btn-compact { padding: 0.38rem 0.85rem; font-size: 0.78rem; border-radius: 10px; opacity: 0.92; border: 1.5px solid var(--border-strong); background: rgba(255,255,255,0.05); color: var(--text); transition: all 0.2s; }
+        .col-book .btn-compact { padding: 0.28rem 0.6rem; font-size: 0.72rem; min-width: 58px; letter-spacing: 0.01em; }
+        .btn-compact:hover { opacity: 1; background: rgba(255,255,255,0.08); }
+        .bulk-log-panel {
+            display: none; margin: 1rem 1.5rem 0; padding: 1rem;
+            border-radius: 18px; background: rgba(255,255,255,0.08);
+            border: 1px solid var(--border); box-shadow: 0 16px 40px rgba(0,0,0,0.08);
+        }
+        .bulk-log-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 1rem;
+        }
+        .bulk-log-close {
+            background:none; border:none; color: var(--muted); cursor:pointer; padding: 0.25rem;
+        }
+        .bulk-log-entries {
+            display: flex; flex-direction: column; gap: 0.5rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .bulk-log-entry { word-break: break-word; }
+        .status-text-info { color: var(--info); }
+        .status-text-warning { color: var(--warning); }
+        .status-text-success { color: var(--success-color); }
+        .status-text-error { color: var(--error-color); }
+        .text-muted { color: var(--text); }
+        .hidden-input { display: none; }
+        .mono-muted { color: var(--muted); }
+        .product-code { margin-top: 0; color: var(--primary-bright); font-weight: 600; }
+        .product-name { font-weight: 500; word-break: break-word; margin-top: 2px; }
+        .center-cell { text-align: center; }
+        .center-primary { text-align: center; color: var(--primary); }
+        .pattern-cell { color: var(--accent-blue); }
+        .book-actions { display: flex; flex-direction: column; gap: 0.5rem; }
+        .action-link-button {
+            background:none;border:none;cursor:pointer;font-family:inherit;text-align:left;padding:0;
+        }
+        .action-link-button.primary { color: #60a5fa; font-size: 0.9rem; }
+        .action-link-button.secondary { color: var(--text); font-size: 0.8rem; }
+        .note-area { display: flex; flex-direction: column; gap: 0.5rem; }
+        .note-input { width: 100%; min-height: 72px; max-height: 96px; border: 1px solid rgba(148,163,184,0.16); padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,0.06); color: var(--text); font-family: 'Kanit'; font-size: 0.86rem; resize: vertical; }
+        .btn-compact { padding: 0.34rem 0.75rem; font-size: 0.74rem; border-radius: 8px; opacity: 0.88; }
+        .btn-compact:hover { opacity: 1; }
+        .bulk-log-panel {
+            display: none; margin: 1rem 1.5rem 0; padding: 1rem;
+            border-radius: 18px; background: rgba(255,255,255,0.08);
+            border: 1px solid var(--border); box-shadow: 0 16px 40px rgba(0,0,0,0.08);
+        }
+        .bulk-log-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 1rem;
+        }
+        .bulk-log-close {
+            background:none; border:none; color: var(--muted); cursor:pointer; padding: 0.25rem;
+        }
+        .bulk-log-entries {
+            display: flex; flex-direction: column; gap: 0.5rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .bulk-log-entry { word-break: break-word; }
+        
+        .note-input:focus { border-color: var(--primary) !important; background: rgba(255,255,255,0.08) !important; outline: none; box-shadow: 0 0 0 2px var(--primary-glow); }
+
+        /* Animations */
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes scaleIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        
+        .animate-slide-up { animation: slideUp 0.6s cubic-bezier(0.23, 1, 0.32, 1) both; }
+        .animate-fade-in { animation: fadeIn 0.8s ease both; }
+        .animate-scale-in { animation: scaleIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both; }
+        
+        /* Highlight Pulse for Realtime Updates */
+        @keyframes highlightPulse {
+            0% { background-color: rgba(16, 185, 129, 0.3); }
+            100% { background-color: transparent; }
+        }
+        .highlight-new {
+            animation: highlightPulse 2s ease-out;
+        }
+
+        .kpi-card:nth-child(1) { animation-delay: 0.1s; }
+        .kpi-card:nth-child(2) { animation-delay: 0.2s; }
+        .kpi-card:nth-child(3) { animation-delay: 0.3s; }
+        .kpi-card:nth-child(4) { animation-delay: 0.4s; }
+        .kpi-card:nth-child(5) { animation-delay: 0.5s; }
+        .kpi-card:nth-child(6) { animation-delay: 0.6s; }
+        
+        .chart-card:nth-child(1) { animation-delay: 0.4s; }
+        .chart-card:nth-child(2) { animation-delay: 0.5s; }
+        .chart-card:nth-child(3) { animation-delay: 0.6s; }
+
+        .table-footer { padding: 1rem 1.5rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; color: var(--text); font-size: 0.85rem; }
+        .pagination { display: flex; gap: 0.5rem; }
+        .page-btn {
+            width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border);
+            background: transparent; color: var(--text); cursor: pointer; font-family: inherit;
+            display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+        }
+        .page-btn:hover, .page-btn.active { background: var(--primary); border-color: var(--primary); color: var(--text); }
+
+        /* Loading & empty states */
+        .loading-spinner { text-align: center; padding: 3rem; color: var(--text); }
+        .spinner { display: inline-block; width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.7s linear infinite; margin-bottom: 0.5rem; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .empty-state { text-align: center; padding: 3rem; color: var(--text); font-size: 1.1rem; }
+
+        /* Nav link */
+        .nav-back {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            color: var(--text); font-size: 0.9rem; text-decoration: none;
+            background: var(--surface); border: 1px solid var(--border);
+            padding: 0.5rem 1rem; border-radius: 10px; backdrop-filter: blur(12px);
+            transition: all 0.2s;
+        }
+        .nav-back:hover { color: var(--text); border-color: var(--primary); }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed; inset: 0;
+            background: var(--modal-bg); backdrop-filter: blur(12px);
+            display: none; align-items: center; justify-content: center;
+            z-index: 1000; padding: 1.5rem;
+            animation: fadeIn 0.3s ease;
+        }
+        .modal-content {
+            background: var(--surface-strong); border: 1px solid var(--border);
+            border-radius: 20px; width: 100%; max-width: 500px;
+            padding: 2rem; box-shadow: 0 20px 50px rgba(0,0,0,0.12);
+            animation: modalFade 0.3s ease-out;
+        }
+        .modal-content.modal-large {
+            max-width: 800px; text-align: center; border-radius: 12px;
+            background: rgba(255, 255, 255, 0.95); box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+        }
+        .modal-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;
+        }
+        .modal-close-button {
+            border: none; font-size: 1.2rem; cursor: pointer; color: var(--text); background: transparent;
+        }
+        .modal-image-wrapper {
+            margin-bottom: 1.2rem; display: flex; justify-content: center;
+            background: rgba(255, 255, 255, 0.92); padding: 15px;
+            border-radius: 8px; border: 1px dashed var(--border); min-height: 200px;
+        }
+        .modal-image-wrapper img { max-width: 100%; max-height: 75vh; border-radius: 6px; object-fit: contain; }
+        .modal-actions.center { justify-content: center; }
+        @keyframes modalFade { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+        .preview-area {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 12px; padding: 1.2rem; color: var(--text);
+            font-family: 'Kanit', sans-serif; font-size: 0.9rem;
+            white-space: pre-wrap; word-wrap: break-word;
+            max-height: 400px; overflow-y: auto; margin-bottom: 1.5rem;
+        }
+        .modal-actions { display: flex; gap: 1rem; justify-content: flex-end; }
+
+        /* Copy Button Icon */
+        .copy-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(99, 102, 241, 0.18);
+            border: 1px solid rgba(99, 102, 241, 0.35);
+            color: #eff6ff;
+            cursor: pointer;
+            padding: 5px 8px;
+            margin-left: 4px;
+            font-size: 0.92rem;
+            border-radius: 8px;
+            transition: all 0.2s;
+            vertical-align: middle;
+            min-width: 34px;
+            min-height: 30px;
+            opacity: 1;
+        }
+        .copy-btn:hover { background: rgba(99,102,241,0.26); transform: translateY(-1px); }
+        .copy-btn:active { transform: translateY(0); }
+
+        /* Interaction Row */
+        .interactive-cell { display: flex; align-items: center; gap: 8px; }
+        
+        /* Courier Phone link */
+        .call-link { color: var(--warning); text-decoration: none; border-bottom: 1px dashed rgba(251,191,36,0.3); }
+        .call-link:hover { color: var(--warning); border-bottom-color: rgba(251,191,36,0.6); }
+    </style>
+    <link rel="stylesheet" href="dashboard-production.css?v=20260711-2">
+</head>
+<body>
+<div class="page-wrapper">
+
+    <!-- Header -->
+    <div class="header animate-fade-in">
+        <div class="header-left">
+            <div class="header-icon">📊</div>
+            <div>
+                <h1 class="page-title">แดชบอร์ดสต็อก</h1>
+                <p id="lastUpdated">กำลังโหลดข้อมูล...</p>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="header-group">
+                <a href="index.html" class="nav-back">← กลับไปบันทึกข้อมูล</a>
+            <a href="executive_dashboard.html" class="nav-back nav-back-primary">📈 แดชบอร์ดผู้บริหาร</a>
+            <a href="production.html" class="nav-back nav-back-warning">🏭 ฝ่ายผลิต</a>
+            <a href="damage_report.html" class="nav-back nav-back-danger">⚠️ วัสดุเสียหาย</a>
+                <button class="btn btn-primary" onclick="loadAll()">🔄 รีเฟรช</button>
+            </div>
+            <div class="header-group">
+            <div id="user-display-area"></div>
+                <button onclick="auth.logout()" class="btn btn-logout">🚪 ออกจากระบบ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar animate-slide-up">
+        <div class="filter-group">
+            <label>แพลตฟอร์ม</label>
+            <select id="filterPlatform" onchange="applyFilters()">
+                <option value="">ทั้งหมด</option>
+                <option value="Shopee">Shopee</option>
+                <option value="Lazada">Lazada</option>
+                <option value="TikTok">TikTok</option>
+                <option value="Facebook">Facebook</option>
+                <option value="Line">Line</option>
+                <option value="Other">อื่นๆ</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>สถานะ</label>
+            <select id="filterStatus" onchange="applyFilters()">
+                <option value="">ทั้งหมด</option>
+                <option value="จัดส่งสำเร็จ">✅ จัดส่งสำเร็จ</option>
+                <option value="ระหว่างการขนส่ง">🚚 ระหว่างการขนส่ง</option>
+                <option value="พัสดุตีกลับ">🔄 พัสดุตีกลับ</option>
+                <option value="รอดำเนินการ">⏳ รอดำเนินการ</option>
+                <option value="กำลังผลิต">🔨 กำลังผลิต</option>
+                <option value="ผลิตสำเร็จแล้ว">✅ ผลิตสำเร็จแล้ว</option>
+                <option value="ยกเลิก">❌ ยกเลิก</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>วันที่เริ่ม</label>
+            <input type="date" id="filterDateFrom" onchange="applyFilters()">
+        </div>
+        <div class="filter-group">
+            <label>วันที่สิ้นสุด</label>
+            <input type="date" id="filterDateTo" onchange="applyFilters()">
+        </div>
+        <div class="filter-actions">
+            <button class="btn btn-outline" onclick="clearFilters()">ล้างตัวกรอง</button>
+        </div>
+    </div>
+
+    <!-- KPI Cards (Hidden per request)
+    <div class="kpi-grid">
+        ...
+    </div>
+    -->
+
+    <!-- Charts (Hidden per request)
+    <div class="charts-grid">
+        ...
+    </div>
+    -->
+
+    <!-- Orders Table -->
+    <div class="table-card animate-slide-up">
+        <div class="table-header">
+            <div class="table-header-left">
+                <h3>รายการออเดอร์ <span id="tableCount" class="header-tag"></span></h3>
+                <button onclick="triggerBulkUpload()" class="btn btn-outline btn-small">
+                    📸 จับคู่รูปพัสดุ (Bulk)
+                </button>
+            </div>
+            <div class="table-header-actions">
+                <input type="text" class="search-input" id="searchInput" placeholder="🔍 ค้นหา (SKU, ชื่อ, เลขออเดอร์, ผู้ซื้อ)..." oninput="renderTable()">
+            </div>
+        </div>
+
+        <div id="bulkProcessLog" class="bulk-log-panel">
+            <div class="bulk-log-header">
+                <strong>🔄 กำลังประมวลผลรูปภาพ...</strong>
+                <button onclick="this.parentElement.parentElement.style.display='none'" class="bulk-log-close">✕</button>
+            </div>
+            <div id="bulkLogEntries" class="bulk-log-entries"></div>
+        </div>
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="col-date" onclick="sortBy('order_date')">วันที่ / เวลา ↕</th>
+                        <th class="col-platform" onclick="sortBy('platform')">แพลตฟอร์ม ↕</th>
+                        <th class="col-order-tracking">เลขอ้างอิง</th>
+                        <th class="col-name">ชื่อสินค้า</th>
+                        <th class="col-logistics">ข้อมูลลูกค้า</th>
+                        <th class="col-book">ข้อมูลดำเนินการ</th>
+                        <th class="col-note">หมายเหตุ</th>
+                    </tr>
+                </thead>
+                <tbody id="ordersTableBody">
+                    <tr><td colspan="7" class="loading-spinner"><div class="spinner"></div><br>กำลังโหลด...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="table-footer">
+            <span id="pageInfo">-</span>
+            <div class="pagination" id="pagination"></div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Preview Modal -->
+<div class="modal-overlay" id="previewModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>📦 ตรวจสอบรูปแบบข้อความ</h3>
+            <button class="page-btn" onclick="closeModal()">✕</button>
+        </div>
+        <div id="previewText" class="preview-area"></div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
+            <button class="btn btn-primary" id="btnConfirmCopy">
+                คัดลอกข้อมูล
+            </button>
+        </div>
+</div>
+</div>
+
+<!-- Image Modal -->
+<div class="modal-overlay" id="imageModal">
+    <div class="modal-content modal-large">
+        <div class="modal-header">
+            <h3>🖼️ รูปภาพสินค้า / ใบงาน</h3>
+            <button class="page-btn modal-close-button" onclick="closeImageModal()">✕</button>
+        </div>
+        <div class="modal-image-wrapper">
+            <img id="modalBookImage" src="">
+        </div>
+        <div class="modal-actions center">
+            <button class="btn btn-outline" onclick="closeImageModal()">ปิดหน้าต่าง</button>
+            <a href="#" id="modalBookImageDownload" target="_blank" class="btn btn-primary">⬇️ เปิดรูปเต็ม/ดาวน์โหลด</a>
+        </div>
+    </div>
+</div>
+
+<input type="file" id="dashboardBookInput" class="hidden-input" accept="image/*" onchange="handleDashboardUpload(event)">
+        <input type="file" id="bulkBookInput" class="hidden-input" accept="image/*" multiple onchange="handleBulkLinkPhotos(event)">
+
+<script>
+// ==========================================
+// CONFIG - Using Shared Client from auth.js
+// ==========================================
+// SUPABASE_URL and SUPABASE_ANON_KEY are now handled by auth.js to prevent conflicts
+const TABLE = 'stock_orders';
+
+// Use the existing client from auth.js if available, otherwise create one
+const dbClient = (window.auth && window.auth.supabase)
+    ? window.auth.supabase
+    : (window.supabase && window.SUPABASE_CONFIG
+        ? window.supabase.createClient(window.SUPABASE_CONFIG.URL, window.SUPABASE_CONFIG.KEY)
+        : null);
+
+// ==========================================
+// STATE
+// ==========================================
+let allOrders = [];
+let filteredOrders = [];
+let currentPage = 1;
+const PAGE_SIZE = 20;
+let sortField = 'production_number';
+let sortAsc = true;
+let charts = {};
+const dashboardProductImageCache = new Map();
+
+// ==========================================
+// DATA LOADING
+// ==========================================
+// ==========================================
+// UTILS
+// ==========================================
+function logActivity(msg, type = 'info') {
+    const logContainer = document.getElementById('statusLog');
+    if (!logContainer) return;
+    
+    const time = new Date().toLocaleTimeString();
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-msg ${type}">${msg}</span>`;
+    
+    logContainer.prepend(entry);
+    if (logContainer.children.length > 50) logContainer.lastElementChild.remove();
+}
+
+async function loadAll() {
+    logActivity('กำลังโหลดข้อมูลจาก Supabase...', 'info');
+    document.getElementById('lastUpdated').textContent = 'กำลังโหลดข้อมูล...';
+    
+    // Add a timeout to the fetch request
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+        controller.abort();
+        logActivity('การเชื่อมต่อล่าช้าเกิน 10 วินาที (Timeout)', 'error');
+    }, 10000);
+
+    try {
+        const { data, error } = await dbClient
+            .from(TABLE)
+            .select('*')
+            .order('order_date', { ascending: false })
+            .abortSignal(controller.signal);
+
+        clearTimeout(timeoutId);
+
+        if (error) throw error;
+
+        allOrders = data || [];
+        logActivity(`โหลดข้อมูลสำเร็จ (${allOrders.length} รายการ)`, 'success');
+        document.getElementById('lastUpdated').textContent = 
+            `อัพเดตล่าสุด: ${new Date().toLocaleString('th-TH')} | ทั้งหมด ${allOrders.length} รายการ`;
+        
+        applyFilters();
+    } catch (err) {
+        clearTimeout(timeoutId);
+        const errorMsg = err.name === 'AbortError' ? 'การเชื่อมต่อหมดเวลา (Timeout)' : err.message;
+        logActivity(`โหลดข้อมูลล้มเหลว: ${errorMsg}`, 'error');
+        document.getElementById('lastUpdated').textContent = `❌ โหลดข้อมูลล้มเหลว: ${errorMsg}`;
+        document.getElementById('ordersTableBody').innerHTML = 
+            `<tr><td colspan="17" class="empty-state">❌ ไม่สามารถโหลดข้อมูลได้<br><small class="text-muted">${errorMsg}</small></td></tr>`;
+    }
+}
+
+// ==========================================
+// FILTERS & SORT
+// ==========================================
+function applyFilters() {
+    const platform = document.getElementById('filterPlatform').value;
+    const status = document.getElementById('filterStatus').value;
+    const dateFrom = document.getElementById('filterDateFrom').value;
+    const dateTo = document.getElementById('filterDateTo').value;
+
+    filteredOrders = allOrders.filter(o => {
+        const oStatus = o.tracking_status;
+        if (platform && o.platform !== platform) return false;
+        if (status && oStatus !== status) return false;
+        if (dateFrom && o.order_date < dateFrom) return false;
+        if (dateTo && o.order_date > dateTo) return false;
+        return true;
+    });
+
+    currentPage = 1;
+    updateKPIs();
+    updateCharts();
+    renderTable();
+}
+
+function clearFilters() {
+    document.getElementById('filterPlatform').value = '';
+    document.getElementById('filterStatus').value = '';
+    document.getElementById('filterDateFrom').value = '';
+    document.getElementById('filterDateTo').value = '';
+    applyFilters();
+}
+
+function sortBy(field) {
+    if (sortField === field) sortAsc = !sortAsc;
+    else { sortField = field; sortAsc = true; }
+    renderTable();
+}
+
+function parseProductionNumber(value) {
+    const match = String(value || '').trim().match(/^(\d+)\s*\/\s*(\d+)$/);
+    return match ? { sequence: Number(match[1]), day: Number(match[2]) } : null;
+}
+
+function getDashboardProductionNumber(order) {
+    const stored = parseProductionNumber(order?.production_number);
+    if (stored && stored.sequence > 0 && stored.day >= 1 && stored.day <= 31) {
+        return {
+            label: `${stored.sequence}/${stored.day}`,
+            isStored: true
+        };
+    }
+
+    const targetDate = String(order?.order_date || '').slice(0, 10);
+    if (!targetDate) return { label: 'ยังไม่กำหนด', isStored: false };
+
+    const productionStatuses = new Set(['รอดำเนินการ', 'กำลังผลิต', 'ผลิตสำเร็จแล้ว']);
+    const sameDayProductionOrders = allOrders.filter(item =>
+        String(item?.order_date || '').slice(0, 10) === targetDate
+        && productionStatuses.has(item?.tracking_status)
+        && !String(item?.tracking_number || '').trim()
+    );
+    const sequence = sameDayProductionOrders.findIndex(item => item.id === order.id) + 1;
+    if (sequence < 1) return { label: 'ยังไม่กำหนด', isStored: false };
+
+    const day = Number(targetDate.slice(8, 10));
+    if (!day) return { label: 'ยังไม่กำหนด', isStored: false };
+
+    return {
+        label: `${sequence}/${day}`,
+        isStored: false
+    };
+}
+
+function renderDashboardProductionNumber(order) {
+    const productionNumber = getDashboardProductionNumber(order);
+    const valueClass = productionNumber.label === 'ยังไม่กำหนด' ? 'is-missing' : '';
+    const sourceTitle = productionNumber.isStored
+        ? 'เลขที่การผลิตจากฐานข้อมูล'
+        : 'เลขที่การผลิตคำนวณชั่วคราว เพราะฐานข้อมูลยังไม่มีค่า';
+
+    return `
+        <div class="production-number-text" title="${sourceTitle}">
+            <span class="production-number-label">🧾 เลขที่การผลิต:</span>
+            <strong class="production-number-value ${valueClass}">${productionNumber.label}</strong>
+        </div>`;
+}
+
+function getProductionDateKey(order) {
+    const orderDate = String(order.order_date || '').trim();
+    const orderDateMatch = orderDate.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (orderDateMatch) return orderDateMatch[1];
+
+    if (order.payment_time) {
+        const paymentDate = new Date(order.payment_time);
+        if (!Number.isNaN(paymentDate.getTime())) {
+            const parts = new Intl.DateTimeFormat('en-US', {
+                timeZone: 'Asia/Bangkok',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            }).formatToParts(paymentDate);
+            const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+            return `${values.year}-${values.month}-${values.day}`;
+        }
+    }
+
+    return '';
+}
+
+function compareProductionOrders(aOrder, bOrder) {
+    const a = parseProductionNumber(getDashboardProductionNumber(aOrder).label);
+    const b = parseProductionNumber(getDashboardProductionNumber(bOrder).label);
+    if (!a && !b) return 0;
+    if (!a) return 1;
+    if (!b) return -1;
+
+    const aDate = getProductionDateKey(aOrder);
+    const bDate = getProductionDateKey(bOrder);
+    if (aDate && bDate && aDate !== bDate) return bDate.localeCompare(aDate);
+    if (aDate && !bDate) return -1;
+    if (!aDate && bDate) return 1;
+    if (a.day !== b.day) return b.day - a.day;
+    return a.sequence - b.sequence;
+}
+
+// ==========================================
+// KPI UPDATES
+// ==========================================
+function updateKPIs() {
+    const data = filteredOrders;
+    const revenue = data.reduce((sum, o) => sum + (parseFloat(o.price) || 0), 0);
+    const qty = data.reduce((sum, o) => sum + (parseInt(o.quantity) || 0), 0);
+    const pending = data.filter(o => o.tracking_status === 'รอดำเนินการ').length;
+    const delivered = data.filter(o => o.tracking_status === 'จัดส่งสำเร็จ').length;
+    const cancelled = data.filter(o => o.tracking_status === 'ยกเลิก').length;
+
+    const ids = ['kpiTotal', 'kpiRevenue', 'kpiPending', 'kpiDelivered', 'kpiCancelled', 'kpiQty'];
+    const recordQty = data.reduce((sum, o) => sum + (parseInt(o.product_qty || 1) || 1), 0);
+    const vals = [
+        data.length.toLocaleString('th-TH'),
+        revenue.toLocaleString('th-TH', {minimumFractionDigits: 0, maximumFractionDigits: 0}),
+        pending.toLocaleString('th-TH'),
+        delivered.toLocaleString('th-TH'),
+        cancelled.toLocaleString('th-TH'),
+        recordQty.toLocaleString('th-TH')
+    ];
+
+    ids.forEach((id, i) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = vals[i];
+    });
+}
+
+// ==========================================
+// CHARTS
+// ==========================================
+function updateCharts() {
+    // Platform Donut
+    const platformCounts = {};
+    filteredOrders.forEach(o => { platformCounts[o.platform] = (platformCounts[o.platform] || 0) + 1; });
+    const pLabels = Object.keys(platformCounts);
+    const pData = Object.values(platformCounts);
+    const pColors = pLabels.map(p => p === 'Shopee' ? '#f97316' : p === 'Lazada' ? '#3b82f6' : p === 'TikTok' ? '#a855f7' : '#64748b');
+
+    const chartPlatformEl = document.getElementById('chartPlatform');
+    if (chartPlatformEl) {
+        if (charts.platform) charts.platform.destroy();
+        charts.platform = new Chart(chartPlatformEl, {
+            type: 'doughnut',
+            data: { labels: pLabels, datasets: [{ data: pData, backgroundColor: pColors, borderWidth: 2, borderColor: '#0a0f1e' }]},
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { family: 'Kanit', size: 12 }, padding: 12 }}}}
+        });
+    }
+
+    // Status Donut
+    const statusCounts = {};
+    filteredOrders.forEach(o => { 
+        const s = o.tracking_status;
+        statusCounts[s] = (statusCounts[s] || 0) + 1; 
+    });
+    const sLabels = Object.keys(statusCounts);
+    const sData = Object.values(statusCounts);
+    const sColors = sLabels.map(s => {
+        if (s === 'จัดส่งสำเร็จ' || s === 'ผลิตสำเร็จแล้ว') return '#10b981';
+        if (s === 'รอดำเนินการ') return '#f59e0b';
+        if (s === 'กำลังผลิต') return '#f97316';
+        if (s === 'กำลังจัดส่ง' || s === 'ระหว่างการขนส่ง') return '#6366f1';
+        if (s === 'พัสดุตีกลับ') return '#a855f7';
+        return '#ef4444';
+    });
+
+    const chartStatusEl = document.getElementById('chartStatus');
+    if (chartStatusEl) {
+        if (charts.status) charts.status.destroy();
+        charts.status = new Chart(chartStatusEl, {
+            type: 'doughnut',
+            data: { labels: sLabels, datasets: [{ data: sData, backgroundColor: sColors, borderWidth: 2, borderColor: '#0a0f1e' }]},
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { family: 'Kanit', size: 12 }, padding: 12 }}}}
+        });
+    }
+
+    // Revenue by platform bars
+    const platformRevenueListEl = document.getElementById('platformRevenueList');
+    if (platformRevenueListEl) {
+        const platformRevenue = {};
+        filteredOrders.forEach(o => { platformRevenue[o.platform] = (platformRevenue[o.platform] || 0) + (parseFloat(o.price) || 0); });
+        const maxRev = Math.max(...Object.values(platformRevenue), 1);
+        const platformColors2 = { 'Shopee': '#f97316', 'Lazada': '#3b82f6', 'TikTok': '#a855f7' };
+
+        const platformRows = Object.entries(platformRevenue)
+            .sort((a,b) => b[1]-a[1])
+            .map(([p, rev]) => {
+                const className = (p || 'other').toLowerCase();
+                return `
+                    <div class="platform-row">
+                        <span class="platform-name">${p}</span>
+                        <div class="platform-bar-bg">
+                            <div class="platform-bar ${className}" data-width="${(rev/maxRev)*100}%"></div>
+                        </div>
+                        <span class="platform-value">${rev.toLocaleString('th-TH', {maximumFractionDigits:0})}฿</span>
+                    </div>
+                `;
+            });
+        platformRevenueListEl.innerHTML = platformRows.join('');
+        platformRevenueListEl.querySelectorAll('.platform-bar').forEach(bar => {
+            bar.style.setProperty('--bar-width', bar.dataset.width);
+        });
+    }
+}
+
+// Helper to apply status colors to badges - defined once below
+
+// Helper to filter objects based on current UI state
+function matchesCurrentFilters(o) {
+    const platform = document.getElementById('filterPlatform').value;
+    const status = document.getElementById('filterStatus').value;
+    const dateFrom = document.getElementById('filterDateFrom').value;
+    const dateTo = document.getElementById('filterDateTo').value;
+    const search = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+
+    if (platform && o.platform !== platform) return false;
+    
+    // Status mapping for backward compatibility
+    if (status) {
+        if (status === 'ระหว่างการขนส่ง') {
+            if (o.tracking_status !== 'ระหว่างการขนส่ง' && o.tracking_status !== 'กำลังจัดส่ง') return false;
+        } else {
+            if (o.tracking_status !== status) return false;
+        }
+    }
+
+    if (dateFrom && o.order_date < dateFrom) return false;
+    if (dateTo && o.order_date > dateTo) return false;
+
+    if (search) {
+        const match = (o.product_name || '').toLowerCase().includes(search)
+            || (o.product_code || '').toLowerCase().includes(search)
+            || (o.order_number || '').toLowerCase().includes(search)
+            || (o.production_number || '').toLowerCase().includes(search)
+            || (o.tracking_number || '').toLowerCase().includes(search)
+            || (o.courier_phone || '').toLowerCase().includes(search)
+            || (o.buyer_name || '').toLowerCase().includes(search)
+            || (o.address || '').toLowerCase().includes(search)
+            || (o.province || '').toLowerCase().includes(search);
+        if (!match) return false;
+    }
+    return true;
+}
+
+async function loadDashboardProductImage(productCode) {
+    const sku = (productCode || '').trim().toUpperCase();
+    if (!sku || !dbClient) return null;
+    if (dashboardProductImageCache.has(sku)) return dashboardProductImageCache.get(sku);
+
+    const request = dbClient
+        .from('product_images')
+        .select('image_url')
+        .eq('sku', sku)
+        .maybeSingle()
+        .then(({ data, error }) => {
+            if (error) {
+                console.warn(`Unable to load product image for ${sku}:`, error.message);
+                return null;
+            }
+            return data?.image_url || null;
+        })
+        .catch(error => {
+            console.warn(`Unable to load product image for ${sku}:`, error);
+            return null;
+        });
+
+    dashboardProductImageCache.set(sku, request);
+    return request;
+}
+
+async function hydrateDashboardProductImage(order) {
+    const container = document.getElementById(`productImage_${order.id}`);
+    if (!container) return;
+
+    const imageUrl = await loadDashboardProductImage(order.product_code);
+    if (!container.isConnected) return;
+    container.classList.remove('is-loading');
+
+    if (!imageUrl) {
+        container.classList.add('is-empty');
+        container.title = 'ยังไม่มีรูปสินค้า';
+        return;
+    }
+
+    const image = document.createElement('img');
+    image.src = imageUrl;
+    image.alt = `รูปสินค้า ${order.product_code || ''}`;
+    image.loading = 'lazy';
+    image.addEventListener('error', () => container.classList.add('is-empty'));
+
+    container.replaceChildren(image);
+    container.classList.add('has-image');
+    container.title = 'คลิกเพื่อดูรูปขนาดใหญ่';
+    container.onclick = () => openImageModal(imageUrl);
+}
+
+function hydrateDashboardProductImages(orders) {
+    orders.forEach(order => hydrateDashboardProductImage(order));
+}
+
+function formatDashboardPaymentTime(value) {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+
+    return new Intl.DateTimeFormat('th-TH', {
+        timeZone: 'Asia/Bangkok',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23'
+    }).format(date);
+}
+
+function formatDashboardShipByDate(value) {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+
+    return new Intl.DateTimeFormat('th-TH', {
+        timeZone: 'Asia/Bangkok',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).format(date);
+}
+
+// Helper to render a single row's content without the <tr> tag
+function renderOrderRow(o) {
+    return `
+        <td class="col-date nowrap-cell">
+            <div>${o.order_date || '-'}</div>
+            <span class="sub-text">เวลา ${formatDashboardPaymentTime(o.payment_time)} น.</span>
+            <div class="transport-info">
+                ${o.delivery_service ? `<div><strong>ขนส่ง:</strong> ${o.delivery_service}</div>` : ''}
+                ${o.courier_phone ? `<div><strong>เบอร์ขนส่ง:</strong> ${o.courier_phone}</div>` : ''}
+                ${o.latest_location ? `<div><strong>สถานที่ล่าสุด:</strong> ${o.latest_location}${o.province ? ` / ${o.province}` : ''}</div>` : ''}
+            </div>
+            <div class="ship-by">🚚 <span>กำหนดจัดส่ง:</span> <strong>${formatDashboardShipByDate(o.ship_by_date)}</strong></div>
+        </td>
+        <td class="col-platform">
+            <span class="badge badge-${(o.platform||'').toLowerCase()}">${o.platform || '-'}</span>
+        </td>
+        <td class="col-order-tracking">
+            <div class="interactive-cell">
+                <span class="mono mono-muted">${o.order_number || '-'}</span>
+                ${o.order_number ? `<button class="copy-btn" title="คัดลอกเลขออเดอร์" onclick="copyText('${o.order_number}', 'เลขออเดอร์')">📋</button>` : ''}
+            </div>
+            <div class="interactive-cell mt-1">
+                <span class="mono">${o.tracking_number || '-'}</span>
+                ${o.tracking_number ? `<button class="copy-btn" title="คัดลอกเลขพัสดุ" onclick="copyText('${o.tracking_number}', 'เลขพัสดุ')">📋</button>` : ''}
+            </div>
+        </td>
+        <td class="col-name">
+            ${renderDashboardProductionNumber(o)}
+            <div class="dashboard-product-cell">
+                <button type="button" id="productImage_${o.id}" class="dashboard-product-image is-loading" title="กำลังโหลดรูปสินค้า" aria-label="รูปสินค้า ${o.product_code || ''}">
+                    <span class="dashboard-product-image-placeholder">📦</span>
+                </button>
+                <div class="dashboard-product-copy">
+                    <div class="sub-text mono product-code" title="${o.product_code || ''}">${o.product_code || '-'}</div>
+                    <div class="product-name" title="${o.product_name || ''}">${o.product_name || '-'}</div>
+                    <div class="product-details">
+                        <div class="product-detail"><span>ขนาด</span><strong>${o.product_size || '-'}</strong></div>
+                        <div class="product-detail"><span>ช่อง</span><strong>${o.slots || '-'}</strong></div>
+                        <div class="product-detail"><span>ลาย</span><strong>${o.pattern || '-'}</strong></div>
+                        <div class="product-detail"><span>สีอลู</span><strong>${o.aluminum_color || '-'}</strong></div>
+                        <div class="product-detail"><span>สีกระจก</span><strong>${o.glass_color || '-'}</strong></div>
+                        <div class="product-detail"><span>มุ้ง</span><strong>${o.screen_type || '-'}</strong></div>
+                        <div class="product-detail"><span>จำนวน</span><strong>${o.quantity || '-'}</strong></div>
+                    </div>
+                </div>
+            </div>
+        </td>
+        <td class="col-logistics">
+            <div class="customer-info">
+                <div class="customer-field"><span class="field-label">ชื่อลูกค้า</span><span class="field-value">${o.buyer_name || '-'}</span></div>
+                <div class="customer-field"><span class="field-label">เบอร์ขนส่ง</span><span class="field-value">${(o.courier_phone && o.courier_phone !== '-') ? `<a href="tel:${o.courier_phone}" class="call-link">📞 ${o.courier_phone}</a>` : '-'}</span></div>
+                <div class="customer-field"><span class="field-label">สถานที่ล่าสุด</span><span class="field-value">${o.latest_location ? `${o.latest_location} / ${o.province || '-'}` : '-'}</span></div>
+            </div>
+        </td>
+        <td class="col-book">
+            <div class="book-status">
+                <span class="badge ${statusBadge(o.tracking_status)}">
+                    ${o.tracking_status === 'รอดำเนินการ' ? '⏳ รอดำเนินการ' : 
+                      o.tracking_status === 'กำลังผลิต' ? '🔨 กำลังผลิต' :
+                      o.tracking_status === 'ผลิตสำเร็จแล้ว' ? '✅ ผลิตสำเร็จแล้ว' :
+                      (o.tracking_status === 'กำลังจัดส่ง' || o.tracking_status === 'ระหว่างการขนส่ง') ? '🚚 ระหว่างการขนส่ง' : 
+                      o.tracking_status === 'จัดส่งสำเร็จ' ? '✅ จัดส่งสำเร็จ' : 
+                      o.tracking_status === 'พัสดุตีกลับ' ? '🔄 พัสดุตีกลับ' : 
+                      o.tracking_status === 'ยกเลิก' ? '❌ ยกเลิก' : (o.tracking_status || '-')}
+                </span>
+            </div>
+            ${o.book_image_url ? 
+                `<div class="book-actions">
+                    <button onclick="openImageModal('${o.book_image_url}')" class="action-link-button primary">🖼️</button>
+                    <button onclick="triggerUpload('${o.id}')" class="action-link-button secondary">🔄</button>
+                 </div>` : 
+                `<button onclick="triggerUpload('${o.id}')" class="btn btn-outline btn-compact">📷</button>`}
+            ${window.auth?.hasPermission?.('action_delete_order') === true ? `<button onclick="deleteDashboardOrder('${o.id}', this)" class="btn btn-outline btn-compact" style="margin-top:8px;color:#f87171;border-color:rgba(239,68,68,0.45);" title="ลบออเดอร์ออกจาก Supabase">🗑️ ลบ</button>` : ''}
+        </td>
+        <td class="col-note">
+            <div class="note-area">
+                <textarea id="note_${o.id}" class="note-input" rows="4" placeholder="โน้ต...">${o.note || ''}</textarea>
+                <button onclick="updateNote('${o.id}', this)" class="btn btn-outline btn-compact">💾 บันทึก</button>
+            </div>
+        </td>
+    `;
+}
+
+// ==========================================
+// TABLE RENDER
+// ==========================================
+function renderTable() {
+    const search = document.getElementById('searchInput').value.toLowerCase().trim();
+    
+    let data = [...filteredOrders].filter(o => {
+        if (!search) return true;
+        return (o.product_name || '').toLowerCase().includes(search)
+            || (o.product_code || '').toLowerCase().includes(search)
+            || (o.order_number || '').toLowerCase().includes(search)
+            || getDashboardProductionNumber(o).label.toLowerCase().includes(search)
+            || (o.tracking_number || '').toLowerCase().includes(search)
+            || (o.courier_phone || '').toLowerCase().includes(search)
+            || (o.buyer_name || '').toLowerCase().includes(search)
+            || (o.address || '').toLowerCase().includes(search)
+            || (o.province || '').toLowerCase().includes(search);
+    });
+
+    // Sort
+    data.sort((a, b) => {
+        if (sortField === 'production_number') {
+            const result = compareProductionOrders(a, b);
+            return sortAsc ? result : -result;
+        }
+
+        let av = a[sortField] ?? '', bv = b[sortField] ?? '';
+        if (typeof av === 'string') av = av.toLowerCase();
+        if (typeof bv === 'string') bv = bv.toLowerCase();
+        const primaryResult = av === bv ? 0 : (sortAsc ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1));
+        if (primaryResult !== 0) return primaryResult;
+
+        // Keep orders from the same date in their actual production sequence.
+        if (sortField === 'order_date') {
+            return compareProductionOrders(a, b);
+        }
+        return 0;
+    });
+
+    const total = data.length;
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const page = data.slice(start, start + PAGE_SIZE);
+
+    document.getElementById('tableCount').textContent = `(${total.toLocaleString('th-TH')} รายการ)`;
+    document.getElementById('pageInfo').textContent = `แสดง ${start + 1}–${Math.min(start + PAGE_SIZE, total)} จาก ${total.toLocaleString('th-TH')} รายการ`;
+
+    if (page.length === 0) {
+        document.getElementById('ordersTableBody').innerHTML = `<tr><td colspan="17" class="empty-state">📭 ไม่พบรายการ</td></tr>`;
+    } else {
+        document.getElementById('ordersTableBody').innerHTML = page.map(o => `
+            <tr id="row_${o.id}" class="${o._isNew ? 'highlight-new' : ''}">
+                ${renderOrderRow(o)}
+            </tr>
+        `).join('');
+        hydrateDashboardProductImages(page);
+    }
+
+    // Pagination
+    const totalPages = Math.ceil(total / PAGE_SIZE);
+    let pag = '';
+    for (let i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+            pag += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="goPage(${i})">${i}</button>`;
+        } else if (i === currentPage - 3 || i === currentPage + 3) {
+            pag += `<button class="page-btn" disabled>...</button>`;
+        }
+    }
+    document.getElementById('pagination').innerHTML = pag;
+}
+
+async function updateNote(id, btnElement) {
+    const noteEl = document.getElementById('note_' + id);
+    if (!noteEl || !dbClient) return;
+    const noteValue = noteEl.value;
+    const order = allOrders.find(x => x.id === id);
+
+    logActivity(`กำลังบันทึกหมายเหตุ [${order?.order_number || id}]...`, 'info');
+    const originalHTML = btnElement.innerHTML;
+    btnElement.innerHTML = '⏳...';
+    btnElement.disabled = true;
+
+    try {
+        const { error } = await dbClient.from('stock_orders').update({ note: noteValue }).eq('id', id);
+        if (error) throw error;
+        
+        if (order) order.note = noteValue;
+        const fo = filteredOrders.find(x => x.id === id);
+        if (fo) fo.note = noteValue;
+        
+        logActivity(`บันทึกหมายเหตุสำเร็จ [${order?.order_number || id}]`, 'success');
+        btnElement.innerHTML = '✅ สำเร็จ';
+        btnElement.style.color = '#34d399';
+        btnElement.style.borderColor = '#34d399';
+        
+        setTimeout(() => {
+            btnElement.innerHTML = originalHTML;
+            btnElement.style.color = '';
+            btnElement.style.borderColor = '';
+            btnElement.disabled = false;
+        }, 1500);
+    } catch(err) {
+        logActivity(`บันทึกหมายเหตุล้มเหลว: ${err.message}`, 'error');
+        alert("บันทึกหมายเหตุล้มเหลว: " + err.message);
+        btnElement.innerHTML = originalHTML;
+        btnElement.disabled = false;
+    }
+}
+
+function goPage(p) { currentPage = p; renderTable(); }
+
+function statusBadge(s) {
+    if (s === 'จัดส่งสำเร็จ') return 'badge-success';
+    if (s === 'รอดำเนินการ') return 'badge-pending';
+    if (s === 'กำลังผลิต') return 'badge-producing';
+    if (s === 'ผลิตสำเร็จแล้ว') return 'badge-proddone';
+    if (s === 'กำลังจัดส่ง' || s === 'ระหว่างการขนส่ง') return 'badge-shipping';
+    if (s === 'พัสดุตีกลับ') return 'badge-returned';
+    if (s === 'ยกเลิก') return 'badge-cancel';
+    return '';
+}
+
+function statusClass(s) {
+    if (s === 'จัดส่งสำเร็จ') return 's-delivered';
+    if (s === 'รอดำเนินการ') return 's-pending';
+    if (s === 'กำลังผลิต') return 's-producing';
+    if (s === 'ผลิตสำเร็จแล้ว') return 's-proddone';
+    if (s === 'กำลังจัดส่ง' || s === 'ระหว่างการขนส่ง') return 's-shipping';
+    if (s === 'พัสดุตีกลับ') return 's-returned';
+    if (s === 'ยกเลิก') return 's-cancelled';
+    return 's-pending';
+}
+
+async function updateStatus(id, selectEl) {
+    const newStatus = selectEl.value;
+    const order = allOrders.find(o => o.id === id);
+    const originalClass = selectEl.className;
+
+    if (newStatus === 'ยกเลิก' && window.auth?.hasPermission?.('action_cancel_order') !== true) {
+        alert('❌ คุณไม่มีสิทธิ์ยกเลิกออเดอร์');
+        selectEl.value = order?.tracking_status || 'รอดำเนินการ';
+        return;
+    }
+    
+    logActivity(`กำลังอัปเดตสถานะ [${order?.order_number || id}] -> ${newStatus}...`, 'info');
+    selectEl.disabled = true;
+    selectEl.className = 'status-select s-pending';
+
+    try {
+        const { error } = await dbClient
+            .from(TABLE)
+            .update({ 
+                tracking_status: newStatus 
+            })
+            .eq('id', id);
+
+        if (error) throw error;
+
+        if (order) order.tracking_status = newStatus;
+        const fidx = filteredOrders.findIndex(o => o.id === id);
+        if (fidx !== -1) filteredOrders[fidx].tracking_status = newStatus;
+        
+        logActivity(`อัปเดตสถานะสำเร็จ [${order?.order_number || id}]`, 'success');
+        selectEl.className = `status-select ${statusClass(newStatus)}`;
+        selectEl.disabled = false;
+
+        updateKPIs();
+        updateCharts();
+
+    } catch (err) {
+        logActivity(`อัปเดตสถานะล้มเหลว: ${err.message}`, 'error');
+        alert(`❌ อัพเดตสถานะล้มเหลว: ${err.message}`);
+        selectEl.className = originalClass;
+        selectEl.value = order?.tracking_status || newStatus;
+        selectEl.disabled = false;
+    }
+}
+
+async function removeDashboardBackupStock(order) {
+    const completedStatuses = new Set(['ผลิตสำเร็จ', 'ผลิตสำเร็จแล้ว']);
+    if (!completedStatuses.has(order?.tracking_status)) return;
+
+    const trackingNumber = String(order?.tracking_number || '').trim().toLowerCase();
+    if (trackingNumber && !['-', 'null'].includes(trackingNumber)) return;
+
+    const productCode = String(order?.product_code || '').trim();
+    if (!productCode) return;
+
+    const { data: stock, error: selectError } = await dbClient
+        .from('production_backup_stock')
+        .select('id, quantity')
+        .eq('product_code', productCode)
+        .maybeSingle();
+    if (selectError) throw selectError;
+    if (!stock) return;
+
+    const quantity = Math.max((parseInt(stock.quantity, 10) || 0) - (parseInt(order.quantity, 10) || 1), 0);
+    const { error: updateError } = await dbClient
+        .from('production_backup_stock')
+        .update({ quantity, updated_at: new Date().toISOString() })
+        .eq('id', stock.id);
+    if (updateError) throw updateError;
+
+    const returnedQuantity = parseInt(order.quantity, 10) || 1;
+    const { error: logError } = await dbClient
+        .from('production_backup_stock_log')
+        .insert({
+            product_code: productCode,
+            old_qty: parseInt(stock.quantity, 10) || 0,
+            new_qty: quantity,
+            delta: -returnedQuantity,
+            operator: window.auth?.user?.email || 'ระบบ',
+            reason: `ลดสต็อกสำรองจากการลบออเดอร์ | order_id: ${order.id} | order_number: ${order.order_number || '-'} | sku: ${productCode}`
+        });
+    if (logError) console.warn('บันทึกประวัติการลดสต็อกสำรองไม่สำเร็จ:', logError.message);
+}
+
+async function deleteDashboardOrder(id, btnEl) {
+    if (window.auth?.hasPermission?.('action_delete_order') !== true) {
+        alert('❌ คุณไม่มีสิทธิ์ลบออเดอร์');
+        return;
+    }
+
+    const order = allOrders.find(item => item.id === id);
+    if (!order) {
+        alert('❌ ไม่พบออเดอร์ที่ต้องการลบ');
+        return;
+    }
+
+    const confirmed = confirm(
+        `ยืนยันลบออเดอร์ ${order.order_number || '-'}\nSKU: ${order.product_code || '-'}\n\nข้อมูลนี้จะถูกลบออกจาก Supabase และไม่สามารถย้อนกลับได้`
+    );
+    if (!confirmed) return;
+
+    const originalText = btnEl?.innerHTML;
+    if (btnEl) {
+        btnEl.disabled = true;
+        btnEl.innerHTML = '⏳ ลบ...';
+    }
+
+    try {
+        const isDone = order.tracking_status === 'ผลิตสำเร็จแล้ว';
+        if (!isDone) {
+            await removeDashboardBackupStock(order);
+
+            if (order.stock_deducted === true) {
+                const { error: returnError } = await dbClient.rpc(
+                    'rpc_return_components_for_order',
+                    { p_order_id: id }
+                );
+                if (returnError) throw new Error(`คืนสต็อกก่อนลบไม่สำเร็จ: ${returnError.message}`);
+            }
+        }
+
+        const { error } = await dbClient.from(TABLE).delete().eq('id', id);
+        if (error) throw error;
+
+        allOrders = allOrders.filter(item => item.id !== id);
+        filteredOrders = filteredOrders.filter(item => item.id !== id);
+        logActivity(`ลบออเดอร์ [${order.order_number || id}] ออกจาก Supabase แล้ว`, 'success');
+        applyFilters();
+        updateKPIs();
+        updateCharts();
+    } catch (err) {
+        logActivity(`ลบออเดอร์ล้มเหลว: ${err.message}`, 'error');
+        alert(`❌ ลบออเดอร์ไม่สำเร็จ: ${err.message}`);
+        if (btnEl) btnEl.disabled = false;
+    } finally {
+        if (btnEl && btnEl.isConnected) btnEl.innerHTML = originalText;
+    }
+}
+
+let currentPreviewText = '';
+
+// ==========================================
+// IMAGE UPLOAD (DASHBOARD)
+// ==========================================
+let currentUploadOrderId = null;
+
+function triggerUpload(orderId) {
+    currentUploadOrderId = orderId;
+    document.getElementById('dashboardBookInput').click();
+}
+
+async function handleDashboardUpload(event) {
+    const file = event.target.files[0];
+    if (!file || !currentUploadOrderId) return;
+    
+    const order = allOrders.find(o => o.id === currentUploadOrderId);
+    if (!order) return;
+    
+    logActivity(`กำลังเตรียมอัปโหลดรูปภาพสำหรับออเดอร์ [${order.order_number}]...`, 'info');
+    try {
+        const lastUpdatedEl = document.getElementById('lastUpdated');
+        const originalText = lastUpdatedEl.textContent;
+        lastUpdatedEl.innerHTML = `<span class="status-text-warning">⏳ กำลังอัปโหลดรูปลงในออเดอร์...</span>`;
+        
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        
+        logActivity(`กำลังอัปโหลดไฟล์ไปยัง Storage...`, 'info');
+        const { data: uploadData, error: uploadError } = await dbClient
+            .storage
+            .from('book_images')
+            .upload(fileName, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = dbClient
+            .storage
+            .from('book_images')
+            .getPublicUrl(fileName);
+
+        const newUrl = publicUrlData.publicUrl;
+        
+        logActivity(`กำลังอัปเดตฐานข้อมูลด้วย URL ใหม่...`, 'info');
+        const { error: dbError } = await dbClient
+            .from(TABLE)
+            .update({ book_image_url: newUrl })
+            .eq('id', currentUploadOrderId);
+            
+        if (dbError) throw dbError;
+        
+        order.book_image_url = newUrl;
+        const fidx = filteredOrders.findIndex(o => o.id === currentUploadOrderId);
+        if (fidx !== -1) filteredOrders[fidx].book_image_url = newUrl;
+        
+        logActivity(`อัปโหลดและอัปเดตรูปภาพสำเร็จ [${order.order_number}]`, 'success');
+        renderTable();
+        lastUpdatedEl.textContent = `✅ อัปโหลดรูปสำเร็จ!`;
+        setTimeout(() => { if (lastUpdatedEl.textContent === '✅ อัปโหลดรูปสำเร็จ!') lastUpdatedEl.textContent = originalText; }, 3000);
+        
+    } catch (err) {
+        logActivity(`อัปโหลดรูปภาพล้มเหลว: ${err.message}`, 'error');
+        alert(`❌ อัปโหลดรูปภาพล้มเหลว: ${err.message}`);
+        document.getElementById('lastUpdated').textContent = `❌ ผิดพลาด: ${err.message}`;
+    } finally {
+        event.target.value = '';
+        currentUploadOrderId = null;
+    }
+}
+
+function triggerBulkUpload() {
+    document.getElementById('bulkBookInput').click();
+}
+
+async function handleBulkLinkPhotos(event) {
+    const files = Array.from(event.target.files);
+    if (!files.length) return;
+
+    const logBox = document.getElementById('bulkProcessLog');
+    const logEntries = document.getElementById('bulkLogEntries');
+    logBox.style.display = 'block';
+    logEntries.innerHTML = '';
+
+    const addLog = (msg, type = 'info') => {
+        const color = type === 'success' ? '#10b981' : (type === 'error' ? '#ef4444' : '#94a3b8');
+        logEntries.innerHTML += `<div class="log-entry ${type}">[${new Date().toLocaleTimeString()}] ${msg}</div>`;
+        logBox.scrollTop = logBox.scrollHeight;
+    };
+
+    addLog(`เริ่มการประมวลผลทั้งหมด ${files.length} ไฟล์...`);
+
+    for (const file of files) {
+        try {
+            // 1. ดึงชื่อไฟล์ออกมาเป็นเลขพัสดุ (ตัดนามสกุลออก)
+            const trackingNum = file.name.split('.').slice(0, -1).join('.').trim();
+            addLog(`กำลังตรวจสอบ: ${trackingNum}...`);
+
+            // 2. ค้นหาใน Supabase
+            const { data: orders, error: searchError } = await dbClient
+                .from(TABLE)
+                .select('id, order_number')
+                .eq('tracking_number', trackingNum);
+
+            if (searchError) throw searchError;
+
+            if (!orders || orders.length === 0) {
+                addLog(`❌ ไม่พบเลขออเดอร์ที่มีเลขพัสดุ: ${trackingNum}`, 'error');
+                continue;
+            }
+
+            // 3. อัปโหลดรูป
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+            
+            const { data: uploadData, error: uploadError } = await dbClient
+                .storage
+                .from('book_images')
+                .upload(fileName, file);
+
+            if (uploadError) throw uploadError;
+
+            const { data: publicUrlData } = dbClient
+                .storage
+                .from('book_images')
+                .getPublicUrl(fileName);
+
+            const newUrl = publicUrlData.publicUrl;
+
+            // 4. อัปเดตข้อมูลทุกออเดอร์ที่ตรงกัน (เผื่อออเดอร์เดียวมีหลายรายการแต่เลขพัสดุเดียวกัน)
+            for (const order of orders) {
+                const { error: dbError } = await dbClient
+                    .from(TABLE)
+                    .update({ book_image_url: newUrl })
+                    .eq('id', order.id);
+                
+                if (dbError) throw dbError;
+
+                // Update local state
+                const localOrder = allOrders.find(o => o.id === order.id);
+                if (localOrder) localOrder.book_image_url = newUrl;
+            }
+
+            addLog(`✅ สำเร็จ: ${trackingNum} (เชื่อมต่อแล้ว ${orders.length} รายการ)`, 'success');
+
+        } catch (err) {
+            addLog(`❌ ข้อผิดพลาดในไฟล์ ${file.name}: ${err.message}`, 'error');
+        }
+    }
+
+    addLog('--- สิ้นสุดการประมวลผล ---');
+    renderTable();
+    event.target.value = '';
+}
+
+function copyOrderText(id) {
+    const o = allOrders.find(x => x.id === id);
+    if (!o) return;
+
+    const dateObj = new Date(o.order_date);
+    const day = dateObj.getDate();
+    const month = dateObj.toLocaleDateString('th-TH', { month: 'long' });
+    const year = dateObj.getFullYear() + 543; // Thai year
+    const time = "00:00:00"; // Default
+
+    const itemTotal = (parseFloat(o.price) || 0) * (parseInt(o.quantity) || 1);
+    const ship = parseFloat(o.shipping_fee) || 0;
+    const grandTotal = itemTotal + ship;
+
+    currentPreviewText = `${o.platform}
+หมายเลขคำสั่งซื้อ: ${o.order_number || '-'}
+วันที่: ${day} เดือน : ${month} ปี:${year} เวลา : ${time}
+
+รายละเอียดที่อยู่สำหรับจัดส่ง
+${o.address || '-'}
+ชื่อผู้รับ
+${o.buyer_name || '-'}
+เบอร์ผู้รับ
+${o.phone || '-'}
+
+ชื่อสินค้าและข้อมูล
+${o.product_code ? `[${o.product_code}] ` : ''}${o.product_name} ${o.product_size || ''} ${o.pattern ? ' ' + o.pattern : ''} ${o.slots ? o.slots + ' ช่อง' : ''} x ${o.quantity}
+
+ยอดทั้งหมด:
+฿${itemTotal.toLocaleString('th-TH')}
+ค่าจัดส่ง
+฿${ship.toLocaleString('th-TH')}
+รวมทั้งหมด:
+฿${grandTotal.toLocaleString('th-TH')}
+รวมทั้งหมด
+฿${grandTotal.toLocaleString('th-TH')}`;
+
+    document.getElementById('previewText').textContent = currentPreviewText;
+    document.getElementById('previewModal').style.display = 'flex';
+    
+    document.getElementById('btnConfirmCopy').onclick = function() {
+        navigator.clipboard.writeText(currentPreviewText).then(() => {
+            alert('📋 คัดลอกข้อมูลเรียบร้อยแล้ว!');
+            closeModal();
+        });
+    };
+}
+
+function closeModal() {
+    document.getElementById('previewModal').style.display = 'none';
+}
+function fallbackCopyTextToClipboard(text) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-9999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    let successful = false;
+    try {
+        successful = document.execCommand('copy');
+    } catch (err) {
+        successful = false;
+    }
+
+    document.body.removeChild(textArea);
+    return successful;
+}
+
+function copyText(txt, label) {
+    if (!txt) return;
+
+    const showCopyStatus = () => {
+        const lastUpdatedEl = document.getElementById('lastUpdated');
+        if (!lastUpdatedEl) return;
+        const originalText = lastUpdatedEl.textContent;
+        lastUpdatedEl.innerHTML = `<span class="status-text-success">📋 คัดลอก ${label} แล้ว: ${txt}</span>`;
+        setTimeout(() => { if (lastUpdatedEl.innerText.includes('คัดลอก')) lastUpdatedEl.textContent = originalText; }, 2000);
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(() => {
+            showCopyStatus();
+        }).catch(() => {
+            if (fallbackCopyTextToClipboard(txt)) {
+                showCopyStatus();
+            } else {
+                alert(`ไม่สามารถคัดลอก ${label} ได้ โปรดคัดลอกด้วยตนเอง`);
+            }
+        });
+    } else {
+        if (fallbackCopyTextToClipboard(txt)) {
+            showCopyStatus();
+        } else {
+            alert(`ไม่สามารถคัดลอก ${label} ได้ โปรดคัดลอกด้วยตนเอง`);
+        }
+    }
+}
+
+function openImageModal(url) {
+    document.getElementById('modalBookImage').src = url;
+    document.getElementById('modalBookImageDownload').href = url;
+    document.getElementById('imageModal').style.display = 'flex';
+}
+
+function closeImageModal() {
+    document.getElementById('imageModal').style.display = 'none';
+    document.getElementById('modalBookImage').src = '';
+}
+
+// Realtime Subscription
+function setupRealtime() {
+    logActivity('กำลังเชื่อมต่อ Realtime...', 'info');
+    console.log('Setting up Realtime...');
+    const channel = dbClient.channel('public:stock_orders_changes');
+    
+    channel
+        .on('postgres_changes', { event: '*', schema: 'public', table: TABLE }, (payload) => {
+            console.log('Realtime change detected:', payload);
+            
+            const tableBody = document.getElementById('ordersTableBody');
+
+            if (payload.eventType === 'INSERT') {
+                logActivity(`📥 ตรวจพบออเดอร์ใหม่: ${payload.new.order_number || 'Unknown'}`, 'success');
+                const newRecord = { ...payload.new, _isNew: true };
+                allOrders.unshift(newRecord);
+                
+                // Add to DOM surgically if we are on page 1 and no search is active (simple case)
+                // If filters are active, we better just call applyFilters() but use a trick to avoid flash
+                // But let's try to be surgical:
+                const passesFilter = matchesCurrentFilters(newRecord);
+                if (passesFilter && currentPage === 1) {
+                    const tempRow = document.createElement('tr');
+                    tempRow.id = `row_${newRecord.id}`;
+                    tempRow.className = 'highlight-new';
+                    tempRow.innerHTML = renderOrderRow(newRecord);
+                    tableBody.prepend(tempRow);
+                    hydrateDashboardProductImage(newRecord);
+                    
+                    // Remove last row if over page size
+                    if (tableBody.children.length > PAGE_SIZE) {
+                        tableBody.lastElementChild.remove();
+                    }
+                }
+                
+                setTimeout(() => {
+                    newRecord._isNew = false;
+                    const row = document.getElementById(`row_${payload.new.id}`);
+                    if (row) row.classList.remove('highlight-new');
+                }, 5000);
+                
+            } else if (payload.eventType === 'UPDATE') {
+                logActivity(`🔄 ตรวจพบการอัปเดต: ${payload.new.order_number || 'Unknown'}`, 'info');
+                const index = allOrders.findIndex(o => o.id === payload.new.id);
+                if (index !== -1) {
+                    allOrders[index] = { ...payload.new, _isNew: true };
+                    
+                    // Update DOM surgically
+                    const existingRow = document.getElementById(`row_${payload.new.id}`);
+                    if (existingRow) {
+                        existingRow.innerHTML = renderOrderRow(payload.new);
+                        existingRow.className = 'highlight-new';
+                        hydrateDashboardProductImage(payload.new);
+                    }
+                    
+                    setTimeout(() => {
+                        if (allOrders[index]) allOrders[index]._isNew = false;
+                        const row = document.getElementById(`row_${payload.new.id}`);
+                        if (row) row.classList.remove('highlight-new');
+                    }, 5000);
+                }
+            } else if (payload.eventType === 'DELETE') {
+                logActivity(`🗑️ ตรวจพบการลบข้อมูล`, 'warning');
+                allOrders = allOrders.filter(o => o.id !== payload.old.id);
+                const existingRow = document.getElementById(`row_${payload.old.id}`);
+                if (existingRow) existingRow.remove();
+            }
+
+            // Still need to update KPIs and Charts (these don't cause table flash)
+            updateKPIs();
+            updateCharts();
+            
+            // Sync counts and pagination without full table re-render if possible
+            // But for correctness, we'll run applyFilters() which DOES renderTable()
+            // TO PREVENT FLASH: we only call applyFilters() if it's NOT an update we already handled surgically
+            if (payload.eventType === 'INSERT' || payload.eventType === 'DELETE') {
+                // For insert/delete, full refresh is safer for pagination/counts
+                applyFilters(); 
+            } else {
+                // For update, we already updated the row and data, so just update KPI/Charts
+                // and counts
+                const search = document.getElementById('searchInput').value.toLowerCase().trim();
+                // Minimal update for counts
+                document.getElementById('tableCount').textContent = `(${allOrders.length.toLocaleString('th-TH')} รายการ)`;
+            }
+            
+            document.getElementById('lastUpdated').textContent = 
+                `อัพเดตล่าสุด (Realtime): ${new Date().toLocaleString('th-TH')} | ทั้งหมด ${allOrders.length} รายการ`;
+        })
+        .subscribe((status, err) => {
+            console.log('Realtime status:', status, err);
+            if (status === 'SUBSCRIBED') {
+                logActivity('เชื่อมต่อ Realtime สำเร็จ ✅', 'success');
+                console.log('Realtime subscribed successfully');
+            } else if (status === 'CLOSED') {
+                logActivity('Realtime Connection Closed', 'error');
+            } else if (status === 'CHANNEL_ERROR') {
+                logActivity(`Realtime Error: ${err?.message || 'Unknown error'}`, 'error');
+                console.error('Realtime Channel Error:', err);
+            }
+        });
+}
+
+// Start loading!
+window.addEventListener('auth-ready', () => applyFilters());
+loadAll();
+setupRealtime();
+</script>
+</body>
+</html>

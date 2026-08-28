@@ -1,0 +1,2679 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>คลังวัสดุฝ่ายผลิต | Material Preparation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="auth.js?v=20260714-4"></script>
+    <link rel="stylesheet" href="theme.css">
+    <script src="theme.js" defer></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Kanit', sans-serif;
+            background: var(--bg-body);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.08) 0%, transparent 30%),
+                radial-gradient(circle at 90% 90%, rgba(255, 255, 255, 0.06) 0%, transparent 28%),
+                var(--bg-body);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .page-wrapper {
+            width: min(100%, 1400px);
+            margin: 0 auto;
+            padding: clamp(1rem, 2vw, 1.5rem) clamp(1rem, 2vw, 2rem);
+        }
+
+        /* ── TOAST ── */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .toast {
+            min-width: 280px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid var(--border);
+            backdrop-filter: blur(12px);
+            padding: 12px 16px;
+            border-radius: 12px;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            animation: slideIn 0.3s ease forwards;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .toast.success {
+            border-left: 4px solid var(--green);
+        }
+
+        .toast.error {
+            border-left: 4px solid #ef4444;
+        }
+
+        .toast.info {
+            border-left: 4px solid var(--blue);
+        }
+
+        .toast.warn {
+            border-left: 4px solid var(--primary);
+        }
+
+        /* ── HEADER ── */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 2rem;
+            gap: 1.25rem;
+            flex-wrap: wrap;
+            background: var(--bg-card);
+            padding: 1.35rem 1.25rem;
+            border-radius: 22px;
+            border: 1px solid var(--border);
+            box-shadow: 0 24px 50px rgba(15, 23, 42, 0.12);
+            backdrop-filter: blur(16px);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex: 1;
+            min-width: 280px;
+        }
+
+        .header-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, var(--green), #059669);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.75rem;
+            box-shadow: 0 12px 28px rgba(16, 185, 129, 0.25);
+            flex-shrink: 0;
+        }
+
+        .header-left h1 {
+            font-size: 1.7rem;
+            font-weight: 700;
+            margin-bottom: 0.2rem;
+            background: linear-gradient(135deg, #34d399, #6ee7b7);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-left p {
+            color: var(--muted);
+            font-size: 0.95rem;
+            margin-top: 0.25rem;
+            line-height: 1.7;
+        }
+
+        .header-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 1rem;
+            width: auto;
+            max-width: 100%;
+        }
+
+        .header-group {
+            display: flex;
+            align-items: center;
+            gap: 0.9rem;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            width: 100%;
+        }
+
+        .header-group-primary {
+            justify-content: flex-end;
+            flex: 1;
+        }
+
+        .header-group-secondary {
+            justify-content: flex-end;
+            align-items: flex-end;
+        }
+
+        .header-group > * {
+            white-space: nowrap;
+        }
+
+
+        .btn-aside-yellow {
+            background: rgba(245, 158, 11, 0.2);
+            border-color: rgba(245, 158, 11, 0.4);
+            color: #fbbf24;
+        }
+
+        .btn-aside-blue {
+            background: rgba(59, 130, 246, 0.2);
+            border-color: rgba(59, 130, 246, 0.45);
+            color: #bfdbfe;
+        }
+
+        .btn-logout-soft {
+            padding: 0.65rem 1rem;
+            background: rgba(248, 113, 113, 0.22);
+            border: 1px solid rgba(248, 113, 113, 0.45);
+            color: #f87171;
+            border-radius: 14px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-width: 140px;
+        }
+
+        .btn-logout-soft:hover {
+            background: rgba(248, 113, 113, 0.32);
+            transform: translateY(-1px);
+        }
+
+        .btn.disabled,
+        .btn[disabled] {
+            opacity: 0.45;
+            cursor: not-allowed;
+            transform: none;
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .mb-1 {
+            margin-bottom: 0.5rem;
+        }
+        .text-muted { color: var(--muted); }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .text-small { font-size: 0.82rem; }
+        .text-smaller { font-size: 0.75rem; }
+        .text-success { color: #34d399; }
+        .text-warning-gold { color: #fbbf24; }
+        .text-danger { color: #f87171; }
+        .required-star { color: #ef4444; }
+        .nowrap { white-space: nowrap; }
+        .mono-muted { font-family: monospace; color: var(--muted); font-size: 0.88rem; }
+        .input-min-200 { min-width: 200px; }
+        .order-title-text { font-weight: 600; font-size: 0.95rem; }
+        .order-product-name { font-size: 0.86rem; color: var(--text-main); font-weight: 600; margin-top: 3px; }
+        .production-number-highlight {
+            display: grid;
+            grid-template-columns: auto minmax(90px, 1fr);
+            align-items: center;
+            gap: 1rem;
+            width: min(100%, 430px);
+            margin: 0.55rem 0;
+            padding: 0.7rem 0.9rem;
+            border: 2px solid rgba(99, 102, 241, 0.38);
+            border-radius: 12px;
+            background: linear-gradient(110deg, rgba(99, 102, 241, 0.14), rgba(236, 72, 153, 0.08));
+            color: #3730a3;
+            font-size: 1rem;
+            font-weight: 700;
+            box-shadow: 0 8px 20px rgba(99, 102, 241, 0.1);
+        }
+        .production-number-value {
+            color: #9d174d;
+            font-family: 'Kanit', sans-serif;
+            font-size: clamp(2rem, 3vw, 2.65rem);
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            line-height: 1;
+            text-align: right;
+            text-shadow: 0 0 10px rgba(129, 140, 248, 0.5);
+        }
+        .production-number-value.is-unassigned {
+            color: #64748b;
+            font-size: 1rem;
+            letter-spacing: 0;
+            text-shadow: none;
+        }
+        .dark-theme .production-number-highlight { color: #a5b4fc; }
+        .dark-theme .production-number-value { color: #fbcfe8; }
+        .dark-theme .production-number-value.is-unassigned { color: #cbd5e1; }
+        @media (max-width: 640px) {
+            .page-wrapper {
+                padding: 0.75rem;
+            }
+            .header {
+                padding: 1rem;
+                border-radius: 16px;
+            }
+            .header-icon {
+                width: 46px;
+                height: 46px;
+                font-size: 1.4rem;
+            }
+            .header-left h1 {
+                font-size: 1.25rem;
+            }
+            .header-left p {
+                font-size: 0.9rem;
+            }
+            .btn-logout-soft {
+                width: 100%;
+                min-width: 0;
+                justify-content: center;
+            }
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+            .production-number-highlight {
+                grid-template-columns: 1fr;
+                gap: 0.35rem;
+            }
+            .production-number-value { text-align: left; }
+            .dispatch-date-toolbar {
+                padding: 0.75rem;
+            }
+            .order-group-header {
+                padding: 0.9rem 1rem;
+            }
+            .order-group-actions {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .material-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.65rem;
+            }
+            .material-item-left {
+                width: 100%;
+            }
+            .material-qty {
+                width: 100%;
+                justify-content: space-between;
+            }
+        }
+        .text-strong-muted { color: #e2e8f0; font-weight: 500; }
+        .col-narrow { width: 50px; }
+        .table-meta { white-space: nowrap; }
+        .table-meta .small-text { font-size: 0.88rem; }
+        .table-meta .xsmall-text { font-size: 0.75rem; color: var(--muted); }
+        .table-error-cell { text-align: center; color: #f87171; padding: 2rem; }
+        .spinner-xs { width: 16px; height: 16px; border-width: 2px; }
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            background: rgba(245, 158, 11, 0.1);
+            color: #f59e0b;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .qty-diff-large { font-size: 1rem; }
+
+        .btn-dispatch:hover {
+            transform: translateY(-1px);
+        }
+
+        .btn-dispatch:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-sm {
+            padding: 0.35rem 0.8rem;
+            font-size: 0.8rem;
+            border-radius: 8px;
+        }
+
+        /* ── KPI ── */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1.2rem;
+            margin-bottom: 2rem;
+        }
+
+        @media (max-width: 1200px) {
+            .header {
+                padding: 1.1rem 1rem;
+            }
+            .header-right {
+                width: 100%;
+                align-items: stretch;
+            }
+            .header-group {
+                justify-content: flex-start;
+            }
+            .production-number-highlight {
+                width: min(100%, 360px);
+            }
+            .dispatch-date-toolbar {
+                flex-wrap: wrap;
+            }
+            .dispatch-date-field {
+                flex: 1 1 220px;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .page-wrapper {
+                padding: 0.9rem;
+            }
+            .header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .header-left {
+                min-width: 0;
+            }
+            .header-right {
+                align-items: stretch;
+            }
+            .header-group {
+                justify-content: flex-start;
+            }
+            .kpi-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .order-group-header {
+                align-items: flex-start;
+            }
+            .order-group-actions {
+                width: 100%;
+                justify-content: flex-end;
+            }
+        }
+
+        .kpi-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 1.4rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+            transition: all 0.3s;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--card-color);
+            box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.5), 0 0 15px var(--card-glow);
+        }
+
+        .kpi-card.green {
+            --card-color: #10b981;
+            --card-glow: rgba(16, 185, 129, 0.2);
+        }
+
+        .kpi-card.yellow {
+            --card-color: #f59e0b;
+            --card-glow: rgba(245, 158, 11, 0.2);
+        }
+
+        .kpi-card.blue {
+            --card-color: #3b82f6;
+            --card-glow: rgba(59, 130, 246, 0.2);
+        }
+
+        .kpi-card.red {
+            --card-color: #ef4444;
+            --card-glow: rgba(239, 68, 68, 0.2);
+        }
+
+        .kpi-icon {
+            font-size: 1.8rem;
+        }
+
+        .kpi-label {
+            font-size: 0.82rem;
+            color: var(--muted);
+        }
+
+        .kpi-value {
+            font-size: 2.2rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .kpi-card.green .kpi-value {
+            color: #34d399;
+        }
+
+        .kpi-card.yellow .kpi-value {
+            color: var(--primary-bright);
+        }
+
+        .kpi-card.blue .kpi-value {
+            color: #60a5fa;
+        }
+
+        .kpi-card.red .kpi-value {
+            color: #f87171;
+        }
+
+        /* ── TABS ── */
+        .tab-nav {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .tab-btn {
+            padding: 0.6rem 1.4rem;
+            border-radius: 12px;
+            font-family: 'Kanit', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--muted);
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .tab-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary-bright);
+        }
+
+        .tab-btn.active-pending {
+            background: rgba(245, 158, 11, 0.15);
+            border-color: rgba(245, 158, 11, 0.5);
+            color: #fbbf24;
+        }
+
+        .tab-btn.active-done {
+            background: rgba(16, 185, 129, 0.15);
+            border-color: rgba(16, 185, 129, 0.5);
+            color: #34d399;
+        }
+
+        .tab-btn.active-damage {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: rgba(239, 68, 68, 0.5);
+            color: #f87171;
+        }
+
+        .tab-count {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 1px 8px;
+            border-radius: 99px;
+            font-size: 0.78rem;
+        }
+
+        .dispatch-date-toolbar {
+            display: flex;
+            align-items: flex-end;
+            gap: 0.75rem;
+            margin: 0 0 1rem;
+            padding: 0.85rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: var(--bg-card);
+        }
+
+        .dispatch-date-toolbar[hidden] {
+            display: none;
+        }
+
+        .dispatch-date-field {
+            display: flex;
+            flex: 1 1 260px;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .dispatch-date-field label {
+            color: var(--muted-strong);
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        .dispatch-date-input-row {
+            position: relative;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 0.5rem;
+        }
+
+        .dispatch-date-field input {
+            width: 100%;
+            min-height: 42px;
+            padding: 0.55rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            outline: none;
+            background: var(--bg-deep);
+            color: var(--text-main);
+            color-scheme: light;
+            font: inherit;
+        }
+
+        .dark-theme .dispatch-date-field input {
+            color-scheme: dark;
+        }
+
+        .dispatch-date-field input:focus {
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.14);
+        }
+
+        .dispatch-calendar-btn {
+            min-height: 42px;
+            padding: 0.55rem 0.85rem;
+            border: 1px solid rgba(16, 185, 129, 0.42);
+            border-radius: 10px;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--text-main);
+            font: inherit;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .dispatch-calendar-btn:hover {
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.18);
+        }
+
+        .dispatch-date-field .dispatch-native-date {
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            width: 1px;
+            min-height: 1px;
+            padding: 0;
+            border: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .dispatch-filter-result {
+            align-self: center;
+            color: var(--muted-strong);
+            font-size: 0.82rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 640px) {
+            .dispatch-date-toolbar {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .dispatch-date-field {
+                flex-basis: auto;
+            }
+
+            .dispatch-date-input-row {
+                grid-template-columns: 1fr;
+            }
+
+            .dispatch-filter-result {
+                align-self: flex-start;
+            }
+        }
+
+        /* ── ORDER GROUP CARD ── */
+        .order-groups {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .dispatch-day-section {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .dispatch-day-section + .dispatch-day-section {
+            margin-top: 1.4rem;
+        }
+
+        .dispatch-day-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 0.9rem 1.1rem;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 14px;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.13), rgba(59, 130, 246, 0.08));
+        }
+
+        .dispatch-day-title {
+            color: var(--text-main);
+            font-size: 1.05rem;
+            font-weight: 800;
+        }
+
+        .dispatch-day-summary {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 0.45rem;
+        }
+
+        .dispatch-day-stat {
+            padding: 4px 10px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: var(--bg-card);
+            color: var(--muted-strong);
+            font-size: 0.78rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 640px) {
+            .dispatch-day-header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .dispatch-day-summary {
+                justify-content: flex-start;
+            }
+        }
+
+        .order-group-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            overflow: hidden;
+            transition: all 0.25s;
+        }
+
+        .order-group-card:hover {
+            border-color: rgba(16, 185, 129, 0.3);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 12px rgba(16, 185, 129, 0.1);
+        }
+
+        .order-group-card.dispatched-card {
+            opacity: 1;
+            border-color: rgba(16, 185, 129, 0.2);
+        }
+
+        .order-group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            background: rgba(255, 255, 255, 0.02);
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .order-group-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .material-product-image {
+            width: 120px;
+            height: 120px;
+            flex: 0 0 120px;
+            padding: 6px;
+            overflow: hidden;
+            border: 2px solid rgba(99, 102, 241, 0.28);
+            border-radius: 14px;
+            background: #fff;
+            color: var(--muted-strong);
+            font-size: 1.8rem;
+            cursor: default;
+        }
+        .material-product-image.has-image { cursor: zoom-in; box-shadow: 0 8px 20px rgba(15, 23, 42, 0.14); }
+        .material-product-image img { display: block; width: 100%; height: 100%; object-fit: contain; border-radius: 9px; transition: transform 0.2s ease; }
+        .material-product-image.has-image:hover img { transform: scale(1.06); }
+        .material-product-image.is-loading { animation: material-image-pulse 1.2s ease-in-out infinite; }
+        .material-product-image.is-empty { opacity: 0.58; }
+        @keyframes material-image-pulse { 50% { opacity: 0.35; } }
+
+        @media (max-width: 640px) {
+            .material-product-image {
+                width: 84px;
+                height: 84px;
+                flex-basis: 84px;
+                padding: 4px;
+            }
+            .order-group-title { align-items: flex-start; }
+        }
+
+        .material-image-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: rgba(2, 6, 23, 0.86);
+            cursor: zoom-out;
+        }
+        .material-image-modal.open { display: flex; }
+        .material-image-modal img { max-width: 92vw; max-height: 90vh; border-radius: 16px; box-shadow: 0 24px 70px rgba(0,0,0,0.5); }
+
+        .order-sku-badge {
+            display: inline-flex;
+            margin-top: 0.35rem;
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: #b45309;
+            padding: 4px 12px;
+            border-radius: 99px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            font-family: monospace;
+        }
+        .dark-theme .order-sku-badge { color: #fbbf24; }
+
+        .order-quantity-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            margin: 0.35rem 0 0 0.4rem;
+            padding: 4px 12px;
+            border: 1px solid rgba(59, 130, 246, 0.28);
+            border-radius: 99px;
+            background: rgba(59, 130, 246, 0.1);
+            color: #1d4ed8;
+            font-size: 0.82rem;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .dark-theme .order-quantity-badge {
+            color: #93c5fd;
+            border-color: rgba(147, 197, 253, 0.3);
+            background: rgba(59, 130, 246, 0.16);
+        }
+
+        .order-time {
+            font-size: 0.8rem;
+            color: var(--muted-strong);
+            font-weight: 500;
+        }
+
+        .order-group-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* ── MATERIAL ITEMS ── */
+        .material-list {
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .material-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.7rem 1rem;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            transition: background 0.2s;
+        }
+
+        .material-item:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .material-item-left {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .material-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+
+        .material-name {
+            color: var(--text-main);
+            font-weight: 700;
+            font-size: 0.98rem;
+        }
+
+        .material-time {
+            font-size: 0.78rem;
+            color: var(--muted-strong);
+            font-weight: 500;
+            margin-top: 1px;
+        }
+
+        .material-code {
+            display: inline-block;
+            margin-top: 2px;
+            color: #4338ca;
+            font-family: monospace;
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+        .dark-theme .material-code { color: #a5b4fc; }
+
+        .material-qty {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .qty-pill {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #f87171;
+            padding: 4px 14px;
+            border-radius: 99px;
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+
+        .qty-unit {
+            color: var(--muted);
+            font-size: 0.82rem;
+        }
+
+        /* ── DISPATCH STATUS ── */
+        .dispatch-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 12px;
+            border-radius: 99px;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+
+        .dispatch-badge.pending {
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: #fbbf24;
+        }
+
+        .dispatch-badge.done {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: #34d399;
+        }
+
+        .dispatch-info {
+            font-size: 0.78rem;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+
+        /* ── EMPTY STATE ── */
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--muted);
+        }
+
+        .empty-state .emoji {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .empty-state h3 {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            color: #64748b;
+        }
+
+        .empty-state p {
+            font-size: 0.88rem;
+            color: #475569;
+        }
+
+        /* ── SPINNER ── */
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid var(--border);
+            border-top-color: var(--green);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ── REALTIME DOT ── */
+        .realtime-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+            margin-right: 5px;
+            animation: pulse-dot 1.5s infinite;
+        }
+
+        @keyframes pulse-dot {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.4;
+                transform: scale(0.8);
+            }
+        }
+
+        .realtime-dot.off {
+            background: #ef4444;
+            animation: none;
+        }
+
+        /* ── SCROLLBAR ── */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        /* ── MODAL ── */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(5, 8, 17, 0.85);
+            backdrop-filter: blur(10px);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--modal-bg);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            width: min(92%, 520px);
+            max-width: 520px;
+            max-height: calc(100vh - 64px);
+            padding: 2rem;
+            animation: modalSlide 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+            overflow-y: auto;
+        }
+
+        @keyframes modalSlide {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .modal-header h2 {
+            font-size: 1.2rem;
+            color: #34d399;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--muted);
+            font-size: 1.3rem;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .modal-close:hover {
+            color: var(--text-main);
+        }
+
+        .modal-info-box {
+            background: rgba(16, 185, 129, 0.05);
+            border: 1px solid rgba(16, 185, 129, 0.15);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1.25rem;
+            font-size: 0.88rem;
+            color: var(--muted);
+            overflow-wrap: anywhere;
+        }
+
+        .modal-info-box strong {
+            color: #34d399;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .form-group label {
+            font-size: 0.85rem;
+            color: var(--muted);
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.65rem 1rem;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-main);
+            font-family: 'Kanit', sans-serif;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--green);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: flex-end;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .btn-cancel-modal {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--muted);
+            border: 1px solid var(--border);
+        }
+
+        .btn-cancel-modal:hover {
+            background: var(--surface-strong);
+            color: var(--text-main);
+        }
+
+        /* ── SECTION SEPARATOR ── */
+        .section-note {
+            font-size: 0.8rem;
+            color: var(--muted);
+            padding: 0.5rem 1.5rem 0.75rem;
+            border-top: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        /* ── DAMAGE REPORT SECTION ── */
+        .damage-section {
+            display: none;
+        }
+
+        .damage-section.active {
+            display: block;
+        }
+
+        .damage-filter-bar {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+            align-items: center;
+        }
+
+        .damage-filter-bar input,
+        .damage-filter-bar select {
+            padding: 0.5rem 0.85rem;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: 'Kanit', sans-serif;
+            font-size: 0.88rem;
+        }
+
+        .damage-view-toggle {
+            display: flex;
+            background: rgba(255, 255, 255, 0.88);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 4px;
+            gap: 4px;
+            margin-bottom: 1.5rem;
+            width: fit-content;
+        }
+
+        .dmg-toggle-tab {
+            padding: 0.5rem 1.2rem;
+            border-radius: 9px;
+            font-family: 'Kanit', sans-serif;
+            font-size: 0.88rem;
+            font-weight: 500;
+            color: var(--muted);
+            border: 1px solid transparent;
+            background: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .dmg-toggle-tab:hover {
+            color: var(--text);
+        }
+
+        .dmg-toggle-tab.active {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            color: #f87171;
+        }
+
+        .damage-table-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+            backdrop-filter: blur(12px);
+        }
+
+        .damage-table-card .table-responsive {
+            overflow-x: auto;
+        }
+
+        .damage-table-card table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .damage-table-card thead tr {
+            background: rgba(239, 68, 68, 0.08);
+        }
+
+        .damage-table-card th {
+            padding: 0.9rem 1rem;
+            text-align: left;
+            font-size: 0.78rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            white-space: nowrap;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .damage-table-card td {
+            padding: 0.85rem 1rem;
+            font-size: 0.88rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            vertical-align: middle;
+        }
+
+        .damage-table-card tr:last-child td {
+            border-bottom: none;
+        }
+
+        .damage-table-card tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .badge-damage {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #f87171;
+        }
+
+        .badge-status-dmg {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 500;
+        }
+
+        .badge-status-dmg.pending {
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: #f59e0b;
+        }
+
+        .badge-status-dmg.delivered {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: #10b981;
+        }
+
+        .btn-issue {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            color: #10b981;
+            padding: 0.25rem 0.6rem;
+            font-size: 0.75rem;
+            border-radius: 6px;
+            font-family: 'Kanit', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-left: 0.5rem;
+            vertical-align: middle;
+        }
+
+        .btn-issue:hover {
+            background: rgba(16, 185, 129, 0.35);
+        }
+
+        .qty-diff {
+            font-weight: 600;
+            color: #f87171;
+        }
+
+        .item-name-dmg {
+            font-weight: 500;
+            color: #e2e8f0;
+        }
+
+        .reason-text {
+            color: var(--muted);
+            font-size: 0.83rem;
+        }
+
+        .dmg-log-bar {
+            margin-top: 1rem;
+            padding: 0.5rem 1rem;
+            background: rgba(255, 255, 255, 0.88);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.8rem;
+            color: var(--muted);
+            min-height: 2rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Dispatch Confirm Modal -->
+    <div class="modal" id="dispatchModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>✅ ยืนยันการจ่ายวัสดุ</h2>
+                <button class="modal-close" onclick="closeDispatchModal()">✕</button>
+            </div>
+            <div class="modal-info-box" id="modalOrderInfo">
+                <!-- filled by JS -->
+            </div>
+            <div class="form-group">
+                <label>👤 ชื่อผู้จ่ายวัสดุ <span class="required-star">*</span></label>
+                <input type="text" id="dispatcherName" placeholder="ระบุชื่อผู้จ่ายวัสดุ..." autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label>🏭 ชื่อฝ่ายผลิต (ผู้รับวัสดุ) <span class="required-star">*</span></label>
+                <input type="text" id="productionTeamName" placeholder="ระบุชื่อฝ่ายผลิตที่รับวัสดุ..." autocomplete="off">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-cancel-modal" onclick="closeDispatchModal()">ยกเลิก</button>
+                <button class="btn btn-dispatch" id="confirmDispatchBtn" onclick="confirmDispatch()">
+                    ✅ ยืนยันจ่ายวัสดุ
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Damage Issue Confirm Modal -->
+    <div class="modal" id="dmgIssueModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>✅ ยืนยันการจ่ายวัสดุทดแทน</h2>
+                <button class="modal-close" onclick="closeDmgIssueModal()">✕</button>
+            </div>
+            <div class="modal-info-box" id="dmgIssueModalInfo">
+                <!-- filled by JS -->
+            </div>
+            <div class="form-group">
+                <label>👤 ชื่อผู้จ่ายวัสดุ <span class="required-star">*</span></label>
+                <input type="text" id="dmgIssuerName" placeholder="ระบุชื่อผู้จ่ายวัสดุทดแทน..." autocomplete="off">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-cancel-modal" onclick="closeDmgIssueModal()">ยกเลิก</button>
+                <button class="btn btn-dispatch" id="confirmDmgIssueBtn" onclick="confirmDmgIssue()">
+                    ✅ ยืนยันจ่ายของแล้ว
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="page-wrapper">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <div class="header-icon">📋</div>
+                <div>
+                    <h1>คลังวัสดุ</h1>
+                    <p>
+                        <span class="realtime-dot" id="realtimeDot"></span>
+                        รายการวัสดุที่ระบบหักอัตโนมัติ — รอจ่ายให้ฝ่ายผลิต
+                    </p>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="header-group header-group-primary">
+                <a href="production.html" class="btn btn-outline">← ฝ่ายผลิต</a>
+                <a href="stock_management.html" class="btn btn-outline btn-aside-yellow">📦 สต็อก</a>
+                <a href="backup_stock.html" class="btn btn-outline btn-aside-blue">📦 สต็อกสำรอง</a>
+                    <button class="btn btn-outline" onclick="loadData()">🔄 รีเฟรช</button>
+                </div>
+                <div class="header-group header-group-secondary">
+                    <div id="user-display-area"></div>
+                    <button class="btn btn-logout-soft" onclick="auth.logout()">🚪 ออกจากระบบ</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- KPI -->
+        <div class="kpi-grid">
+            <div class="kpi-card yellow">
+                <div class="kpi-icon">⏳</div>
+                <div class="kpi-label">ออเดอร์รอจัดเตรียม</div>
+                <div class="kpi-value" id="kpiPending">-</div>
+            </div>
+            <div class="kpi-card green">
+                <div class="kpi-icon">✅</div>
+                <div class="kpi-label">จ่ายแล้ววันนี้</div>
+                <div class="kpi-value" id="kpiToday">-</div>
+            </div>
+            <div class="kpi-card blue">
+                <div class="kpi-icon">📦</div>
+                <div class="kpi-label">รายการวัสดุรอจัดเตรียม</div>
+                <div class="kpi-value" id="kpiItems">-</div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tab-nav">
+            <button class="tab-btn active-pending" id="tabPending" onclick="switchTab('pending')">
+                ⏳ รอจัดเตรียม <span class="tab-count" id="countPending">0</span>
+            </button>
+            <button class="tab-btn" id="tabDone" onclick="switchTab('done')">
+                ✅ จ่ายแล้ว <span class="tab-count" id="countDone">0</span>
+            </button>
+            <button class="tab-btn" id="tabDamage" onclick="switchTab('damage')">
+                ⚠️ วัสดุเสียหาย <span class="tab-count" id="countDamage">0</span>
+            </button>
+        </div>
+
+        <div class="dispatch-date-toolbar" id="dispatchDateToolbar" hidden>
+            <div class="dispatch-date-field">
+                <label for="dispatchDateFilter">📅 ค้นหาวันที่จ่ายวัสดุ</label>
+                <div class="dispatch-date-input-row">
+                    <input type="text" id="dispatchDateFilter" inputmode="numeric" maxlength="10"
+                        autocomplete="off" placeholder="วว/ดด/ปปปป เช่น 21/07/2026"
+                        aria-label="ค้นหาวันที่จ่ายวัสดุ รูปแบบวันที่ เดือน ปี"
+                        oninput="setDispatchDateFilter(this.value, this)">
+                    <button type="button" class="dispatch-calendar-btn" onclick="openDispatchDatePicker()">📅 เลือกจากปฏิทิน</button>
+                    <input type="date" id="dispatchDatePicker" class="dispatch-native-date" tabindex="-1"
+                        aria-hidden="true" onchange="applyDispatchDatePicker(this.value)">
+                </div>
+            </div>
+            <button type="button" class="btn btn-outline" onclick="clearDispatchDateFilter()">ล้างวันที่</button>
+            <div class="dispatch-filter-result" id="dispatchFilterResult">แสดงทุกวันที่</div>
+        </div>
+
+        <!-- Content: เตรียมวัสดุ -->
+        <div id="mainContent">
+            <div class="empty-state">
+                <div class="spinner"></div>
+            </div>
+        </div>
+
+        <!-- Content: วัสดุเสียหาย -->
+        <div id="damageSection" class="damage-section">
+            <!-- KPI Damage -->
+            <div class="kpi-grid section-gap">
+                <div class="kpi-card red">
+                    <div class="kpi-icon">⚠️</div>
+                    <div class="kpi-label">รายการทั้งหมด</div>
+                    <div class="kpi-value" id="dmgKpiTotal">—</div>
+                </div>
+                <div class="kpi-card red">
+                    <div class="kpi-icon">📉</div>
+                    <div class="kpi-label">รวมจำนวนที่เสียหาย</div>
+                    <div class="kpi-value" id="dmgKpiQty">—</div>
+                </div>
+                <div class="kpi-card yellow">
+                    <div class="kpi-icon">📅</div>
+                    <div class="kpi-label">วันนี้</div>
+                    <div class="kpi-value" id="dmgKpiToday">—</div>
+                </div>
+            </div>
+
+            <!-- Damage Filters -->
+            <div class="damage-filter-bar">
+                <input type="date" id="dmgFilterDateFrom" placeholder="วันที่เริ่ม">
+                <input type="date" id="dmgFilterDateTo" placeholder="วันที่สิ้นสุด">
+                <input type="text" id="dmgFilterItem" class="input-min-200" placeholder="🔍 ค้นหาชื่อวัสดุ...">
+                <button class="btn btn-outline" onclick="dmgLoadData()">🔄 รีเฟรช</button>
+            </div>
+
+            <!-- View Toggle -->
+            <div class="damage-view-toggle">
+                <button id="dmgTabSummary" class="dmg-toggle-tab active" onclick="dmgSwitchView('summary')">📊
+                    สรุปยอดตามวัสดุ</button>
+                <button id="dmgTabDetails" class="dmg-toggle-tab" onclick="dmgSwitchView('details')">📜
+                    ประวัติแบบละเอียด</button>
+            </div>
+
+            <!-- Damage Table -->
+            <div class="damage-table-card">
+                <div class="table-responsive">
+                    <table>
+                        <thead id="dmgTableHeader"></thead>
+                        <tbody id="dmgTableBody">
+                            <tr>
+                                <td class="table-error-cell">
+                                    <div class="empty-state">
+                                        <div class="emoji">⏳</div>
+                                        <p>กำลังโหลด...</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="dmg-log-bar" id="dmgLogBar">พร้อมใช้งาน</div>
+        </div>
+    </div>
+
+    <script>
+        // ─── CONFIG ─────────────────────────────────────────────────────────
+        let db = null;
+        let allLogs = [];
+        let pendingGroups = {};
+        let doneGroups = {};
+        let activeTab = 'pending';
+        let dispatchDateFilter = '';
+        let pendingDispatchData = null; // {orderKey, logIds, orderSku}
+        let orderNamesMap = {}; // mapping of orderId -> product_name
+        let orderProductionNumbersMap = {}; // mapping of orderId -> production_number
+        let orderSkusMap = {}; // mapping of orderId -> product_code
+        let orderNumbersMap = {}; // mapping of orderId -> order_number
+        let orderQuantitiesMap = {}; // mapping of orderId -> quantity
+        let materialCodesMap = {}; // mapping of stock_items.id -> product_code
+        let realtimeChannel = null;
+        let dmgRealtimeChannel = null;
+
+        const DEDUCT_PREFIX = 'ตัดสต็อกอัตโนมัติ (เริ่มผลิต)';
+
+        // ─── DAMAGE REPORT STATE ────────────────────────────────────────────
+        let dmgAllLogs = [];
+        let dmgCurrentView = 'summary';
+        let dmgLoaded = false;
+
+        // ─── INIT ────────────────────────────────────────────────────────────
+        document.addEventListener('DOMContentLoaded', async () => {
+            db = (window.auth && window.auth.supabase)
+                ? window.auth.supabase
+                : (window.supabase && window.SUPABASE_CONFIG
+                    ? window.supabase.createClient(window.SUPABASE_CONFIG.URL, window.SUPABASE_CONFIG.KEY)
+                    : null);
+
+            if (!db) {
+                showToast('❌ ไม่สามารถเชื่อมต่อฐานข้อมูลได้', 'error');
+                return;
+            }
+
+            await loadData();
+            startRealtime();
+            // Load damage badge count in background (no need to wait)
+            dmgLoadBadgeCount();
+        });
+
+        // ─── REALTIME ────────────────────────────────────────────────────────
+        let pollingInterval = null;
+
+        function startRealtime() {
+            if (!db) return;
+
+            // ── Polling Fallback (ทำงานบน file:// ด้วย) ─────────────────────
+            // ดึงข้อมูลใหม่ทุก 10 วินาที เพื่อตรวจสอบการเปลี่ยนแปลง
+            if (pollingInterval) clearInterval(pollingInterval);
+            pollingInterval = setInterval(() => {
+                loadData();
+                dmgLoadBadgeCount();
+                if (activeTab === 'damage' && dmgLoaded) {
+                    dmgLoadData(true);
+                }
+            }, 10000);
+
+            // ── WebSocket Realtime (ทำงานบน http:// / https:// เท่านั้น) ────
+            realtimeChannel = db
+                .channel('material-prep-realtime')
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'stock_movement_log'
+                }, () => {
+                    loadData();
+                })
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'damaged_materials'
+                }, () => {
+                    dmgLoadBadgeCount();
+                    if (activeTab === 'damage' && dmgLoaded) {
+                        dmgLoadData(true);
+                    }
+                })
+                .subscribe(status => {
+                    const dot = document.getElementById('realtimeDot');
+                    if (status === 'SUBSCRIBED') {
+                        if (dot) dot.classList.remove('off');
+                    } else {
+                        if (dot) dot.classList.add('off');
+                    }
+                });
+        }
+
+        window.addEventListener('beforeunload', () => {
+            if (realtimeChannel && db) db.removeChannel(realtimeChannel);
+            if (dmgRealtimeChannel && db) db.removeChannel(dmgRealtimeChannel);
+        });
+
+        // ─── FETCH ORDER PRODUCT NAMES ───────────────────────────────────────
+        async function fetchOrderProductNames() {
+            orderNamesMap = {};
+            orderProductionNumbersMap = {};
+            orderSkusMap = {};
+            orderNumbersMap = {};
+            orderQuantitiesMap = {};
+            const orderIds = [];
+            allLogs.forEach(log => {
+                const idMatch = log.reason ? log.reason.match(/ID ออเดอร์:\s*([^\s]+)/) : null;
+                const orderId = idMatch ? idMatch[1].trim() : null;
+                if (orderId && !orderIds.includes(orderId)) {
+                    orderIds.push(orderId);
+                }
+            });
+
+            if (orderIds.length === 0) return;
+
+            try {
+                const { data, error } = await db
+                    .from('stock_orders')
+                    .select('id, product_code, product_name, order_number, production_number, quantity')
+                    .in('id', orderIds);
+                if (error) {
+                    console.error('Error fetching order names:', error);
+                    return;
+                }
+                if (data) {
+                    data.forEach(o => {
+                        orderNamesMap[o.id] = o.product_name;
+                        orderProductionNumbersMap[o.id] = o.production_number;
+                        orderSkusMap[o.id] = o.product_code;
+                        orderNumbersMap[o.id] = o.order_number;
+                        orderQuantitiesMap[o.id] = Number(o.quantity) || 0;
+                    });
+                }
+            } catch (err) {
+                console.error('fetchOrderProductNames exception:', err);
+            }
+        }
+
+        async function fetchMaterialCodes() {
+            materialCodesMap = {};
+            const itemIds = [...new Set(allLogs.map(log => log.item_id).filter(Boolean))];
+            if (itemIds.length === 0) return;
+
+            try {
+                const { data, error } = await db
+                    .from('stock_items')
+                    .select('id, product_code')
+                    .in('id', itemIds);
+                if (error) {
+                    console.error('Error fetching material codes:', error);
+                    return;
+                }
+                (data || []).forEach(item => {
+                    if (item.product_code) materialCodesMap[item.id] = item.product_code;
+                });
+            } catch (err) {
+                console.error('fetchMaterialCodes exception:', err);
+            }
+        }
+
+        // ─── LOAD DATA ───────────────────────────────────────────────────────
+        async function loadData() {
+            try {
+                const { data, error } = await db
+                    .from('stock_movement_log')
+                    .select('*')
+                    .like('reason', `${DEDUCT_PREFIX}%`)
+                    .order('created_at', { ascending: false })
+                    .limit(1000);
+
+                if (error) throw error;
+                allLogs = data || [];
+                await Promise.all([fetchOrderProductNames(), fetchMaterialCodes()]);
+                processData();
+                renderContent();
+                updateKPIs();
+            } catch (err) {
+                showToast('❌ โหลดข้อมูลล้มเหลว: ' + err.message, 'error');
+            }
+        }
+
+        // ─── PROCESS: GROUP BY ORDER ─────────────────────────────────────────
+        function processData() {
+            pendingGroups = {};
+            doneGroups = {};
+
+            allLogs.forEach(log => {
+                // Extract order ID, SKU, and Order Number from reason string
+                // New Format: "ตัดสต็อกอัตโนมัติ (เริ่มผลิต) ID ออเดอร์: XXXXX เลขที่ออเดอร์: YYYYY SKUออเดอร์: ZZZZZ"
+                // Old Format: "ตัดสต็อกอัตโนมัติ (เริ่มผลิต) SKU ออเดอร์: XXXXX"
+                const idMatch = log.reason ? log.reason.match(/ID ออเดอร์:\s*([^\s]+)/) : null;
+                const orderId = idMatch ? idMatch[1].trim() : null;
+
+                const orderNoMatch = log.reason ? log.reason.match(/เลขที่ออเดอร์:\s*([^\s]+)/) : null;
+                const parsedOrderNo = orderNoMatch ? orderNoMatch[1].trim() : null;
+
+                const skuMatch = log.reason ? log.reason.match(/(?:SKUออเดอร์:|SKU ออเดอร์:)\s*(.+)$/) : null;
+                const parsedOrderSku = skuMatch ? skuMatch[1].trim() : null;
+                const orderSku = (orderId ? orderSkusMap[orderId] : null) || parsedOrderSku || 'ไม่ระบุ';
+                const orderNo = (orderId ? orderNumbersMap[orderId] : null) || parsedOrderNo;
+
+                // Group key: if orderId exists, use it. Otherwise, fallback to old date + SKU grouping.
+                let groupKey;
+                if (orderId) {
+                    groupKey = orderId;
+                } else {
+                    const dateKey = log.created_at ? new Date(log.created_at).toISOString().substring(0, 16) : 'unknown';
+                    groupKey = `${orderSku}__${dateKey}`;
+                }
+
+                const target = (log.dispatched === true) ? doneGroups : pendingGroups;
+
+                if (!target[groupKey]) {
+                    target[groupKey] = {
+                        key: groupKey,
+                        orderSku,
+                        orderNo,
+                        productionNumber: orderId ? (orderProductionNumbersMap[orderId] || null) : null,
+                        productName: orderId ? (orderNamesMap[orderId] || null) : null,
+                        orderQuantity: orderId ? (orderQuantitiesMap[orderId] ?? null) : null,
+                        createdAt: log.created_at,
+                        items: [],
+                        // dispatch info (from first dispatched item)
+                        dispatchedBy: log.dispatched_by || null,
+                        dispatchedAt: log.dispatched_at || null,
+                    };
+                }
+
+                target[groupKey].items.push(log);
+                // Update dispatch info if available
+                if (log.dispatched_by) {
+                    target[groupKey].dispatchedBy = log.dispatched_by;
+                    target[groupKey].dispatchedAt = log.dispatched_at;
+                }
+            });
+        }
+
+        // ─── RENDER ──────────────────────────────────────────────────────────
+        function getDispatchDateKey(value) {
+            if (!value) return 'unknown';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return 'unknown';
+
+            const parts = new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'Asia/Bangkok',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            }).formatToParts(date);
+            const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+            return `${values.year}-${values.month}-${values.day}`;
+        }
+
+        function formatDispatchDate(value) {
+            if (!value) return 'ไม่ระบุวันที่จ่ายวัสดุ';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return 'ไม่ระบุวันที่จ่ายวัสดุ';
+            return new Intl.DateTimeFormat('th-TH', {
+                timeZone: 'Asia/Bangkok',
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            }).format(date);
+        }
+
+        function getMaterialQuantity(log) {
+            const qty = Number(log.delta ?? (log.old_qty - log.new_qty) ?? 0);
+            return Number.isFinite(qty) ? Math.abs(qty) : 0;
+        }
+
+        function renderDoneGroupsByDispatchDate(entries) {
+            const groupsByDate = {};
+
+            entries.forEach(group => {
+                const dateKey = getDispatchDateKey(group.dispatchedAt);
+                if (!groupsByDate[dateKey]) groupsByDate[dateKey] = [];
+                groupsByDate[dateKey].push(group);
+            });
+
+            return Object.entries(groupsByDate)
+                .sort(([dateA], [dateB]) => {
+                    if (dateA === 'unknown') return 1;
+                    if (dateB === 'unknown') return -1;
+                    return dateB.localeCompare(dateA);
+                })
+                .map(([, dayGroups]) => {
+                    dayGroups.sort((a, b) => new Date(b.dispatchedAt || 0) - new Date(a.dispatchedAt || 0));
+                    const materialRows = dayGroups.reduce((sum, group) => sum + group.items.length, 0);
+                    const totalQuantity = dayGroups.reduce((sum, group) => (
+                        sum + group.items.reduce((itemSum, log) => itemSum + getMaterialQuantity(log), 0)
+                    ), 0);
+                    const referenceDate = dayGroups.find(group => group.dispatchedAt)?.dispatchedAt;
+
+                    return `
+                        <section class="dispatch-day-section">
+                            <div class="dispatch-day-header">
+                                <div class="dispatch-day-title">📅 วันที่จ่ายวัสดุ: ${formatDispatchDate(referenceDate)}</div>
+                                <div class="dispatch-day-summary">
+                                    <span class="dispatch-day-stat">${dayGroups.length.toLocaleString('th-TH')} ออเดอร์</span>
+                                    <span class="dispatch-day-stat">${materialRows.toLocaleString('th-TH')} รายการวัสดุ</span>
+                                    <span class="dispatch-day-stat">รวม ${totalQuantity.toLocaleString('th-TH')} ชิ้น</span>
+                                </div>
+                            </div>
+                            <div class="order-groups">${dayGroups.map(group => renderGroupCard(group)).join('')}</div>
+                        </section>`;
+                }).join('');
+        }
+
+        function formatDispatchDateInput(value) {
+            const digits = String(value || '').replace(/\D/g, '').slice(0, 8);
+            const parts = [];
+            if (digits.length > 0) parts.push(digits.slice(0, 2));
+            if (digits.length > 2) parts.push(digits.slice(2, 4));
+            if (digits.length > 4) parts.push(digits.slice(4, 8));
+            return parts.join('/');
+        }
+
+        function parseDispatchDateInput(value) {
+            const match = String(value || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+            if (!match) return null;
+
+            const day = Number(match[1]);
+            const month = Number(match[2]);
+            const enteredYear = Number(match[3]);
+            const year = enteredYear >= 2400 ? enteredYear - 543 : enteredYear;
+            const date = new Date(Date.UTC(year, month - 1, day));
+
+            if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+                return null;
+            }
+
+            return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
+
+        function setDispatchDateFilter(value, input) {
+            const formatted = formatDispatchDateInput(value);
+            if (input && input.value !== formatted) input.value = formatted;
+            const picker = document.getElementById('dispatchDatePicker');
+
+            if (!formatted) {
+                dispatchDateFilter = '';
+                if (picker) picker.value = '';
+                renderContent();
+                return;
+            }
+
+            if (formatted.length < 10) {
+                dispatchDateFilter = '';
+                const resultLabel = document.getElementById('dispatchFilterResult');
+                if (resultLabel) resultLabel.textContent = 'กรอกวันที่ให้ครบ วว/ดด/ปปปป';
+                return;
+            }
+
+            dispatchDateFilter = parseDispatchDateInput(formatted) || 'invalid';
+            if (picker) picker.value = dispatchDateFilter === 'invalid' ? '' : dispatchDateFilter;
+            renderContent();
+        }
+
+        function openDispatchDatePicker() {
+            const picker = document.getElementById('dispatchDatePicker');
+            if (!picker) return;
+
+            try {
+                if (typeof picker.showPicker === 'function') picker.showPicker();
+                else picker.click();
+            } catch (error) {
+                picker.click();
+            }
+        }
+
+        function applyDispatchDatePicker(value) {
+            if (!value) return;
+            const parts = value.split('-');
+            if (parts.length !== 3) return;
+
+            const displayInput = document.getElementById('dispatchDateFilter');
+            const formatted = `${parts[2]}/${parts[1]}/${parts[0]}`;
+            if (displayInput) displayInput.value = formatted;
+            dispatchDateFilter = value;
+            renderContent();
+        }
+
+        function clearDispatchDateFilter() {
+            dispatchDateFilter = '';
+            const input = document.getElementById('dispatchDateFilter');
+            const picker = document.getElementById('dispatchDatePicker');
+            if (input) input.value = '';
+            if (picker) picker.value = '';
+            renderContent();
+        }
+
+        function renderContent() {
+            const groups = activeTab === 'pending' ? pendingGroups : doneGroups;
+            let entries = Object.values(groups).sort((a, b) => {
+                const dateA = activeTab === 'done' ? a.dispatchedAt : a.createdAt;
+                const dateB = activeTab === 'done' ? b.dispatchedAt : b.createdAt;
+                return new Date(dateB || 0) - new Date(dateA || 0);
+            });
+            const container = document.getElementById('mainContent');
+
+            if (activeTab === 'done' && dispatchDateFilter) {
+                entries = entries.filter(group => getDispatchDateKey(group.dispatchedAt) === dispatchDateFilter);
+            }
+
+            const resultLabel = document.getElementById('dispatchFilterResult');
+            if (resultLabel && activeTab === 'done') {
+                if (dispatchDateFilter === 'invalid') {
+                    resultLabel.textContent = 'วันที่ไม่ถูกต้อง';
+                } else {
+                    resultLabel.textContent = dispatchDateFilter
+                        ? `พบ ${entries.length.toLocaleString('th-TH')} ออเดอร์`
+                        : `ทั้งหมด ${entries.length.toLocaleString('th-TH')} ออเดอร์`;
+                }
+            }
+
+            if (entries.length === 0) {
+                if (activeTab === 'pending') {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="emoji">✅</div>
+                            <h3>ไม่มีรายการรอจัดเตรียม</h3>
+                            <p>เมื่อมีการกด "เริ่มผลิต" ระบบจะแสดงรายการวัสดุที่ต้องเตรียมที่นี่</p>
+                        </div>`;
+                } else {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="emoji">${dispatchDateFilter ? '🔎' : '📋'}</div>
+                            <h3>${dispatchDateFilter ? 'ไม่พบการจ่ายวัสดุในวันที่เลือก' : 'ยังไม่มีประวัติการจ่ายวัสดุ'}</h3>
+                            <p>${dispatchDateFilter ? 'ลองเลือกวันที่อื่น หรือกดปุ่ม “ล้างวันที่” เพื่อดูทั้งหมด' : 'ประวัติการจ่ายวัสดุจะแสดงที่นี่หลังจากกด “จ่ายวัสดุแล้ว”'}</p>
+                        </div>`;
+                }
+                return;
+            }
+
+            if (activeTab === 'done') {
+                container.innerHTML = renderDoneGroupsByDispatchDate(entries);
+            } else {
+                const html = entries.map(group => renderGroupCard(group)).join('');
+                container.innerHTML = `<div class="order-groups">${html}</div>`;
+            }
+            hydrateMaterialProductImages();
+        }
+
+        const materialProductImageCache = new Map();
+
+        async function getMaterialProductImage(sku) {
+            const normalizedSku = String(sku || '').trim().toUpperCase();
+            if (!normalizedSku) return null;
+            if (materialProductImageCache.has(normalizedSku)) return materialProductImageCache.get(normalizedSku);
+
+            const request = db.from('product_images')
+                .select('image_url')
+                .eq('sku', normalizedSku)
+                .maybeSingle()
+                .then(({ data, error }) => {
+                    if (error) {
+                        console.warn(`โหลดรูปสินค้า ${normalizedSku} ไม่สำเร็จ:`, error.message);
+                        return null;
+                    }
+                    return data?.image_url || null;
+                })
+                .catch(error => {
+                    console.warn(`โหลดรูปสินค้า ${normalizedSku} ไม่สำเร็จ:`, error);
+                    return null;
+                });
+            materialProductImageCache.set(normalizedSku, request);
+            return request;
+        }
+
+        async function hydrateMaterialProductImages() {
+            document.querySelectorAll('.material-product-image[data-sku]').forEach(async button => {
+                const imageUrl = await getMaterialProductImage(button.dataset.sku);
+                if (!button.isConnected) return;
+                button.classList.remove('is-loading');
+                if (!imageUrl) {
+                    button.classList.add('is-empty');
+                    button.title = 'ยังไม่มีรูปสินค้า';
+                    return;
+                }
+                const image = document.createElement('img');
+                image.src = imageUrl;
+                image.alt = `รูปสินค้า ${button.dataset.sku}`;
+                image.loading = 'lazy';
+                button.replaceChildren(image);
+                button.classList.add('has-image');
+                button.title = 'คลิกเพื่อดูรูปขนาดใหญ่';
+                button.onclick = () => openMaterialProductImage(imageUrl, image.alt);
+            });
+        }
+
+        function openMaterialProductImage(imageUrl, altText) {
+            let modal = document.getElementById('materialProductImageModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'materialProductImageModal';
+                modal.className = 'material-image-modal';
+                modal.innerHTML = '<img alt="รูปสินค้า">';
+                modal.addEventListener('click', () => modal.classList.remove('open'));
+                document.body.appendChild(modal);
+            }
+            const image = modal.querySelector('img');
+            image.src = imageUrl;
+            image.alt = altText || 'รูปสินค้า';
+            modal.classList.add('open');
+        }
+
+        function renderGroupCard(group) {
+            const isDone = activeTab === 'done';
+            const dateStr = group.createdAt
+                ? new Date(group.createdAt).toLocaleString('th-TH', { hour12: false, hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })
+                : '-';
+
+            const dispatchBtn = !isDone
+                ? `<button class="btn btn-dispatch btn-sm" 
+                        onclick="openDispatchModal('${escHtml(group.key)}', '${escHtml(group.orderSku)}')">
+                        ✅ จ่ายวัสดุแล้ว
+                   </button>`
+                : `<div class="text-right">
+                       <div class="dispatch-badge done">✅ จ่ายแล้ว</div>
+                       <div class="dispatch-info">
+                           👤 ${escHtml(group.dispatchedBy || '-')}<br>
+                           🕐 ${group.dispatchedAt ? new Date(group.dispatchedAt).toLocaleString('th-TH', { hour12: false }) : '-'}
+                       </div>
+                   </div>`;
+
+            const itemsHtml = group.items.map(log => {
+                const qty = Math.abs(log.delta ?? (log.old_qty - log.new_qty) ?? 0) || '?';
+                const icons = getCategoryIcon(log.item_name);
+                return `
+                    <div class="material-item">
+                        <div class="material-item-left">
+                            <div class="material-icon">${icons}</div>
+                            <div>
+                                <div class="material-name">${escHtml(log.item_name || '-')}</div>
+                                ${materialCodesMap[log.item_id] ? `<div class="material-code">รหัส: ${escHtml(materialCodesMap[log.item_id])}</div>` : ''}
+                                <div class="material-time">${log.created_at ? new Date(log.created_at).toLocaleString('th-TH', { hour12: false }) : '-'}</div>
+                            </div>
+                        </div>
+                        <div class="material-qty">
+                            <span class="qty-pill">-${qty}</span>
+                            <span class="qty-unit">ชิ้น</span>
+                        </div>
+                    </div>`;
+            }).join('');
+
+            const titleText = group.orderNo ? `เลขที่ออเดอร์: ${escHtml(group.orderNo)}` : 'ออเดอร์ผลิต';
+            const orderQuantity = Number(group.orderQuantity);
+            const orderQuantityText = group.orderQuantity !== null
+                && group.orderQuantity !== undefined
+                && Number.isFinite(orderQuantity)
+                ? orderQuantity.toLocaleString('th-TH')
+                : '-';
+
+            return `
+                <div class="order-group-card ${isDone ? 'dispatched-card' : ''}">
+                    <div class="order-group-header">
+                        <div class="order-group-title">
+                            <button type="button" class="material-product-image is-loading" data-sku="${escHtml(group.orderSku)}" aria-label="รูปสินค้า ${escHtml(group.orderSku)}">📦</button>
+                            <div>
+                                <div class="order-title-text">${titleText}</div>
+                                <span class="order-sku-badge"># ${escHtml(group.orderSku)}</span>
+                                <span class="order-quantity-badge" title="จำนวนสินค้าสำเร็จรูปในเลขที่ออเดอร์นี้">📦 จำนวนออเดอร์: ${orderQuantityText} ชิ้น</span>
+                                <div class="production-number-highlight">
+                                    <span>🧾 เลขที่การผลิต:</span>
+                                    <strong class="production-number-value ${group.productionNumber ? '' : 'is-unassigned'}">${escHtml(group.productionNumber || 'ยังไม่กำหนด')}</strong>
+                                </div>
+                                ${group.productName ? `<div class="order-product-name">📦 ${escHtml(group.productName)}</div>` : ''}
+                                <div class="order-time">🕐 เริ่มผลิต: ${dateStr} • ${group.items.length} รายการวัสดุ</div>
+                            </div>
+                        </div>
+                        <div class="order-group-actions">
+                            ${dispatchBtn}
+                        </div>
+                    </div>
+                    <div class="material-list">${itemsHtml}</div>
+                    ${!isDone ? `<div class="section-note">📌 กรุณาเตรียมวัสดุตามรายการข้างต้น แล้วกด "จ่ายวัสดุแล้ว" เมื่อเตรียมเสร็จ</div>` : ''}
+                </div>`;
+        }
+
+        // ─── KPI UPDATE ──────────────────────────────────────────────────────
+        function updateKPIs() {
+            const pendingCount = Object.keys(pendingGroups).length;
+            const pendingItems = Object.values(pendingGroups).reduce((sum, g) => sum + g.items.length, 0);
+
+            // Today's dispatched groups
+            const today = getDispatchDateKey(new Date());
+            const todayCount = Object.values(doneGroups).filter(g =>
+                getDispatchDateKey(g.dispatchedAt) === today
+            ).length;
+
+            document.getElementById('kpiPending').textContent = pendingCount;
+            document.getElementById('kpiToday').textContent = todayCount;
+            document.getElementById('kpiItems').textContent = pendingItems;
+
+            document.getElementById('countPending').textContent = pendingCount;
+            document.getElementById('countDone').textContent = todayCount;
+        }
+
+        // ─── TAB SWITCHING ───────────────────────────────────────────────────
+        function switchTab(tab) {
+            activeTab = tab;
+
+            document.getElementById('tabPending').className = 'tab-btn' + (tab === 'pending' ? ' active-pending' : '');
+            document.getElementById('tabDone').className = 'tab-btn' + (tab === 'done' ? ' active-done' : '');
+            document.getElementById('tabDamage').className = 'tab-btn' + (tab === 'damage' ? ' active-damage' : '');
+
+            const mainContent = document.getElementById('mainContent');
+            const damageSection = document.getElementById('damageSection');
+            const dispatchDateToolbar = document.getElementById('dispatchDateToolbar');
+            if (dispatchDateToolbar) dispatchDateToolbar.hidden = tab !== 'done';
+
+            if (tab === 'damage') {
+                mainContent.style.display = 'none';
+                damageSection.classList.add('active');
+                // Load damage data on first visit
+                if (!dmgLoaded) {
+                    dmgLoadData();
+                    dmgLoaded = true;
+                }
+            } else {
+                mainContent.style.display = '';
+                damageSection.classList.remove('active');
+                renderContent();
+            }
+        }
+
+        // ─── DISPATCH MODAL ──────────────────────────────────────────────────
+        function openDispatchModal(groupKey, orderSku) {
+            const group = pendingGroups[groupKey];
+            if (!group) return;
+
+            pendingDispatchData = {
+                groupKey,
+                orderSku,
+                logIds: group.items.map(i => i.id)
+            };
+
+            const displayTitleText = group.orderNo ? `เลขที่ออเดอร์: ${group.orderNo}` : `SKU ออเดอร์: ${orderSku}`;
+
+            document.getElementById('modalOrderInfo').innerHTML = `
+                <div class="mb-1">
+                    <span class="text-muted text-small">รายการจัดเตรียม</span><br>
+                    <strong># ${escHtml(displayTitleText)}</strong>
+                    ${group.productionNumber ? `<br><strong>🏭 เลขที่ผลิต: ${escHtml(group.productionNumber)}</strong>` : ''}
+                </div>
+                <div class="text-muted text-small">
+                    วัสดุที่จะยืนยันว่าจ่ายแล้ว: <strong class="text-warning-gold">${group.items.length} รายการ</strong>
+                </div>
+                <div class="text-muted text-small mb-1">
+                    ${group.items.map(i => `• ${i.item_name} (${Math.abs(i.delta ?? 0)} ชิ้น)`).join('<br>')}
+                </div>`;
+
+            document.getElementById('dispatcherName').value = '';
+            document.getElementById('productionTeamName').value = '';
+            document.getElementById('dispatcherName').style.borderColor = '';
+            document.getElementById('productionTeamName').style.borderColor = '';
+            document.getElementById('dispatchModal').classList.add('active');
+            setTimeout(() => document.getElementById('dispatcherName').focus(), 100);
+        }
+
+        function closeDispatchModal() {
+            document.getElementById('dispatchModal').classList.remove('active');
+            pendingDispatchData = null;
+        }
+
+        // Close modal on backdrop click
+        document.getElementById('dispatchModal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('dispatchModal')) closeDispatchModal();
+        });
+
+        async function confirmDispatch() {
+            if (!pendingDispatchData) return;
+
+            const name = document.getElementById('dispatcherName').value.trim();
+            const productionTeam = document.getElementById('productionTeamName').value.trim();
+
+            let hasError = false;
+            if (!name) {
+                document.getElementById('dispatcherName').style.borderColor = '#ef4444';
+                document.getElementById('dispatcherName').focus();
+                showToast('⚠️ กรุณาระบุชื่อผู้จ่ายวัสดุ', 'warn');
+                hasError = true;
+            } else {
+                document.getElementById('dispatcherName').style.borderColor = '';
+            }
+            if (!productionTeam) {
+                document.getElementById('productionTeamName').style.borderColor = '#ef4444';
+                if (!hasError) document.getElementById('productionTeamName').focus();
+                showToast('⚠️ กรุณาระบุชื่อฝ่ายผลิต (ผู้รับวัสดุ)', 'warn');
+                hasError = true;
+            } else {
+                document.getElementById('productionTeamName').style.borderColor = '';
+            }
+            if (hasError) return;
+
+            const btn = document.getElementById('confirmDispatchBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner spinner-xs"></span> กำลังบันทึก...';
+
+            try {
+                const now = new Date().toISOString();
+                const { error } = await db
+                    .from('stock_movement_log')
+                    .update({
+                        dispatched: true,
+                        dispatched_by: name,
+                        dispatched_at: now,
+                        operator: productionTeam
+                    })
+                    .in('id', pendingDispatchData.logIds);
+
+                if (error) throw error;
+
+                // Optimistic Local State Update
+                allLogs.forEach(log => {
+                    if (pendingDispatchData.logIds.includes(log.id)) {
+                        log.dispatched = true;
+                        log.dispatched_by = name;
+                        log.dispatched_at = now;
+                        log.operator = productionTeam;
+                    }
+                });
+                processData();
+                renderContent();
+                updateKPIs();
+
+                showToast(`✅ บันทึกการจ่ายวัสดุสำเร็จ — ฝ่ายผลิต: ${productionTeam} จ่ายโดย: ${name}`, 'success');
+                closeDispatchModal();
+                
+                // Silent background reload to stay synchronized
+                loadData();
+            } catch (err) {
+                showToast('❌ บันทึกล้มเหลว: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '✅ ยืนยันจ่ายวัสดุ';
+            }
+        }
+
+        // ─── HELPERS ─────────────────────────────────────────────────────────
+        function escHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function getCategoryIcon(name) {
+            if (!name) return '📦';
+            const n = name.toLowerCase();
+            if (n.includes('กระจก') || n.includes('glass')) return '🪟';
+            if (n.includes('อลูมิเนียม') || n.includes('aluminum') || n.includes('aluminium')) return '📐';
+            if (n.includes('มุ้ง') || n.includes('screen')) return '🕸️';
+            if (n.includes('ยาง') || n.includes('rubber')) return '⭕';
+            if (n.includes('สกรู') || n.includes('screw') || n.includes('น็อต')) return '🔩';
+            return '📦';
+        }
+
+        // ─── TOAST ───────────────────────────────────────────────────────────
+        function showToast(msg, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `<span>${msg}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.3s ease reverse';
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        // ─── DAMAGE BADGE (lightweight, runs on init) ─────────────────────────
+        async function dmgLoadBadgeCount() {
+            if (!db) return;
+            try {
+                const { data, error } = await db
+                    .from('damaged_materials')
+                    .select('id')
+                    .eq('status', 'pending');
+                if (error) return;
+                document.getElementById('countDamage').textContent = (data || []).length;
+            } catch (_) {}
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        // ─── DAMAGE REPORT LOGIC ─────────────────────────────────────────
+        // ════════════════════════════════════════════════════════════════════
+
+        function dmgLog(msg) {
+            const el = document.getElementById('dmgLogBar');
+            if (el) el.textContent = `[${new Date().toLocaleTimeString('th-TH')}] ${msg}`;
+        }
+
+        function dmgEsc(s) {
+            return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function dmgSwitchView(view) {
+            dmgCurrentView = view;
+            document.getElementById('dmgTabSummary').classList.toggle('active', view === 'summary');
+            document.getElementById('dmgTabDetails').classList.toggle('active', view === 'details');
+            dmgRenderTable();
+        }
+
+        async function dmgLoadData(silent = false) {
+            if (!silent) {
+                dmgLog('กำลังโหลดข้อมูล...');
+                document.getElementById('dmgTableBody').innerHTML =
+                    `<tr><td colspan="6"><div class="empty-state"><div class="emoji">⏳</div><p>กำลังโหลด...</p></div></td></tr>`;
+            }
+
+            try {
+                const { data, error } = await db
+                    .from('damaged_materials')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(500);
+                if (error) throw error;
+
+                dmgAllLogs = data || [];
+                dmgRenderTable();
+
+                // Update damage count badge — show only pending items
+                const pendingCount = dmgAllLogs.filter(r => r.status === 'pending').length;
+                document.getElementById('countDamage').textContent = pendingCount;
+
+                if (!silent) {
+                    dmgLog(`โหลดสำเร็จ ${dmgAllLogs.length} รายการ`);
+                }
+                if (!dmgRealtimeChannel) dmgStartRealtime();
+            } catch (err) {
+                if (!silent) {
+                    dmgLog(`โหลดล้มเหลว: ${err.message}`);
+                    document.getElementById('dmgTableBody').innerHTML =
+                        `<tr><td colspan="6" class="table-error-cell">❌ ${err.message}</td></tr>`;
+                }
+            }
+        }
+
+        function dmgGetFiltered() {
+            const dateFrom = document.getElementById('dmgFilterDateFrom').value;
+            const dateTo = document.getElementById('dmgFilterDateTo').value;
+            const searchItem = document.getElementById('dmgFilterItem').value.trim().toLowerCase();
+
+            return dmgAllLogs.filter(r => {
+                const created = r.created_at ? r.created_at.substring(0, 10) : '';
+                if (dateFrom && created < dateFrom) return false;
+                if (dateTo && created > dateTo) return false;
+                if (searchItem && !String(r.item_name || '').toLowerCase().includes(searchItem)) return false;
+                return true;
+            });
+        }
+
+        function dmgRenderTable() {
+            const rows = dmgGetFiltered();
+            const thead = document.getElementById('dmgTableHeader');
+            const tbody = document.getElementById('dmgTableBody');
+
+            // Update KPIs
+            document.getElementById('dmgKpiTotal').textContent = rows.length;
+            const totalDmg = rows.reduce((s, r) => s + (r.quantity || 0), 0);
+            document.getElementById('dmgKpiQty').textContent = totalDmg.toLocaleString('th-TH');
+            const today = new Date().toISOString().substring(0, 10);
+            const todayCount = rows.filter(r => (r.created_at || '').startsWith(today)).length;
+            document.getElementById('dmgKpiToday').textContent = todayCount;
+
+            if (!rows.length) {
+                thead.innerHTML = '';
+                tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="emoji">✅</div><p>ไม่มีรายการข้อมูลชำรุด</p></div></td></tr>`;
+                return;
+            }
+
+            if (dmgCurrentView === 'summary') {
+                thead.innerHTML = `
+                    <tr>
+                        <th class="col-narrow">#</th>
+                        <th>ชื่อวัสดุที่ชำรุด</th>
+                        <th>รวมเสียหายสะสม (ชิ้น)</th>
+                        <th>ค้างส่งมอบ (ชิ้น)</th>
+                        <th>ความถี่ที่ชำรุด (ครั้ง)</th>
+                        <th>เสียหายล่าสุดเมื่อ</th>
+                    </tr>`;
+
+                const grouped = {};
+                rows.forEach(r => {
+                    const name = r.item_name || 'ไม่ระบุชื่อ';
+                    if (!grouped[name]) {
+                        grouped[name] = { item_name: name, total_qty: 0, count: 0, pending_qty: 0, latest_date: r.created_at };
+                    }
+                    grouped[name].total_qty += (r.quantity || 0);
+                    grouped[name].count += 1;
+                    if (r.status === 'pending') grouped[name].pending_qty += (r.quantity || 0);
+                    if (new Date(r.created_at) > new Date(grouped[name].latest_date)) {
+                        grouped[name].latest_date = r.created_at;
+                    }
+                });
+
+                const aggregatedList = Object.values(grouped).sort((a, b) => b.total_qty - a.total_qty);
+
+                tbody.innerHTML = aggregatedList.map((item, i) => {
+                    const d = new Date(item.latest_date);
+                    const dateStr = d.toLocaleDateString('th-TH');
+                    const timeStr = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+                    const pendingText = item.pending_qty > 0
+                        ? `<span class="status-pill warning">⏳ ค้าง ${item.pending_qty} ชิ้น</span>`
+                        : `<span class="text-muted">0</span>`;
+                    return `<tr>
+                        <td class="text-muted">${i + 1}</td>
+                        <td><span class="item-name-dmg">${dmgEsc(item.item_name)}</span></td>
+                        <td><span class="qty-diff qty-diff-large">-${item.total_qty}</span></td>
+                        <td>${pendingText}</td>
+                        <td class="text-strong-muted">${item.count} ครั้ง</td>
+                        <td class="table-meta">
+                            <div class="small-text">${dateStr}</div>
+                            <div class="xsmall-text">${timeStr}</div>
+                        </td>
+                    </tr>`;
+                }).join('');
+
+            } else {
+                thead.innerHTML = `
+                    <tr>
+                        <th class="col-narrow">#</th>
+                        <th>วันที่/เวลา</th>
+                        <th>เลขออเดอร์</th>
+                        <th>ชื่อวัสดุ</th>
+                        <th>จำนวน</th>
+                        <th>เหตุผล</th>
+                        <th>ผู้จ่าย</th>
+                        <th>สถานะการจัดส่ง</th>
+                    </tr>`;
+
+                tbody.innerHTML = rows.map((r, i) => {
+                    const d = new Date(r.created_at);
+                    const dateStr = d.toLocaleDateString('th-TH');
+                    const timeStr = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+                    let statusHtml = '';
+                    if (r.status === 'pending') {
+                        statusHtml = `<span class="badge-status-dmg pending">⏳ รอจ่ายของ</span>
+                                     <button class="btn-issue" onclick="dmgConfirmIssue('${r.id}')">✔️ จ่ายของแล้ว</button>`;
+                    } else {
+                        statusHtml = `<span class="badge-status-dmg delivered">✅ จ่ายแล้ว</span>`;
+                    }
+                    return `<tr>
+                        <td class="text-muted">${i + 1}</td>
+                        <td class="table-meta">
+                            <div class="small-text">${dateStr}</div>
+                            <div class="xsmall-text">${timeStr}</div>
+                        </td>
+                        <td><span class="mono-muted">${dmgEsc(r.order_number || '-')}</span></td>
+                        <td><span class="item-name-dmg">${dmgEsc(r.item_name)}</span></td>
+                        <td><span class="qty-diff">-${r.quantity}</span></td>
+                        <td><span class="badge-damage">${dmgEsc(r.reason || 'เสียหาย')}</span></td>
+                        <td>${r.delivered_by
+                            ? `<span class="text-success">👤 ${dmgEsc(r.delivered_by)}</span>`
+                            : `<span class="text-muted">—</span>`
+                        }</td>
+                        <td>${statusHtml}</td>
+                    </tr>`;
+                }).join('');
+            }
+        }
+
+        let pendingDmgIssueId = null;
+
+        function dmgConfirmIssue(id) {
+            const row = dmgAllLogs.find(r => String(r.id) === String(id));
+            pendingDmgIssueId = id;
+
+            document.getElementById('dmgIssueModalInfo').innerHTML = row
+                ? `<div class="mb-1">
+                       <span class="text-muted text-small">วัสดุที่จะยืนยันว่าจ่ายแล้ว</span><br>
+                       <strong class="text-success">${dmgEsc(row.item_name || '-')}</strong>
+                   </div>
+                   <div class="text-muted text-small">
+                       จำนวน: <strong class="text-danger">-${row.quantity || 0} ชิ้น</strong>
+                       ${row.order_number ? ` &nbsp;•&nbsp; เลขออเดอร์: <strong class="text-warning-gold">${dmgEsc(row.order_number)}</strong>` : ''}
+                   </div>`
+                : '<div>ยืนยันการจ่ายวัสดุทดแทน</div>';
+
+            document.getElementById('dmgIssuerName').value = '';
+            document.getElementById('dmgIssueModal').classList.add('active');
+            setTimeout(() => document.getElementById('dmgIssuerName').focus(), 100);
+        }
+
+        function closeDmgIssueModal() {
+            document.getElementById('dmgIssueModal').classList.remove('active');
+            pendingDmgIssueId = null;
+        }
+
+        document.getElementById('dmgIssueModal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('dmgIssueModal')) closeDmgIssueModal();
+        });
+
+        async function confirmDmgIssue() {
+            if (!pendingDmgIssueId) return;
+
+            const name = document.getElementById('dmgIssuerName').value.trim();
+            if (!name) {
+                document.getElementById('dmgIssuerName').style.borderColor = '#ef4444';
+                document.getElementById('dmgIssuerName').focus();
+                showToast('⚠️ กรุณาระบุชื่อผู้จ่ายวัสดุ', 'warn');
+                return;
+            }
+
+            const btn = document.getElementById('confirmDmgIssueBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner spinner-xs"></span> กำลังบันทึก...';
+
+            try {
+                const now = new Date().toISOString();
+                const { error } = await db
+                    .from('damaged_materials')
+                    .update({ status: 'delivered', delivered_by: name })
+                    .eq('id', pendingDmgIssueId);
+                if (error) throw error;
+
+                // Sync with stock_movement_log
+                const { error: logErr } = await db
+                    .from('stock_movement_log')
+                    .update({
+                        dispatched: true,
+                        dispatched_by: name,
+                        dispatched_at: now
+                    })
+                    .like('reason', `%[Ref: ${pendingDmgIssueId}]%`);
+                if (logErr) console.warn('Failed to sync stock_movement_log:', logErr);
+
+                // Optimistic Local State Update
+                const row = dmgAllLogs.find(r => String(r.id) === String(pendingDmgIssueId));
+                if (row) {
+                    row.status = 'delivered';
+                    row.delivered_by = name;
+                }
+                
+                // Adjust in allLogs as well
+                allLogs.forEach(log => {
+                    if (log.reason && log.reason.includes(`[Ref: ${pendingDmgIssueId}]`)) {
+                        log.dispatched = true;
+                        log.dispatched_by = name;
+                        log.dispatched_at = now;
+                    }
+                });
+
+                dmgRenderTable();
+                
+                // Update badge locally
+                const pendingCount = dmgAllLogs.filter(r => r.status === 'pending').length;
+                document.getElementById('countDamage').textContent = pendingCount;
+
+                dmgLog(`✅ ยืนยันจ่ายของทดแทนเรียบร้อย — โดย ${name}`);
+                showToast(`✅ บันทึกสำเร็จ — จ่ายโดย ${name}`, 'success');
+                closeDmgIssueModal();
+
+                // Silent background reload to stay synchronized
+                dmgLoadData(true);
+            } catch (err) {
+                dmgLog(`❌ ไม่สามารถยืนยันได้: ${err.message}`);
+                showToast(`❌ เกิดข้อผิดพลาด: ${err.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '✅ ยืนยันจ่ายของแล้ว';
+            }
+        }
+
+        function dmgStartRealtime() {
+            if (!db) return;
+            dmgRealtimeChannel = db
+                .channel('damage-report-merged-realtime')
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'damaged_materials'
+                }, () => {
+                    dmgLog('🔴 อัปเดตเรียลไทม์ — กำลังโหลดใหม่...');
+                    dmgLoadData(true);
+                })
+                .subscribe(status => {
+                    if (status === 'SUBSCRIBED') {
+                        dmgLog('🟢 เชื่อมต่อเรียลไทม์สำเร็จ');
+                    }
+                });
+        }
+
+        // Auto-filter on input change for damage filters
+        ['dmgFilterDateFrom', 'dmgFilterDateTo', 'dmgFilterItem'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', dmgRenderTable);
+        });
+    </script>
+</body>
+
+</html>

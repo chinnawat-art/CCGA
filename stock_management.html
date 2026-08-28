@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>จัดการสต็อกวัสดุ | Stock Management</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="auth.js?v=20260714-4"></script>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="theme.css">
+    <script src="theme.js" defer></script>
+    <style>
+        body {
+            min-height: 100vh;
+            background: var(--bg-body);
+            color: var(--text);
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.08) 0%, transparent 30%),
+                radial-gradient(circle at 90% 90%, rgba(255, 255, 255, 0.06) 0%, transparent 28%),
+                var(--bg-body);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .page-wrapper {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 1.5rem 2rem;
+        }
+
+        /* ── HEADER ── */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 2rem;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            background: var(--bg-card);
+            padding: 1.5rem;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            backdrop-filter: blur(8px);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex: 1;
+            min-width: 280px;
+        }
+
+        .header-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
+            box-shadow: 0 8px 20px var(--primary-glow);
+        }
+
+        .header-left h1 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary-bright), var(--primary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent !important;
+            margin: 0;
+            display: block;
+        }
+
+        .header-left p {
+            color: var(--muted) !important;
+            font-size: 0.82rem;
+            margin-top: 1px;
+        }
+
+        .header-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 12px;
+        }
+
+        .header-group {
+            display: flex;
+            align-items: center;
+            gap: 0.7rem;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .management-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 2rem;
+            backdrop-filter: blur(12px);
+            margin-top: 1rem;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1.25rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card-strong);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem 1.5rem;
+            text-align: center;
+            box-shadow: none;
+            transition: all 0.3s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--primary);
+            box-shadow: 0 8px 20px var(--primary-glow);
+        }
+
+        .stat-card h3 {
+            margin: 0 0 0.4rem;
+            color: var(--muted);
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .stat-card .value {
+            color: var(--primary-bright);
+            font-size: 2.2rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .stat-card.danger {
+            background: rgba(239, 68, 68, 0.05);
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+        
+        .stat-card.danger .value {
+            color: var(--red);
+        }
+
+        .stat-card.danger.selected {
+            background: rgba(239, 68, 68, 0.15) !important;
+            border-color: var(--red) !important;
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.25) !important;
+            transform: translateY(-2px);
+        }
+
+        /* Toolbar */
+        .toolbar {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .search-input {
+            flex: 1;
+            min-width: 220px;
+            padding: 0.65rem 1rem;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+
+        /* Category Tabs style */
+        .category-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 1.5rem;
+            gap: 1.5rem;
+            overflow-x: auto;
+        }
+
+        .category-tab {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.75rem 1.25rem;
+            font-size: 0.88rem;
+            color: var(--muted);
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s ease;
+            font-weight: 500;
+            user-select: none;
+            line-height: 1.35;
+            text-align: center;
+            min-width: 100px;
+        }
+
+        .category-tab .tab-icon {
+            font-size: 1.35rem;
+            display: block;
+        }
+
+        .category-tab:hover {
+            color: var(--text);
+        }
+
+        .category-tab.active {
+            color: var(--primary-bright);
+            border-bottom-color: var(--primary);
+            font-weight: 600;
+        }
+
+        /* Table */
+        .table-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: none;
+            backdrop-filter: none;
+        }
+
+        .table-responsive { overflow-x: auto; }
+
+        .table-footer-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.9rem 1rem 1rem;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+
+        .table-footer-meta {
+            color: var(--muted);
+            font-size: 0.84rem;
+        }
+
+        .pagination-controls {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            flex-wrap: wrap;
+        }
+
+        .pagination-btn {
+            min-width: 38px;
+            height: 34px;
+            padding: 0 0.8rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg-card-strong);
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'Kanit', sans-serif;
+            font-size: 0.85rem;
+        }
+
+        .pagination-btn:hover:not(:disabled) {
+            border-color: var(--primary);
+            color: var(--primary-bright);
+        }
+
+        .pagination-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .pagination-page {
+            min-width: 42px;
+            height: 34px;
+            padding: 0 0.7rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--muted);
+            cursor: pointer;
+            font-family: 'Kanit', sans-serif;
+        }
+
+        .pagination-page.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .stock-table {
+            width: 100%;
+            min-width: 1220px;
+            border-collapse: collapse;
+        }
+
+        .stat-card.warning {
+            background: rgba(245, 158, 11, 0.06);
+            border-color: rgba(245, 158, 11, 0.28);
+        }
+
+        .stat-card.warning .value {
+            color: #f59e0b;
+        }
+
+        .stat-card.warning.selected {
+            background: rgba(245, 158, 11, 0.16);
+            border-color: #f59e0b;
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.24);
+            transform: translateY(-2px);
+        }
+
+        .stock-table thead tr {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .stock-table th {
+            padding: 0.95rem 1rem;
+            text-align: left;
+            font-size: 0.8rem;
+            color: var(--muted);
+            text-transform: none;
+            letter-spacing: normal;
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .stock-table th[data-sort] {
+            cursor: pointer;
+            user-select: none;
+            transition: color 0.2s;
+        }
+
+        .stock-table th[data-sort]:hover {
+            color: var(--primary-bright);
+        }
+
+        .sort-icon { font-size: 0.7rem; opacity: 0.6; }
+
+        .stock-table td {
+            padding: 0.95rem 1rem;
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
+            font-size: 0.92rem;
+            vertical-align: middle;
+        }
+        
+        .stock-table tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .stock-table tr.row-low td {
+            background: rgba(239, 68, 68, 0.05);
+        }
+        
+        .stock-table tr.row-low:hover td {
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .stock-table tr.row-near td {
+            background: rgba(245, 158, 11, 0.055);
+        }
+
+        .stock-table tr.row-near:hover td {
+            background: rgba(245, 158, 11, 0.11);
+        }
+
+        .product-name {
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .product-code {
+            font-size: 0.78rem;
+            color: var(--muted);
+            font-family: monospace;
+            margin-top: 2px;
+        }
+
+        /* Category capsules (tags) */
+        .tag-category {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.25rem 0.65rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--muted-strong);
+            border: 1px solid var(--border);
+            white-space: nowrap;
+        }
+
+        .tag-category.glass {
+            background: rgba(56, 189, 248, 0.1);
+            color: #38bdf8;
+            border-color: rgba(56, 189, 248, 0.2);
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.1);
+        }
+
+        .tag-category.aluminum {
+            background: rgba(99, 102, 241, 0.1);
+            color: #818cf8;
+            border-color: rgba(99, 102, 241, 0.2);
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.1);
+        }
+
+        .tag-category.general {
+            background: rgba(100, 116, 139, 0.12);
+            color: #64748b;
+            border-color: rgba(100, 116, 139, 0.25);
+        }
+
+        .tag-category.tools {
+            background: rgba(245, 158, 11, 0.12);
+            color: #d97706;
+            border-color: rgba(245, 158, 11, 0.28);
+        }
+
+        .reorder-point-editor,
+        .near-stock-point-editor {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            min-height: 36px;
+            padding: 0.2rem 0.25rem 0.2rem 0.6rem;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--bg-card);
+            color: var(--muted-strong);
+            font-size: 0.8rem;
+            font-weight: 600;
+            white-space: nowrap;
+            transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+        }
+
+        .reorder-point-editor.is-dirty,
+        .near-stock-point-editor.is-dirty {
+            border-color: var(--primary);
+            background: var(--primary-glow);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        .reorder-symbol,
+        .near-stock-symbol {
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        .reorder-point-editor input,
+        .near-stock-point-editor input {
+            width: 48px;
+            padding: 0.32rem 0.2rem;
+            border: 0;
+            border-bottom: 1px solid var(--border);
+            border-radius: 0;
+            background: transparent;
+            color: var(--text);
+            text-align: center;
+            font: inherit;
+            font-weight: 700;
+            outline: none;
+        }
+
+        .reorder-point-editor input:focus,
+        .near-stock-point-editor input:focus {
+            border-bottom-color: var(--primary);
+        }
+
+        .reorder-unit,
+        .near-stock-unit {
+            min-width: 25px;
+            color: var(--muted);
+            font-weight: 500;
+        }
+
+        .reorder-point-editor button,
+        .near-stock-point-editor button {
+            width: 30px;
+            height: 30px;
+            border: 0;
+            border-radius: 7px;
+            background: var(--primary);
+            color: white;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 800;
+            transition: opacity 0.2s, transform 0.2s, background 0.2s;
+        }
+
+        .reorder-point-editor button:not(:disabled):hover,
+        .near-stock-point-editor button:not(:disabled):hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .reorder-point-editor button:disabled,
+        .near-stock-point-editor button:disabled {
+            background: transparent;
+            color: var(--muted);
+            cursor: default;
+            opacity: 0.35;
+        }
+
+        .near-stock-point-editor {
+            border-color: rgba(245, 158, 11, 0.35);
+            background: rgba(245, 158, 11, 0.08);
+        }
+
+        .near-stock-point-editor input {
+            width: 52px;
+        }
+
+        .near-stock-lower {
+            min-width: 26px;
+            text-align: center;
+            font-weight: 700;
+            color: #d97706;
+        }
+
+        /* Quantity controls and inputs */
+        .qty-container {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .qty-value {
+            font-size: 1.05rem;
+            font-weight: 700;
+        }
+
+        .qty-ok {
+            color: var(--green);
+        }
+
+        .qty-low {
+            color: var(--red);
+        }
+
+        .qty-near {
+            color: #d97706;
+        }
+
+        .quick-qty-input {
+            width: 60px;
+            padding: 0.3rem 0.4rem;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 0.85rem;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .quick-qty-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        /* Badges */
+        .badge-ok, .badge-low, .badge-near {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.76rem;
+            font-weight: 500;
+        }
+
+        .badge-ok {
+            background: rgba(16, 185, 129, 0.12);
+            border: 1px solid rgba(16, 185, 129, 0.25);
+            color: #34d399;
+        }
+
+        .badge-low {
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #f87171;
+        }
+
+        .badge-near {
+            background: rgba(245, 158, 11, 0.13);
+            border: 1px solid rgba(245, 158, 11, 0.35);
+            color: #d97706;
+        }
+
+        /* Actions */
+        .action-btns { display: flex; gap: 0.4rem; }
+
+        .action-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            border: 1px solid transparent;
+            cursor: pointer;
+            font-size: 0.82rem;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .action-btn-edit {
+            background: rgba(59, 130, 246, 0.12);
+            border-color: rgba(59, 130, 246, 0.25);
+            color: #60a5fa;
+        }
+
+        .action-btn-edit:hover { background: rgba(59, 130, 246, 0.25); }
+
+        .action-btn-delete {
+            background: rgba(248, 113, 113, 0.1);
+            border-color: rgba(248, 113, 113, 0.25);
+            color: #f87171;
+        }
+
+        .action-btn-delete:hover { background: rgba(248, 113, 113, 0.25); }
+
+        /* ── MODAL ───────────────────────────────── */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(5, 8, 17, 0.8);
+            backdrop-filter: blur(8px);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .modal.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            width: 92%;
+            max-width: 480px;
+            padding: 1.75rem;
+            animation: modalSlide 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+        }
+
+        @keyframes modalSlide {
+            from { transform: translateY(15px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.25rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 1.25rem;
+            color: var(--primary-bright);
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--muted);
+            font-size: 1.30rem;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            transition: color 0.2s;
+        }
+
+        .close-btn:hover { color: var(--text); }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--muted);
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 0.6rem 0.85rem;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: 'Kanit', sans-serif;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+        
+        .form-group select option {
+            background: var(--bg-body);
+            color: var(--text);
+        }
+
+        /* ── ADJUST PANEL ──────────────────────── */
+        .current-qty-box {
+            background: rgba(245, 158, 11, 0.05);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .current-qty-label { color: var(--muted); font-size: 0.82rem; }
+        .current-qty-value { font-size: 1.6rem; font-weight: 700; color: var(--primary-bright); }
+        .current-qty-unit  { color: var(--muted); font-size: 0.78rem; }
+
+        .adjust-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .adjust-btn {
+            padding: 0.65rem;
+            border-radius: 9px;
+            font-family: 'Kanit', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .adjust-btn .adj-icon { font-size: 1.3rem; }
+        .adjust-btn .adj-label { font-size: 0.75rem; opacity: 0.75; }
+
+        .adjust-btn.receive  {
+            background: rgba(16, 185, 129, 0.12);
+            border-color: rgba(16, 185, 129, 0.25);
+            color: #34d399;
+        }
+
+        .adjust-btn.receive:hover  { background: rgba(16, 185, 129, 0.22); }
+
+        .adjust-btn.issue {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.25);
+            color: #f87171;
+        }
+
+        .adjust-btn.issue:hover { background: rgba(239, 68, 68, 0.20); }
+
+        .adjust-btn.selected {
+            outline: 2px solid currentColor;
+            outline-offset: 1px;
+        }
+
+        .qty-delta-input {
+            width: 100%;
+            padding: 0.6rem 0.8rem;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            color: var(--text);
+            font-family: 'Kanit', sans-serif;
+            font-size: 1.15rem;
+            font-weight: 700;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .qty-delta-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1.5rem;
+            justify-content: flex-end;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .btn-cancel {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.1);
+            color: var(--muted);
+        }
+
+        .btn-cancel:hover { background: rgba(255, 255, 255, 0.1); color: var(--text); }
+
+        .btn-save {
+            background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+            color: var(--text);
+            box-shadow: 0 4px 12px var(--primary-glow);
+        }
+
+        .btn-save:hover { transform: translateY(-1px); }
+        .btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* ── EMPTY STATE ─────────────────────────── */
+        .empty-state {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: var(--muted-strong);
+        }
+
+        .empty-state .icon { font-size: 3rem; margin-bottom: 0.75rem; }
+
+        /* ── TOAST ───────────────────────────────── */
+        #toast {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            padding: 0.75rem 1.25rem;
+            border-radius: 10px;
+            border: 1px solid;
+            font-family: 'Kanit', sans-serif;
+            font-size: 0.9rem;
+            z-index: 9999;
+            transform: translateY(20px);
+            opacity: 0;
+            transition: opacity 0.25s, transform 0.25s;
+            pointer-events: none;
+            max-width: 340px;
+        }
+
+        #toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* ── SECTION TABS ────────────────────────── */
+        .section-tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+
+        .section-tab {
+            background: transparent;
+            border: none;
+            color: var(--muted);
+            font-family: 'Kanit', sans-serif;
+            font-size: 1.05rem;
+            font-weight: 600;
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .section-tab:hover {
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .section-tab.active {
+            color: var(--primary-bright);
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        .section-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--primary-bright));
+            border-radius: 3px;
+            box-shadow: 0 2px 10px var(--primary-glow);
+        }
+
+        .section-panel {
+            animation: fadeIn 0.25s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page-wrapper">
+        <header class="header">
+            <div class="header-left">
+                <div class="header-icon">📦</div>
+                <div>
+                    <h1>จัดการสต็อกวัสดุ | Stock Management</h1>
+                    <p>ติดตามและจัดการระดับสต็อกอะไหล่ กระจก และอลูมิเนียม</p>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="header-group">
+                    <a href="index.html" class="btn btn-outline btn-sm header-link-info">
+                        📝 บันทึกออเดอร์
+                    </a>
+                    <a href="material_prep.html" class="btn btn-outline btn-sm header-link-success">
+                        📋 เตรียมวัสดุ
+                    </a>
+                    <a href="production.html" class="btn btn-outline btn-sm header-link-warning">
+                        🏭 ฝ่ายผลิต
+                    </a>
+                    <a href="damage_report.html" class="btn btn-outline btn-sm header-link-danger">
+                        ⚠️ รายงานวัสดุเสียหาย
+                    </a>
+                    <a href="backup_stock.html" class="btn btn-outline btn-sm header-link-accent">
+                        📦 สต็อกสินค้าสำรอง
+                    </a>
+                </div>
+                <div class="header-group" style="margin-top: 5px;">
+                    <div id="user-display-area" style="font-size: 0.9rem; color: var(--muted); font-weight: 500;"></div>
+                    <button onclick="auth.logout()" class="btn btn-outline btn-sm btn-logout">
+                        🚪 ออกจากระบบ
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <div class="management-container">
+
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>📦 จำนวนประเภทสินค้า</h3>
+                    <div class="value" id="totalItems">—</div>
+                </div>
+                <div class="stat-card danger" id="lowStockCard" style="cursor: pointer; transition: all 0.2s;" onclick="toggleLowStockFilterFromCard()">
+                    <h3>⚠️ สินค้าต่ำกว่าระดับเตือน</h3>
+                    <div class="value" id="lowStockItems">—</div>
+                </div>
+                <div class="stat-card warning" id="nearStockCard" style="cursor: pointer;" onclick="toggleNearStockFilterFromCard()">
+                    <h3>🟠 สินค้าใกล้หมด</h3>
+                    <div class="value" id="nearStockItems">—</div>
+                </div>
+                <div class="stat-card">
+                    <h3>🔢 จำนวนชิ้นรวมทั้งหมด</h3>
+                    <div class="value" id="totalValue">—</div>
+                </div>
+            </div>
+
+            <!-- Section Tabs (Stock / Receive / Issue) -->
+            <div class="section-tabs">
+                <button class="section-tab active" id="tab-stock" onclick="switchSectionTab('stock')">
+                    📦 สต็อกวัสดุ
+                </button>
+                <button class="section-tab" id="tab-receive" onclick="switchSectionTab('receive')">
+                    📥 ประวัติรับเข้า
+                </button>
+                <button class="section-tab" id="tab-issue" onclick="switchSectionTab('issue')">
+                    📤 ประวัติจ่ายออก
+                </button>
+            </div>
+
+            <!-- TAB 1: สต็อกวัสดุ -->
+            <div id="panel-stock" class="section-panel">
+                <!-- Toolbar -->
+                <div class="toolbar">
+                    <button class="btn btn-add" onclick="openAddModal()">➕ เพิ่มสินค้าใหม่</button>
+                    <button class="btn btn-refresh" onclick="refreshStockList()">🔄 รีโหลด</button>
+                    <input type="text" id="searchInput" class="search-input"
+                        placeholder="🔍 ค้นหาชื่อหรือรหัสสินค้า..." oninput="searchStocks()">
+                    <label class="filter-low-stock-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none; font-size: 0.9rem; color: var(--red); font-weight: 500; background: rgba(239, 68, 68, 0.1); padding: 0.55rem 1rem; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.25); transition: all 0.2s;" id="lowStockLabel">
+                        <input type="checkbox" id="lowStockCheckbox" onchange="toggleLowStockFilter(this.checked)" style="width: 16px; height: 16px; accent-color: var(--red); cursor: pointer;">
+                        ⚠️ แสดงเฉพาะสินค้าต่ำกว่าระดับเตือน
+                    </label>
+                    <label id="nearStockLabel" style="display:inline-flex; align-items:center; gap:0.5rem; cursor:pointer; color:#d97706; font-weight:600; background:rgba(245,158,11,0.1); padding:0.55rem 1rem; border-radius:8px; border:1px solid rgba(245,158,11,0.3);">
+                        <input type="checkbox" id="nearStockCheckbox" onchange="toggleNearStockFilter(this.checked)" style="width:16px; height:16px; accent-color:#f59e0b;">
+                        🟠 แสดงเฉพาะสินค้าใกล้หมด
+                    </label>
+                </div>
+
+                <!-- Table -->
+                <div class="table-card">
+                    <!-- Category Tabs -->
+                    <div class="category-tabs">
+                        <div class="category-tab active" data-category="" onclick="selectCategoryTab(this, '')">
+                            <div class="tab-icon">📋</div>
+                            <div>ทั้งหมด</div>
+                        </div>
+                        <div class="category-tab" data-category="general" onclick="selectCategoryTab(this, 'general')">
+                            <div class="tab-icon">🔩</div>
+                            <div>สต็อก<br>อะไหล่</div>
+                        </div>
+                        <div class="category-tab" data-category="glass" onclick="selectCategoryTab(this, 'glass')">
+                            <div class="tab-icon">🪟</div>
+                            <div>สต็อก<br>กระจก</div>
+                        </div>
+                        <div class="category-tab" data-category="aluminum" onclick="selectCategoryTab(this, 'aluminum')">
+                            <div class="tab-icon">📐</div>
+                            <div>สต็อกอลูมิ<br>เนียม</div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="stock-table">
+                            <thead>
+                                <tr>
+                                    <th data-sort="category" onclick="sortBy('category')">
+                                        หมวดหมู่ <span class="sort-icon">↕</span>
+                                    </th>
+                                    <th data-sort="product_name" onclick="sortBy('product_name')">
+                                        ชื่อสินค้า <span class="sort-icon">↕</span>
+                                    </th>
+                                    <th data-sort="quantity" onclick="sortBy('quantity')" style="text-align: right; padding-right: 2rem;">
+                                        จำนวนคงเหลือ <span class="sort-icon">↕</span>
+                                    </th>
+                                    <th>หน่วยนับ</th>
+                                    <th title="ระบบจะแจ้งเตือนเมื่อจำนวนคงเหลือน้อยกว่าหรือเท่ากับค่านี้">จุดแจ้งเตือน</th>
+                                    <th title="ใกล้หมดเมื่อจำนวนมากกว่าจุดแจ้งเตือน และไม่เกินค่านี้">ช่วงสินค้าใกล้หมด</th>
+                                    <th>ขนาด (กว้าง × ยาว)</th>
+                                    <th>ปรับจำนวน</th>
+                                    <th>สถานะ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stockTableBody">
+                                <tr>
+                                    <td colspan="10" style="text-align:center; padding:2.5rem; color:#64748b;">
+                                        ⏳ กำลังโหลดข้อมูล...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="table-footer-bar">
+                        <div id="stockTableMeta" class="table-footer-meta">กำลังโหลดข้อมูล...</div>
+                        <div id="stockPagination" class="pagination-controls"></div>
+                    </div>
+                </div>
+
+                <div id="emptyState" class="empty-state" style="display:none;">
+                    <div class="icon">📦</div>
+                    <p style="color:#64748b;">ยังไม่มีสินค้าในระบบ — กด <strong style="color:#34d399;">เพิ่มสินค้าใหม่</strong> เพื่อเริ่มต้น</p>
+                </div>
+            </div>
+
+            <!-- TAB 2: ประวัติรับเข้า -->
+            <div id="panel-receive" class="section-panel" style="display:none;">
+                <div class="table-card" style="margin-top: 0; padding: 1.5rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:1px solid var(--border); padding-bottom:0.75rem; gap: 1rem; flex-wrap: wrap;">
+                        <h3 style="margin:0; font-size:1.1rem; color:#34d399; white-space: nowrap;">📥 ประวัติการรับเข้าวัสดุ</h3>
+                        <div style="display: flex; gap: 0.5rem; flex: 1; max-width: 700px; justify-content: flex-end; align-items: center; flex-wrap: wrap;">
+                            <input type="text" id="receiveSearchInput" class="search-input" style="padding: 0.4rem 0.85rem; font-size: 0.85rem; flex: 1.5; min-width: 140px;" placeholder="🔍 ค้นหาสินค้า, ผู้ปฏิบัติการ, เหตุผล..." oninput="scheduleRenderLogs()">
+                            <div style="display: flex; align-items: center; gap: 0.25rem;">
+                                <input type="date" id="receiveDateStart" class="search-input" style="padding: 0.4rem 0.6rem; font-size: 0.85rem; max-width: 135px;" onchange="renderLogs()" title="วันที่เริ่มต้น">
+                                <span style="color: var(--muted); font-size: 0.85rem;">ถึง</span>
+                                <input type="date" id="receiveDateEnd" class="search-input" style="padding: 0.4rem 0.6rem; font-size: 0.85rem; max-width: 135px;" onchange="renderLogs()" title="วันที่สิ้นสุด">
+                            </div>
+                            <button class="btn btn-refresh" onclick="loadMovementLogs()" style="padding:0.4rem 1rem; font-size:0.85rem;">🔄 รีเฟรช</button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="stock-table">
+                            <thead>
+                                <tr>
+                                    <th>วัน-เวลา</th>
+                                    <th>สินค้า</th>
+                                    <th style="text-align:right; padding-right:1rem;">จำนวน</th>
+                                    <th>ผู้ปฏิบัติการ</th>
+                                    <th>เหตุผล</th>
+                                </tr>
+                            </thead>
+                            <tbody id="receiveLogBody">
+                                <tr><td colspan="5" style="text-align:center; color:var(--muted); padding:2rem;">⏳ กำลังโหลด...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: ประวัติจ่ายออก -->
+            <div id="panel-issue" class="section-panel" style="display:none;">
+                <div class="table-card" style="margin-top: 0; padding: 1.5rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:1px solid var(--border); padding-bottom:0.75rem; gap: 1rem; flex-wrap: wrap;">
+                        <h3 style="margin:0; font-size:1.1rem; color:#f87171; white-space: nowrap;">📤 ประวัติการจ่ายออกวัสดุ</h3>
+                        <div style="display: flex; gap: 0.5rem; flex: 1; max-width: 700px; justify-content: flex-end; align-items: center; flex-wrap: wrap;">
+                            <input type="text" id="issueSearchInput" class="search-input" style="padding: 0.4rem 0.85rem; font-size: 0.85rem; flex: 1.5; min-width: 140px;" placeholder="🔍 ค้นหาสินค้า, ผู้ปฏิบัติการ, เหตุผล..." oninput="scheduleRenderLogs()">
+                            <div style="display: flex; align-items: center; gap: 0.25rem;">
+                                <input type="date" id="issueDateStart" class="search-input" style="padding: 0.4rem 0.6rem; font-size: 0.85rem; max-width: 135px;" onchange="renderLogs()" title="วันที่เริ่มต้น">
+                                <span style="color: var(--muted); font-size: 0.85rem;">ถึง</span>
+                                <input type="date" id="issueDateEnd" class="search-input" style="padding: 0.4rem 0.6rem; font-size: 0.85rem; max-width: 135px;" onchange="renderLogs()" title="วันที่สิ้นสุด">
+                            </div>
+                            <button class="btn btn-refresh" onclick="loadMovementLogs()" style="padding:0.4rem 1rem; font-size:0.85rem;">🔄 รีเฟรช</button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="stock-table">
+                            <thead>
+                                <tr>
+                                    <th>วัน-เวลา</th>
+                                    <th>สินค้า</th>
+                                    <th style="text-align:right; padding-right:1rem;">จำนวน</th>
+                                    <th>ชื่อผู้จ่ายวัสดุ</th>
+                                    <th>ชื่อฝ่ายผลิต</th>
+                                    <th>เหตุผล</th>
+                                </tr>
+                            </thead>
+                            <tbody id="issueLogBody">
+                                <tr><td colspan="6" style="text-align:center; color:var(--muted); padding:2rem;">⏳ กำลังโหลด...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Modal -->
+    <div id="stockModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">เพิ่มสินค้าใหม่</h2>
+                <button class="close-btn" onclick="closeModal()">✕</button>
+            </div>
+
+            <form id="stockForm">
+                <div class="form-group">
+                    <label for="productName">ชื่อสินค้า *</label>
+                    <input type="text" id="productName" required placeholder="เช่น กระจกใส 6 มม">
+                </div>
+
+                <div class="form-group">
+                    <label for="productCode">รหัสสินค้า</label>
+                    <input type="text" id="productCode" placeholder="เช่น GLASS-001">
+                </div>
+
+                <div class="form-group">
+                    <label for="category">หมวดหมู่ *</label>
+                    <select id="category" required>
+                        <option value="general">🔩 อะไหล่</option>
+                        <option value="glass">🔷 กระจก</option>
+                        <option value="aluminum">🔶 อลูมิเนียม</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="reorderPoint">แจ้งเตือนเมื่อคงเหลือไม่เกิน *</label>
+                    <input type="number" id="reorderPoint" min="0" step="1" value="10" required>
+                    <small style="color:var(--muted);">ตัวอย่าง: ตั้งค่า 2 จะแจ้งเตือนเมื่อเหลือ 2 ชิ้นหรือน้อยกว่า</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="nearStockPoint">ใกล้หมดเมื่อคงเหลือไม่เกิน *</label>
+                    <input type="number" id="nearStockPoint" min="1" step="1" value="20" required>
+                    <small style="color:var(--muted);">ต้องมากกว่าจุดแจ้งเตือน เช่น จุดแจ้งเตือน 10 และใกล้หมด 20 หมายถึง 11–20 ชิ้นเป็นสถานะใกล้หมด</small>
+                </div>
+
+                <!-- ADD MODE: initial quantity field -->
+                <div id="addQtySection" class="form-row">
+                    <div class="form-group">
+                        <label for="quantity">จำนวนเริ่มต้น *</label>
+                        <input type="number" id="quantity" min="0" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="unit">หน่วย</label>
+                        <input type="text" id="unit" placeholder="เช่น ชิ้น, ม., กม.">
+                    </div>
+                </div>
+
+                <!-- EDIT MODE: stock adjust panel -->
+                <div id="editQtySection" style="display:none;">
+                    <div class="form-group" style="margin-bottom:0.75rem;">
+                        <label for="unit">หน่วย</label>
+                        <input type="text" id="unitEdit" placeholder="เช่น ชิ้น, ม., กม.">
+                    </div>
+                    <div class="current-qty-box">
+                        <div>
+                            <div class="current-qty-label">จำนวนปัจจุบัน</div>
+                            <div>
+                                <span class="current-qty-value" id="currentQtyDisplay">—</span>
+                                <span class="current-qty-unit" id="currentQtyUnit"></span>
+                            </div>
+                        </div>
+                        <div style="font-size:1.5rem;">📦</div>
+                    </div>
+
+                    <div class="adjust-row">
+                        <button type="button" class="adjust-btn receive selected" id="btnReceive"
+                            onclick="setAdjustMode('receive')">
+                            <span class="adj-icon">📥</span>
+                            <span>รับเข้า (เพิ่ม)</span>
+                            <span class="adj-label">เติมของเข้าคลัง</span>
+                        </button>
+                        <button type="button" class="adjust-btn issue" id="btnIssue"
+                            onclick="setAdjustMode('issue')">
+                            <span class="adj-icon">📤</span>
+                            <span>จ่ายออก (ลด)</span>
+                            <span class="adj-label">นำของออกจากคลัง</span>
+                        </button>
+                    </div>
+
+                    <div class="form-group">
+                        <label id="deltaLabel" for="deltaQty">จำนวนที่รับเข้า *</label>
+                        <input type="number" id="deltaQty" class="qty-delta-input"
+                            min="1" placeholder="0" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="width">กว้าง (ซม./นิ้ว)</label>
+                        <input type="number" id="width" step="0.01" min="0" placeholder="100">
+                    </div>
+                    <div class="form-group">
+                        <label for="height">ยาว/สูง (ซม./นิ้ว)</label>
+                        <input type="number" id="height" step="0.01" min="0" placeholder="200">
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-cancel" onclick="closeModal()">ยกเลิก</button>
+                    <button type="submit" class="btn btn-save" id="submitBtn">💾 บันทึก</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast"></div>
+
+    <script src="stock_management.js?v=20260824-1"></script>
+</body>
+
+</html>

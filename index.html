@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบบันทึกสต็อกสินค้า | Stock Record</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Config (Supabase Keys - gitignored, ดูตัวอย่างใน config.example.js) -->
+    <script src="config.js"></script>
+    <!-- Auth & RBAC -->
+    <script src="auth.js?v=20260714-4"></script>
+    <!-- SheetJS Excel Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="theme.css">
+    <script src="theme.js" defer></script>
+</head>
+
+<body>
+    <div class="container">
+        <header class="index-hero">
+            <div class="logo">📦</div>
+            <h1>บันทึกสต็อกออเดอร์</h1>
+            <p>เพิ่มข้อมูลคำสั่งซื้อใหม่ลงในระบบ</p>
+            <div id="user-display-area" style="margin-top: 10px; display: flex; justify-content: center;"></div>
+
+            <button onclick="auth.logout()" 
+                style="margin-top: 10px; padding: 0.4rem 1rem; background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3); color: #f87171; border-radius: 8px; cursor: pointer; font-family: 'Kanit'; font-size: 0.8rem; transition: all 0.2s;"
+                onmouseover="this.style.background='rgba(248,113,113,0.2)'"
+                onmouseout="this.style.background='rgba(248,113,113,0.1)'">
+                🚪 ออกจากระบบ
+            </button>
+            <div style="display: flex; gap: 10px; margin-top: 1rem; justify-content: center; flex-wrap: wrap;">
+                <a href="dashboard.html"
+                    style="padding:0.5rem 1.2rem; background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.4); color:#818cf8; border-radius:10px; text-decoration:none; font-size:0.9rem; transition:all 0.2s;"
+                    onmouseover="this.style.background='rgba(99,102,241,0.3)'"
+                    onmouseout="this.style.background='rgba(99,102,241,0.15)'">
+                    📊 ดูแดชบอร์ดออเดอร์
+                </a>
+                <a href="executive_dashboard.html"
+                    style="padding:0.5rem 1.2rem; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.4); color:#34d399; border-radius:10px; text-decoration:none; font-size:0.9rem; transition:all 0.2s;"
+                    onmouseover="this.style.background='rgba(16,185,129,0.3)'"
+                    onmouseout="this.style.background='rgba(16,185,129,0.15)'">
+                    📈 แดชบอร์ดผู้บริหาร
+                </a>
+                <a href="production.html"
+
+
+                    style="padding:0.5rem 1.2rem; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.4); color:#fbbf24; border-radius:10px; text-decoration:none; font-size:0.9rem; transition:all 0.2s;"
+                    onmouseover="this.style.background='rgba(245,158,11,0.3)'"
+                    onmouseout="this.style.background='rgba(245,158,11,0.15)'">
+                    🏭 ฝ่ายผลิต
+                </a>
+                <a href="stock_management.html"
+                    style="padding:0.5rem 1.2rem; background:rgba(168,85,247,0.15); border:1px solid rgba(168,85,247,0.4); color:#d8b4fe; border-radius:10px; text-decoration:none; font-size:0.9rem; transition:all 0.2s;"
+                    onmouseover="this.style.background='rgba(168,85,247,0.3)'"
+                    onmouseout="this.style.background='rgba(168,85,247,0.15)'">
+                    📦 จัดการสต็อก
+                </a>
+                <a href="backup_stock.html"
+                    style="padding:0.5rem 1.2rem; background:rgba(129,140,248,0.15); border:1px solid rgba(129,140,248,0.4); color:#a5b4fc; border-radius:10px; text-decoration:none; font-size:0.9rem; transition:all 0.2s;"
+                    onmouseover="this.style.background='rgba(129,140,248,0.3)'"
+                    onmouseout="this.style.background='rgba(129,140,248,0.15)'">
+                    📦 สต็อกสินค้าสำรอง
+                </a>
+                <a href="sku_manage.html"
+                    style="padding:0.5rem 1.2rem; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.4); color:#34d399; border-radius:10px; text-decoration:none; font-size:0.9rem; transition:all 0.2s;"
+                    onmouseover="this.style.background='rgba(16,185,129,0.3)'"
+                    onmouseout="this.style.background='rgba(16,185,129,0.15)'">
+                    🛠️ จัดการ SKU
+                </a>
+                <a href="stock_bom_manage.html"
+                    style="padding:0.5rem 1.2rem; background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.4); color:#818cf8; border-radius:10px; text-decoration:none; font-size:0.9rem; transition:all 0.2s;"
+                    onmouseover="this.style.background='rgba(99,102,241,0.3)'"
+                    onmouseout="this.style.background='rgba(99,102,241,0.15)'">
+                    🧩 จัดการ BOM
+                </a>
+                <a href="damage_report.html"
+                    style="padding:0.5rem 1.2rem; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4); color:#f87171; border-radius:10px; text-decoration:none; font-size:0.9rem; transition:all 0.2s;"
+                    onmouseover="this.style.background='rgba(239,68,68,0.3)'"
+                    onmouseout="this.style.background='rgba(239,68,68,0.15)'">
+                    ⚠️ วัสดุเสียหาย
+                </a>
+                <a href="user_management.html"
+                    style="padding:0.5rem 1.2rem; background:rgba(6,182,212,0.15); border:1px solid rgba(6,182,212,0.4); color:#67e8f9; border-radius:10px; text-decoration:none; font-size:0.9rem; transition:all 0.2s;">
+                    🔐 จัดการสมาชิกและสิทธิ์
+                </a>
+            </div>
+        </header>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" id="manualTabBtn">บันทึกด้วยมือ</button>
+            <button class="tab-btn" id="uploadTabBtn">อัปโหลดไฟล์ (Lazada/Shopee/TikTok)</button>
+        </div>
+
+        <div id="manualSection">
+            <form id="stockForm" class="glass-form">
+                <div class="form-grid">
+                    <!-- วันที่สั่งซื้อ -->
+                    <div class="input-group">
+                        <label for="orderDate">วันที่สั่งซื้อ</label>
+                        <input type="date" id="orderDate" name="orderDate" required>
+                    </div>
+
+                    <!-- แพลตฟอร์ม -->
+                    <div class="input-group">
+                        <label for="platform">แพลตฟอร์ม</label>
+                        <select id="platform" name="platform" required>
+                            <option value="" disabled selected>เลือกแพลตฟอร์ม...</option>
+                            <option value="Shopee">Shopee 🟧</option>
+                            <option value="Lazada">Lazada 🟦</option>
+                            <option value="TikTok">TikTok ⬛</option>
+                            <option value="Facebook">Facebook 🔵</option>
+                            <option value="Line">Line 🟩</option>
+                            <option value="Other">อื่นๆ</option>
+                        </select>
+                    </div>
+
+                    <!-- เลขคำสั่งซื้อ -->
+                    <div class="input-group">
+                        <label for="orderNumber">เลขคำสั่งซื้อ</label>
+                        <input type="text" id="orderNumber" name="orderNumber" placeholder="เช่น 230526XXXXXX" required>
+                    </div>
+
+                    <!-- เลขที่การผลิต -->
+                    <div class="input-group">
+                        <label for="productionNumber">เลขที่การผลิต</label>
+                        <input type="text" id="productionNumber" name="productionNumber" placeholder="ระบบจะสร้างอัตโนมัติเมื่อบันทึก" readonly aria-readonly="true" title="Supabase จะสร้างเลขที่การผลิตให้อัตโนมัติ">
+                    </div>
+
+                    <!-- SKU -->
+                    <div class="input-group full-width">
+                        <label for="productCode">SKU <span id="productFetchStatus"
+                                style="font-size: 0.8rem; margin-left: 10px;"></span></label>
+                        <div style="display: flex; gap: 5px;">
+                            <input type="text" id="productCode" name="productCode"
+                                placeholder="ระบุ SKU แล้วกดปุ่มค้นหา ➔" style="flex: 1;">
+                            <button type="button" id="btnFetchSku" class="btn btn-primary btn-sm">🔍
+                                ดึงข้อมูล</button>
+                        </div>
+                        <div id="productImagePreview" style="margin-top: 0.6rem; min-height: 3.2rem; padding: 0.4rem 0.8rem; border: 1px dashed rgba(129,140,248,0.35); border-radius: 10px; background: rgba(129,140,248,0.06); color: var(--muted); font-size: 0.9rem; display: flex; align-items: flex-start; justify-content: flex-start;">
+                            📷 รูปสินค้าจะปรากฏที่นี่เมื่อค้นหา SKU แล้ว
+                        </div>
+                    </div>
+
+                    <!-- ชื่อสินค้า -->
+                    <div class="input-group full-width">
+                        <label for="productName">ชื่อสินค้า</label>
+                        <input type="text" id="productName" name="productName" placeholder="ระบุชื่อสินค้า" required>
+                    </div>
+
+                    <!-- ขนาด -->
+                    <div class="input-group">
+                        <label for="productSize">ขนาด</label>
+                        <input type="text" id="productSize" name="productSize" placeholder="เช่น S, M, L, XL (ถ้ามี)">
+                    </div>
+
+                    <!-- จำนวนช่อง -->
+                    <div class="input-group">
+                        <label for="slots">จำนวนช่อง</label>
+                        <input type="number" id="slots" name="slots" placeholder="จำนวนช่อง (ถ้ามี)" min="0">
+                    </div>
+
+                    <!-- ลาย -->
+                    <div class="input-group">
+                        <label for="pattern">ลาย</label>
+                        <input type="text" id="pattern" name="pattern" placeholder="ลายตกแต่ง (จะดึงอัตโนมัติจาก SKU)"
+                            style="background: rgba(99,102,241,0.05); color: #818cf8;">
+                    </div>
+
+                    <!-- สีอลูมิเนียม -->
+                    <div class="input-group">
+                        <label for="aluminum_color">สีอลูมิเนียม</label>
+                        <input type="text" id="aluminum_color" name="aluminum_color" placeholder="เช่น ขาว, ดำ, แชมเปญ">
+                    </div>
+
+                    <!-- สีกระจก -->
+                    <div class="input-group">
+                        <label for="glass_color">สีกระจก</label>
+                        <select id="glass_color" name="glass_color">
+                            <option value="">-- ไม่ระบุ --</option>
+                            <option value="ใส">ใส</option>
+                            <option value="เขียว">เขียว</option>
+                            <option value="ชาดำ">ชาดำ</option>
+                            <option value="ฝ้า">ฝ้า</option>
+                            <option value="ลอนแก้ว">ลอนแก้ว</option>
+                            <option value="กระจกสีอื่นๆ">กระจกสีอื่นๆ</option>
+                        </select>
+                    </div>
+
+                    <!-- มีมุ้ง/ไม่มีมุ้ง -->
+                    <div class="input-group">
+                        <label for="screen_type">มุ้งกันแมลง</label>
+                        <select id="screen_type" name="screen_type">
+                            <option value="">-- ไม่ระบุ --</option>
+                            <option value="มีมุ้ง">มีมุ้ง</option>
+                            <option value="ไม่มีมุ้ง">ไม่มีมุ้ง</option>
+                        </select>
+                    </div>
+
+                    <!-- จำนวน -->
+                    <div class="input-group">
+                        <label for="quantity">จำนวน</label>
+                        <input type="number" id="quantity" name="quantity" placeholder="0" min="1" required>
+                    </div>
+
+                    <!-- ราคาสินค้า -->
+                    <div class="input-group">
+                        <label for="price">ราคาสินค้ารวม (บาท)</label>
+                        <input type="number" id="price" name="price" placeholder="0.00" step="0.01" required>
+                    </div>
+
+                    <!-- ค่าจัดส่ง -->
+                    <div class="input-group">
+                        <label for="shippingFee">ค่าจัดส่ง (บาท)</label>
+                        <input type="number" id="shippingFee" name="shippingFee" placeholder="0.00" step="0.01"
+                            value="0.00">
+                    </div>
+
+                    <!-- เวลาชำระเงิน -->
+                    <div class="input-group">
+                        <label for="paymentTime">เวลาการชำระเงิน</label>
+                        <input type="datetime-local" id="paymentTime" name="paymentTime" placeholder="เลือกวันที่และเวลา (ถ้ามี)">
+                    </div>
+
+                    <!-- กำหนดจัดส่ง -->
+                    <div class="input-group">
+                        <label for="shipByDate">🚚 กำหนดจัดส่ง</label>
+                        <input type="datetime-local" id="shipByDate" name="shipByDate" placeholder="เลือกวันที่และเวลา">
+                    </div>
+
+                    <!-- ผู้ซื้อ -->
+                    <div class="input-group full-width">
+                        <label for="buyerName">ผู้ซื้อ</label>
+                        <input type="text" id="buyerName" name="buyerName" placeholder="ชื่อลูกค้า" required>
+                    </div>
+
+                    <!-- เบอร์โทร (ยกเลิกการเก็บตามคำขอ)
+                <div class="input-group">
+                    <label for="phone">เบอร์โทรศัพท์</label>
+                    <input type="tel" id="phone" name="phone" placeholder="0812345678">
+                </div>
+                -->
+
+                    <!-- จังหวัด -->
+                    <div class="input-group">
+                        <label for="province">จังหวัด</label>
+                        <input type="text" id="province" name="province" placeholder="ระบุจังหวัด" required>
+                    </div>
+
+                    <!-- ที่อยู่ -->
+                    <div class="input-group full-width">
+                        <label for="address">ที่อยู่จัดส่ง</label>
+                        <input type="text" id="address" name="address" placeholder="บ้านเลขที่ ถนน ตำบล อำเภอ">
+                    </div>
+
+                    <!-- ข้อมูลขนส่ง (เพิ่มใหม่) -->
+                    <div class="input-group">
+                        <label for="deliveryService">ขนส่ง</label>
+                        <select id="deliveryService" name="deliveryService">
+                            <option value="" selected>-- เลือกขนส่ง --</option>
+                            <option value="Flash Express">Flash Express</option>
+                            <option value="DHL">DHL</option>
+                            <option value="business">business</option>
+                            <option value="best">best</option>
+                            <option value="รถคอก">รถคอก</option>
+                            <option value="ไปรษณีย์ไทย">ไปรษณีย์ไทย</option>
+                            <option value="อื่นๆ">อื่นๆ</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label for="courier_phone">เบอร์พนักงานขนส่ง</label>
+                        <input type="tel" id="courier_phone" name="courierPhone" placeholder="เช่น 0812345678">
+                    </div>
+                    <div class="input-group">
+                        <label for="latest_location">สถานที่ล่าสุด (สาขา)</label>
+                        <input type="text" id="latest_location" name="latestLocation" placeholder="เช่น สาขา 24">
+                    </div>
+
+                    <!-- รูปภาพใบbook -->
+                    <div class="input-group full-width">
+                        <label for="bookImage">อัปโหลดรูปภาพใบbook / สลิป (ถ้ามี)</label>
+                        <input type="file" id="bookImage" name="bookImage" accept="image/*"
+                            style="padding: 0.5rem 0.8rem; background: rgba(255, 255, 255, 0.92); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'Kanit', sans-serif;">
+                    </div>
+
+                    <!-- หมายเหตุ -->
+                    <div class="input-group full-width">
+                        <label for="note">หมายเหตุ</label>
+                        <input type="text" id="note" name="note" placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)">
+                    </div>
+
+                    <!-- สถานะ -->
+                    <div class="input-group">
+                        <label for="status">สถานะ</label>
+                        <select id="status" name="status" required>
+                            <option value="รอดำเนินการ">⏳ รอดำเนินการ (Pending)</option>
+                            <option value="กำลังผลิต">🔨 กำลังผลิต (Producing)</option>
+                            <option value="ผลิตสำเร็จแล้ว">✅ ผลิตสำเร็จแล้ว (Done)</option>
+                            <option value="ระหว่างการขนส่ง">🚚 ระหว่างการขนส่ง (In-Transit)</option>
+                            <option value="จัดส่งสำเร็จ">✅ จัดส่งสำเร็จ (Delivered)</option>
+                            <option value="พัสดุตีกลับ">🔄 พัสดุตีกลับ (Returned)</option>
+                            <option value="ยกเลิก">❌ ยกเลิก (Cancelled)</option>
+                            <option value="รถคอก">รถคอก</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn-primary" id="submitBtn">
+                        <span class="btn-text">บันทึกข้อมูล</span>
+                        <span class="btn-loader" style="display: none;">กำลังบันทึก...</span>
+                    </button>
+                    <button type="button" class="btn-primary" id="cancelManualBtn" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); box-shadow: 0 10px 20px -10px #ef4444; color: white;">
+                        ❌ ยกเลิก
+                    </button>
+                </div>
+
+                <div id="statusMessage" class="status-message"></div>
+            </form>
+        </div>
+
+        <!-- Upload Section -->
+        <div id="uploadSection" class="glass-form" style="display: none;">
+            <div class="form-grid">
+                <div class="input-group full-width" style="text-align: center;">
+                    <h2>อัปโหลดไฟล์รายงานยอดขาย</h2>
+                    <p style="color: #cbd5e1; margin-top: 5px;">รองรับไฟล์ Excel ของ Lazada, Shopee และ TikTok (.xlsx,
+                        .xls, .csv)</p>
+                </div>
+
+                <div class="input-group full-width">
+                    <label for="fileInput" class="file-drop-zone" id="dropZone">
+                        <span id="fileNameDisplay" style="font-size: 1.1rem; color: #818cf8;">📂 ลากไฟล์มาวาง หรือ
+                            คลิกเพื่อเลือกไฟล์</span>
+                        <input type="file" id="fileInput"
+                            accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+                            style="opacity: 0; position: absolute; z-index: -1;">
+                    </label>
+                </div>
+            </div>
+
+            <div id="previewSection" style="display: none; margin-top: 2rem;">
+                <h3 style="margin-bottom: 1rem; color: #818cf8;">ตัวอย่างข้อมูลที่จะบันทึก (<span
+                        id="previewCount">0</span> รายการ)</h3>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>แพลตฟอร์ม</th>
+                                <th>วันที่</th>
+                                <th>เลขคำสั่งซื้อ</th>
+                                <th>เลขพัสดุ</th>
+                                <th>SKU</th>
+                                <th>ชื่อสินค้า</th>
+                                <th>ขนาด</th>
+                                <th>ช่อง</th>
+                                <th>ลาย</th>
+                                <th>สีอลูมิเนียม</th>
+                                <th>สีกระจก</th>
+                                <th>มุ้ง</th>
+                                <th>จำนวน/ราคา</th>
+                                <th>เวลาชำระเงิน</th>
+                                <th title="วันที่คาดว่าจะทำการจัดส่งสินค้า (Shopee)">🚚 กำหนดจัดส่ง</th>
+                                <th>หมายเหตุ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="previewBody">
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn-primary" id="bulkUploadBtn">
+                        <span class="btn-text">บันทึกข้อมูลทั้งหมดลงฐานข้อมูล</span>
+                        <span class="btn-loader" style="display: none;">กำลังบันทึก...</span>
+                    </button>
+                    <button type="button" class="btn-primary" id="cancelUploadBtn" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); box-shadow: 0 10px 20px -10px #ef4444; color: white;">
+                        ❌ ยกเลิก
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Log Terminal (Hidden by default, shows on save) -->
+    <div class="log-container" id="statusLog"></div>
+
+    <script src="sku_reference.js?v=20260710-1"></script>
+    <script src="app.js?v=20260805-1"></script>
+</body>
+
+</html>

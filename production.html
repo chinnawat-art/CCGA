@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ฝ่ายผลิต | Production Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Config (Supabase Keys - gitignored) -->
+    <script src="config.js"></script>
+    <script src="auth.js?v=20260714-4"></script>
+    <link rel="stylesheet" href="production.css?v=20260822-1">
+    <link rel="stylesheet" href="theme.css">
+    <script src="theme.js" defer></script>
+</head>
+
+<body>
+    <div class="page-wrapper">
+
+        <!-- Header -->
+        <div class="header">
+            <div class="header-left">
+                <div class="header-icon">🏭</div>
+                <div>
+                    <h1>ฝ่ายผลิต</h1>
+                    <p id="lastUpdated">กำลังโหลดข้อมูล...</p>
+                    <div class="header-meta">
+                        <span class="header-meta-inner">
+                            <span class="realtime-dot off" id="rtDot"></span>
+                            <span id="rtLabel">Realtime...</span>
+                        </span>
+                        <span class="soft-separator">|</span>
+                        <button onclick="loadData()" class="text-button">
+                            🔄 รีเฟรช
+                        </button>
+                        <span class="soft-separator">|</span>
+                        <button id="soundToggleBtn" onclick="toggleNotificationSound()" class="text-button" title="เปิด/ปิด และทดสอบเสียงแจ้งเตือน">
+                            🔔 เสียงแจ้งเตือน: เปิด
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="header-right">
+                <!-- Group 1: Navigation & Main Actions -->
+                <div class="header-group">
+                    <a href="dashboard.html" class="btn btn-outline header-link-info">📊 แดชบอร์ด</a>
+                    <a href="index.html" class="btn btn-outline">← บันทึกออเดอร์</a>
+                    <a href="material_prep.html" class="btn btn-outline header-link-success">📋 เตรียมวัสดุ</a>
+                    <a href="damage_report.html" class="btn btn-outline header-link-danger">⚠️ วัสดุเสียหาย</a>
+                    <a href="backup_stock.html" class="btn btn-outline header-link-accent">📦 สต็อกสำรอง</a>
+                    <div class="header-divider"></div>
+                    <a href="production_history.html" class="btn btn-outline" title="พิมพ์ประวัติ">🖨️</a>
+                </div>
+
+                <!-- Group 2: User Profile & Logout -->
+                <div class="header-group">
+                    <div id="user-display-area"></div>
+                    <button onclick="auth.logout()" class="btn btn-danger-soft">
+                        🚪 ออกจากระบบ
+                    </button>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Log -->
+        <div class="log-bar" id="logBar">⏳ กำลังเริ่มต้นระบบ...</div>
+
+        <!-- Filter -->
+        <div class="filter-bar">
+            <div class="filter-group">
+                <label>แพลตฟอร์ม</label>
+                <select id="filterPlatform" onchange="applyFilters()">
+                    <option value="">ทั้งหมด</option>
+                    <option value="Shopee">Shopee</option>
+                    <option value="Lazada">Lazada</option>
+                    <option value="TikTok">TikTok</option>
+                    <option value="Facebook">Facebook</option>
+                    <option value="Line">Line</option>
+                    <option value="Other">อื่นๆ</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>วันที่สั่งซื้อ (จาก)</label>
+                <input type="date" id="filterDateFrom" onchange="applyFilters()">
+            </div>
+            <div class="filter-group">
+                <label>วันที่สั่งซื้อ (ถึง)</label>
+                <input type="date" id="filterDateTo" onchange="applyFilters()">
+            </div>
+            <div class="filter-group">
+                <label class="filter-label-success">วันที่ผลิตสำเร็จ</label>
+                <input type="date" id="filterCompletedDate" onchange="applyFilters()">
+            </div>
+            <div style="margin-left:auto;margin-top:auto; display:flex; gap:0.5rem;">
+                <button class="btn btn-outline btn-outline-print" onclick="window.print()">🖨️ พิมพ์รายการปัจจุบัน</button>
+                <button class="btn btn-outline" onclick="clearFilters()">ล้างตัวกรอง</button>
+            </div>
+        </div>
+
+        <!-- KPI -->
+        <div class="kpi-grid">
+            <div class="kpi-card yellow" data-required-permission="data_view_production_pending">
+                <div class="kpi-icon">📦</div>
+                <div class="kpi-label">รอผลิต</div>
+                <div class="kpi-value" id="kpiPending">-</div>
+            </div>
+            <div class="kpi-card orange" data-required-permission="data_view_production_producing">
+                <div class="kpi-icon">🔨</div>
+                <div class="kpi-label">กำลังผลิต</div>
+                <div class="kpi-value" id="kpiProducing">-</div>
+            </div>
+            <div class="kpi-card green" data-required-permission="data_view_production_done">
+                <div class="kpi-icon">✅</div>
+                <div class="kpi-label">ผลิตสำเร็จแล้ว</div>
+                <div class="kpi-value" id="kpiDone">-</div>
+            </div>
+            <div class="kpi-card blue">
+                <div class="kpi-icon">🔢</div>
+                <div class="kpi-label">ชิ้นรวมรอผลิต+กำลังผลิต</div>
+                <div class="kpi-value" id="kpiQty">-</div>
+            </div>
+        </div>
+
+        <!-- Production Summary Panel -->
+        <div class="panel">
+            <div class="panel-header">
+                <div>
+                    <h2>📋 สรุปยอดการผลิต <span id="summaryCount"
+                            style="color:var(--muted);font-weight:400;font-size:0.85rem;"></span></h2>
+                    <div style="color:var(--muted);font-size:0.8rem;margin-top:2px;">รวมออเดอร์ "รอผลิต" + "กำลังผลิต" •
+                        จัดกลุ่มตามสินค้า</div>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="openSummaryModal()">📋 Copy</button>
+            </div>
+            <div class="summary-table-wrap">
+                <table class="summary-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>SKU / ชื่อสินค้า</th>
+                            <th>ไซส์</th>
+                            <th>ลาย</th>
+                            <th>ช่อง</th>
+                            <th>สีอลู</th>
+                            <th>กระจก</th>
+                            <th>มุ้ง</th>
+                            <th>จำนวนรวม</th>
+                            <th>ออเดอร์</th>
+                        </tr>
+                    </thead>
+                    <tbody id="summaryTableBody">
+                        <tr>
+                            <td colspan="10" style="text-align:center;padding:2rem;color:var(--muted);">
+                                <div class="spinner"></div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tab Nav -->
+        <div class="tab-nav">
+            <button class="tab-btn active-pending" id="tab-pending" data-required-permission="data_view_production_pending" onclick="switchTab('pending')">
+                ⏳ รอผลิต <span class="tab-count" id="tc-pending">0</span>
+            </button>
+            <button class="tab-btn" id="tab-producing" data-required-permission="data_view_production_producing" onclick="switchTab('producing')">
+                🔨 กำลังผลิต <span class="tab-count" id="tc-producing">0</span>
+            </button>
+            <button class="tab-btn" id="tab-done" data-required-permission="data_view_production_done" onclick="switchTab('done')">
+                ✅ ผลิตสำเร็จแล้ว <span class="tab-count" id="tc-done">0</span>
+            </button>
+        </div>
+
+        <!-- Orders Panel -->
+        <div class="panel">
+            <div class="panel-header">
+                <h2 id="panelTitle">📦 รายการออเดอร์รอผลิต</h2>
+                <input type="text" id="searchInput" placeholder="🔍 ค้นหาสินค้า, SKU, ผู้ซื้อ..."
+                    oninput="renderCards()"
+                    style="font-family:'Kanit',sans-serif;background:rgba(255,255,255,0.95);border:2px solid rgba(129,140,248,0.4);color:#1f2937;padding:0.65rem 1rem;border-radius:10px;font-size:0.95rem;width:280px;font-weight:500;transition:all 0.2s;"
+                    onfocus="this.style.borderColor='rgba(129,140,248,0.8)';this.style.background='rgba(255,255,255,1)';"
+                    onblur="this.style.borderColor='rgba(129,140,248,0.4)';this.style.background='rgba(255,255,255,0.95)';">
+            </div>
+            <div id="ordersContainer">
+                <div class="empty-state">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Summary Modal -->
+    <div class="modal-overlay" id="summaryModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-heading">📋 สรุปการผลิต</h3>
+                <button onclick="closeSummaryModal()" class="modal-close-btn">✕</button>
+            </div>
+            <div class="copy-area" id="summaryText"></div>
+            <div class="modal-actions">
+                <button class="btn btn-outline" onclick="closeSummaryModal()">ปิด</button>
+                <button class="btn btn-done" onclick="doCopy()">📋 คัดลอก</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div class="modal-overlay" id="historyModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-heading">📜 ประวัติการผลิต</h3>
+                <button onclick="closeHistoryModal()" class="modal-close-btn">✕</button>
+            </div>
+            <div class="copy-area" id="historyContent" style="max-height: 400px; font-family: 'Kanit', sans-serif;">
+                <div class="empty-state">
+                    <div class="spinner"></div>
+                    <p>กำลังโหลด...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Components Modal (for BOM confirmation) -->
+    <div class="modal-overlay" id="componentsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-heading">🧩 ส่วนประกอบที่จะตัดสต็อก</h3>
+                <button class="close-modal modal-close-btn">✕</button>
+            </div>
+            <div class="copy-area" id="componentsList" style="max-height:320px;">
+                <!-- populated dynamically -->
+            </div>
+            <div id="componentsBackupLotPicker" class="components-backup-lot-slot"></div>
+            <div class="modal-actions">
+                <button class="btn btn-outline cancel-modal">ยกเลิก</button>
+                <button class="btn btn-use-backup" id="componentsUseBackupBtn" style="display:none;">📦 ใช้สต็อกสำรอง</button>
+                <button class="btn btn-done" id="componentsConfirmBtn">ยืนยันและตัดสต็อก</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Damage Report Modal -->
+    <div class="modal-overlay" id="damageModal" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-heading-alert">⚠️ รายงานวัสดุเสียหาย</h3>
+                <button onclick="closeDamageModal()" class="modal-close-btn">✕</button>
+            </div>
+            <div style="padding:0 0 1rem 0;">
+                <div id="damageOrderInfo" class="modal-info-box"></div>
+                <label class="panel-subtext">ชิ้นส่วนที่เสียหาย <span style="color:#ef4444;">*</span></label>
+                <select id="damageItemSelect" class="form-field">
+                    <option value="">-- กำลังโหลด... --</option>
+                </select>
+                <label class="panel-subtext">จำนวนที่เสียหาย <span style="color:#ef4444;">*</span></label>
+                <input type="number" id="damageQty" min="1" value="1" class="form-field">
+                <label class="panel-subtext">เหตุผล / หมายเหตุ <span style="color:#ef4444;">*</span></label>
+                <input type="text" id="damageReason" placeholder="เช่น กระจกแตก, อลูมิเนียมงอ" class="form-field">
+                <label class="panel-subtext">ชื่อฝ่ายผลิต (ผู้รายงาน) <span style="color:#ef4444;">*</span></label>
+                <input type="text" id="damageReporterName" placeholder="ระบุชื่อผู้รายงาน..." autocomplete="off" class="form-field">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-outline" onclick="closeDamageModal()">ยกเลิก</button>
+                <button class="btn btn-danger-soft" onclick="submitDamageReport()">⚠️ ยืนยันวัสดุเสียหาย</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="production.js?v=20260822-1"></script>
+</body>
+
+</html>

@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>พิมพ์ประวัติการผลิต | Production History Print</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Config (Supabase Keys - gitignored, ดูตัวอย่างใน config.example.js) -->
+    <script src="config.js"></script>
+    <script src="auth.js?v=20260714-4"></script>
+    <link rel="stylesheet" href="theme.css">
+    <script src="theme.js" defer></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Kanit', sans-serif;
+            background: var(--bg-body);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.08) 0%, transparent 30%),
+                radial-gradient(circle at 90% 90%, rgba(255, 255, 255, 0.06) 0%, transparent 28%),
+                var(--bg-body);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 2rem;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 1.5rem;
+        }
+
+        .header-left h1 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--primary-bright);
+        }
+
+        .header-left p {
+            color: var(--muted);
+            font-size: 0.9rem;
+            margin-top: 4px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+
+        .log-container {
+            background: #020617;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 2rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            max-height: 150px;
+            overflow-y: auto;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+            scroll-behavior: smooth;
+            display: none; /* Hidden by default, show for debugging */
+        }
+
+        .form-control {
+            background: rgba(255, 255, 255, 0.75);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.5rem 0.9rem;
+            border-radius: 8px;
+            font-family: 'Kanit', sans-serif;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .report-table th {
+            text-align: left;
+            padding: 0.8rem;
+            border-bottom: 2px solid var(--border);
+            color: var(--muted);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .report-table td {
+            padding: 0.8rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            vertical-align: top;
+        }
+
+        .badge {
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .badge-started {
+            background: rgba(249, 115, 22, 0.15);
+            color: #fb923c;
+            border: 1px solid rgba(249, 115, 22, 0.3);
+        }
+
+        .badge-done {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .badge-cancel {
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .skutext {
+            font-family: monospace;
+            color: #60a5fa;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem;
+            color: var(--muted);
+        }
+
+        /* Print Styles */
+        @media print {
+            body {
+                background: white;
+                color: black;
+                padding: 0;
+                margin: 0;
+                min-height: auto;
+            }
+
+            body::before {
+                display: none;
+            }
+
+            .container {
+                background: white;
+                border: none;
+                padding: 0;
+                margin: 0;
+                max-width: 100%;
+                border-radius: 0;
+            }
+
+            .header-left h1 {
+                color: black;
+            }
+
+            .header-left p {
+                color: #555;
+            }
+
+            .controls,
+            .btn,
+            .nav-btn {
+                display: none !important;
+            }
+
+            .report-table th {
+                border-bottom: 2px solid #ccc;
+                color: black;
+            }
+
+            .report-table td {
+                border-bottom: 1px solid #eee;
+            }
+
+            .badge {
+                border: 1px solid #ccc;
+                color: black !important;
+                background: transparent !important;
+            }
+
+            .skutext {
+                color: #333;
+            }
+        }
+
+        /* ── MODAL ── */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(10px); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 1.5rem; }
+        .modal-content { background: rgba(255, 255, 255, 0.95); border: 1px solid var(--border); border-radius: 20px; width: 100%; max-width: 560px; padding: 2rem; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem; }
+        .copy-area { background: rgba(255, 255, 255, 0.92); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; color: #111827; font-family: monospace; font-size: 0.85rem; white-space: pre-wrap; max-height: 360px; overflow-y: auto; margin-bottom: 1.2rem; line-height: 1.6; }
+        .modal-actions { display: flex; gap: 0.8rem; justify-content: flex-end; }
+
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <h1>📑 รายงานประวัติการผลิต</h1>
+                <p>บันทึกประวัติการเปลี่ยนสถานะการผลิตล่าสุด</p>
+            </div>
+            <div class="controls">
+                <input type="date" id="filterDate" class="form-control" onchange="loadData()">
+                <select id="filterAction" class="form-control" onchange="loadData()">
+                    <option value="ผลิตสำเร็จ">ผลิตสำเร็จแล้ว (เสร็จสิ้น)</option>
+                    <option value="เริ่มผลิต">กำลังผลิต (กำลังทำ)</option>
+                    <option value="ยกเลิก">ยกเลิกออเดอร์</option>
+
+                    <option value="ทุกสถานะ">ทุกสถานะทั้งหมด</option>
+                </select>
+                <button class="btn btn-outline" onclick="window.history.back()">← กลับ</button>
+                <button class="btn btn-primary" onclick="window.print()">🖨️ พิมพ์เอกสาร</button>
+                <button class="btn btn-warning" onclick="openSummaryModal()">📋 Copy สรุป</button>
+                <button onclick="auth.logout()" 
+                    style="padding: 0.55rem 1.1rem; background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3); color: #f87171; border-radius: 8px; cursor: pointer; font-family: 'Kanit'; font-size: 0.9rem; transition: all 0.2s; font-weight: 500;"
+                    onmouseover="this.style.background='rgba(248,113,113,0.2)'"
+                    onmouseout="this.style.background='rgba(248,113,113,0.1)'">
+                    🚪 ออกจากระบบ
+                </button>
+            </div>
+        </div>
+
+        <div style="overflow-x: auto;">
+            <table class="report-table">
+                <thead>
+                    <tr>
+                        <th>ลำดับ</th>
+                        <th>วัน-เวลา</th>
+                        <th>เลขออเดอร์</th>
+                        <th>ชื่อสินค้า/SKU</th>
+                        <th>ไซส์</th>
+                        <th>ลาย</th>
+                        <th>ช่อง</th>
+                        <th>สีอลู</th>
+                        <th>สีกระจก</th>
+                        <th>มุ้ง</th>
+                        <th style="text-align:center;">สถานะ</th>
+                        <th style="text-align:center;">จำนวน</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <tr>
+                        <td colspan="12" style="text-align:center; padding:2rem;">⏳ กำลังโหลดข้อมูล...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Summary Modal -->
+    <div class="modal-overlay" id="summaryModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 style="color:var(--primary-bright);">📋 สรุปรายการผลิต</h3>
+                <button onclick="closeSummaryModal()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.2rem;">✕</button>
+            </div>
+            <div class="copy-area" id="summaryText"></div>
+            <div class="modal-actions">
+                <button class="btn btn-outline" onclick="closeSummaryModal()">ปิด</button>
+                <button class="btn btn-warning" onclick="doCopy()">📋 คัดลอก</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // กำหนดวันที่เริ่มต้นให้เป็นวันนี้
+        document.getElementById('filterDate').valueAsDate = new Date();
+
+        // ==========================================
+        // CONFIG - Shared with auth.js
+        // ==========================================
+        const TABLE = 'stock_orders';
+        const dbClient = (window.auth && window.auth.supabase)
+            ? window.auth.supabase
+            : (window.supabase && window.SUPABASE_CONFIG
+                ? window.supabase.createClient(window.SUPABASE_CONFIG.URL, window.SUPABASE_CONFIG.KEY)
+                : null);
+
+        // ==========================================
+        // STATE
+        // ==========================================
+        let currentData = [];
+
+        async function loadData() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:2rem;">⏳ กำลังโหลด...</td></tr>';
+
+            const filterDate = document.getElementById('filterDate').value;
+            const filterAction = document.getElementById('filterAction').value;
+
+            try {
+                let query = dbClient.from('production_logs').select(`
+            id, created_at, action, order_number,
+            stock_orders (product_code, product_name, product_size, slots, pattern, quantity, aluminum_color, glass_color, screen_type)
+        `).order('created_at', { ascending: false }).limit(500);
+
+                if (filterDate) {
+                    query = query.gte('created_at', filterDate + 'T00:00:00')
+                        .lte('created_at', filterDate + 'T23:59:59');
+                }
+                if (filterAction && filterAction !== 'ทุกสถานะ') {
+                    query = query.ilike('action', `%${filterAction}%`);
+                }
+
+                const { data, error } = await query;
+                if (error) throw error;
+
+                currentData = data || [];
+
+                if (currentData.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="12" class="empty-state">ไม่มีประวัติการผลิตในเงื่อนไขที่เลือก</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = currentData.map((log, index) => {
+                    const d = new Date(log.created_at);
+                    const dateStr = d.toLocaleDateString('th-TH') + ' ' + d.toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'});
+
+                    let actionBadgeClass = 'badge-started';
+                    if (log.action.includes('สำเร็จ') || log.action.includes('จัดส่ง')) actionBadgeClass = 'badge-done';
+                    if (log.action.includes('ยกเลิก')) actionBadgeClass = 'badge-cancel';
+
+                    let actionBadge = `<span class="badge ${actionBadgeClass}">${log.action}</span>`;
+
+                    if (log.stock_orders) {
+                        const o = Array.isArray(log.stock_orders) ? log.stock_orders[0] : log.stock_orders;
+                        if (o) {
+                            qtyStr = o.quantity || 1;
+                            orderDetails = `
+                        <td>
+                            <div style="font-weight:600;">${o.product_name || '-'}</div>
+                            ${o.product_code ? `<span class="skutext">[${o.product_code}]</span>` : ''}
+                        </td>
+                        <td>${o.product_size || '-'}</td>
+                        <td>${o.pattern || '-'}</td>
+                        <td>${o.slots ? `${o.slots}ช่อง` : '-'}</td>
+                        <td style="font-size:0.85rem;">${o.aluminum_color || '-'}</td>
+                        <td style="font-size:0.85rem;">${o.glass_color || '-'}</td>
+                        <td style="font-size:0.85rem;">${o.screen_type || '-'}</td>
+                    `;
+                        }
+                    }
+                    
+                    if (orderDetails === '-') {
+                         orderDetails = `<td colspan="7" style="text-align:center; color:var(--muted);">- ไม่มีข้อมูลสินค้ารายละเอียด -</td>`;
+                    }
+
+                    return `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>${dateStr}</td>
+                    <td><div style="font-family:monospace; background:rgba(255,255,255,0.05); display:inline-block; padding:2px 6px; border-radius:4px;">${log.order_number || '-'}</div></td>
+                    ${orderDetails}
+                    <td style="text-align:center;">${actionBadge}</td>
+                    <td style="text-align:center;"><span style="font-weight:700; font-size:1.1rem; color:var(--primary-bright);">${qtyStr}</span></td>
+                </tr>
+            `;
+                }).join('');
+
+            } catch (err) {
+                console.error(err);
+                tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; color:red;">❌ เกิดข้อผิดพลาด: ${err.message}</td></tr>`;
+            }
+        }
+
+        // ─── SUMMARY MODAL ────────────────────────
+        function openSummaryModal() {
+            if (!currentData || currentData.length === 0) {
+                alert('ไม่มีข้อมูลให้สรุป');
+                return;
+            }
+
+            const orders = currentData.map(log => {
+                if (log.stock_orders) {
+                    return Array.isArray(log.stock_orders) ? log.stock_orders[0] : log.stock_orders;
+                }
+                return null;
+            }).filter(Boolean);
+
+            const groups = buildGroups(orders);
+            const totalQty = groups.reduce((s, g) => s + g.totalQty, 0);
+            const dateStr = document.getElementById('filterDate').value;
+            const now = new Date().toLocaleString('th-TH');
+
+            let text = `📑 สรุปรายการผลิต — วันที่ ${dateStr} (ณ ${now})\n${'─'.repeat(40)}\n`;
+            text += `🔢 รวมสินค้า: ${groups.length} ชนิด | รวมทั้งหมด: ${totalQty} ชิ้น\n${'─'.repeat(40)}\n\n`;
+            groups.forEach((g, i) => {
+                const sku = g.product_code ? ` [${g.product_code}]` : '';
+                const size = g.product_size ? ` ไซส์ ${g.product_size}` : '';
+                const slots = g.slots != null ? ` ${g.slots}ช่อง` : '';
+                const pattern = g.pattern ? ` ${g.pattern}` : '';
+                const al = g.aluminum_color ? ` สีอลู:${g.aluminum_color}` : '';
+                const gl = g.glass_color ? ` กระจก:${g.glass_color}` : '';
+                const screen = g.screen_type ? ` [${g.screen_type}]` : '';
+                text += `${i + 1}. ${g.product_name}${sku}${size}${slots}${pattern}${al}${gl}${screen}\n   ➜ จำนวน ${g.totalQty} ชิ้น\n\n`;
+            });
+            text += `${'─'.repeat(40)}\n✅ รายงานจากระบบบันทึกสต็อก`;
+
+            document.getElementById('summaryText').textContent = text;
+            document.getElementById('summaryModal').style.display = 'flex';
+        }
+
+        function closeSummaryModal() { document.getElementById('summaryModal').style.display = 'none'; }
+
+        function doCopy() {
+            navigator.clipboard.writeText(document.getElementById('summaryText').textContent).then(() => {
+                alert('📋 คัดลอกสรุปแล้ว! ✅');
+                closeSummaryModal();
+            });
+        }
+
+        function buildGroups(orders) {
+            const groups = {};
+            orders.forEach(o => {
+                const key = [
+                    (o.product_code ||'').toLowerCase(), 
+                    (o.product_name ||'').toLowerCase(), 
+                    (o.product_size ||''), 
+                    (o.slots ?? ''), 
+                    (o.pattern || ''),
+                    (o.aluminum_color || ''),
+                    (o.glass_color || ''),
+                    (o.screen_type || '')
+                ].join('|');
+                if (!groups[key]) groups[key] = { 
+                    product_code: o.product_code || '', 
+                    product_name: o.product_name || '', 
+                    product_size: o.product_size || '', 
+                    slots: o.slots, 
+                    pattern: o.pattern || '',
+                    aluminum_color: o.aluminum_color || '',
+                    glass_color: o.glass_color || '',
+                    screen_type: o.screen_type || '',
+                    totalQty: 0 
+                };
+                groups[key].totalQty += parseInt(o.quantity) || 1;
+            });
+            return Object.values(groups).sort((a, b) => b.totalQty - a.totalQty);
+        }
+
+
+        // Load initial data
+        loadData();
+    </script>
+</body>
+
+</html>
