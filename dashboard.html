@@ -1336,6 +1336,7 @@ function renderOrderRow(o) {
         <td class="col-order-tracking">
             <div class="interactive-cell">
                 <span class="mono mono-muted">${o.order_number || '-'}</span>
+                ${o.is_test ? '<span style="display:inline-block;margin-left:6px;padding:2px 9px;border-radius:99px;background:rgba(245,158,11,.2);color:#b45309;font-size:.72rem;font-weight:700;">🧪 ทดลอง</span>' : ''}
                 ${o.order_number ? `<button class="copy-btn" title="คัดลอกเลขออเดอร์" onclick="copyText('${o.order_number}', 'เลขออเดอร์')">📋</button>` : ''}
             </div>
             <div class="interactive-cell mt-1">

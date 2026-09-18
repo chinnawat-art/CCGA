@@ -20,7 +20,7 @@
     <!-- Config (Supabase Keys - gitignored) -->
     <script src="config.js"></script>
     <script src="auth.js?v=20260714-4"></script>
-    <link rel="stylesheet" href="production.css?v=20260822-1">
+    <link rel="stylesheet" href="production.css?v=20260918-3">
     <link rel="stylesheet" href="theme.css">
     <script src="theme.js" defer></script>
 </head>
@@ -194,6 +194,11 @@
                     style="font-family:'Kanit',sans-serif;background:rgba(255,255,255,0.95);border:2px solid rgba(129,140,248,0.4);color:#1f2937;padding:0.65rem 1rem;border-radius:10px;font-size:0.95rem;width:280px;font-weight:500;transition:all 0.2s;"
                     onfocus="this.style.borderColor='rgba(129,140,248,0.8)';this.style.background='rgba(255,255,255,1)';"
                     onblur="this.style.borderColor='rgba(129,140,248,0.4)';this.style.background='rgba(255,255,255,0.95)';">
+                <button type="button" id="purgeTestBtn" data-required-permission="action_delete_order"
+                    onclick="purgeTestOrders(this)" title="ลบใบทดลองทุกใบ และคืนวัสดุเข้าสต็อก"
+                    style="font-family:'Kanit',sans-serif;margin-left:10px;padding:0.65rem 1.1rem;border:2px solid rgba(245,158,11,0.5);border-radius:10px;background:rgba(245,158,11,0.12);color:#b45309;font-weight:600;font-size:0.9rem;cursor:pointer;white-space:nowrap;">
+                    🧪 ล้างใบทดลอง
+                </button>
             </div>
             <div id="ordersContainer">
                 <div class="empty-state">
@@ -281,7 +286,7 @@
         </div>
     </div>
 
-    <script src="production.js?v=20260822-1"></script>
+    <script src="production.js?v=20260918-3"></script>
 </body>
 
 </html>

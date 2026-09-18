@@ -753,6 +753,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const formData = {
+                is_test: !!(document.getElementById("isTestOrder") && document.getElementById("isTestOrder").checked),
                 order_date: document.getElementById('orderDate').value,
                 platform: document.getElementById('platform').value,
                 order_number: orderNumber,

@@ -800,6 +800,18 @@ body::before {
     font-weight: 600;
 }
 
+.badge-test {
+    background: rgba(245, 158, 11, 0.2);
+    color: #b45309;
+    border: 1px solid rgba(245, 158, 11, 0.5);
+}
+
+.order-card.is-test {
+    border-color: rgba(245, 158, 11, 0.55) !important;
+    background-image: repeating-linear-gradient(45deg,
+        rgba(245, 158, 11, 0.045) 0 12px, transparent 12px 24px);
+}
+
 .badge-pending {
     background: rgba(245, 158, 11, 0.2);
     color: #fbbf24;

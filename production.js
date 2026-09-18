@@ -1211,9 +1211,9 @@ function renderOrderCard(o) {
     }).catch(err => console.error('Image load error:', err));
 
     return `
-    <div class="order-card ${cardCls}" id="card_${o.id}">
+    <div class="order-card ${cardCls}${o.is_test ? ' is-test' : ''}" id="card_${o.id}">
         <div class="card-top">
-            ${badgeHtml}
+            ${badgeHtml}${o.is_test ? '<span class="badge badge-test">🧪 ใบทดลอง</span>' : ''}
             <div style="text-align:right;">
                 <span class="plat ${platCls}">${esc(o.platform)}</span>
                 <div class="card-date" style="margin-top:4px;">${(() => {
@@ -1270,6 +1270,46 @@ function renderOrderCard(o) {
         <div class="card-actions">${actionsHtml}</div>
     </div>`;
 }
+
+
+// ═══ ล้างใบทดลองทั้งหมด ═══════════════════════════════════════════
+// เรียกฟังก์ชันฝั่งฐานข้อมูล rpc_purge_test_orders ซึ่งจะ
+//   1) ลบใบทดลองทุกใบ พร้อมคืนวัสดุเข้าสต็อกให้อัตโนมัติ
+//   2) รีเซ็ตตัวนับเลขทดลองกลับไปเริ่มที่ T1
+// เลขของจริงไม่ถูกแตะต้องเลย
+async function purgeTestOrders(btn) {
+    const n = (allOrders || []).filter(o => o.is_test).length;
+    if (n === 0) {
+        alert('ไม่มีใบทดลองในระบบ');
+        return;
+    }
+    const ok = confirm(
+        'ลบใบทดลองทั้งหมด ' + n + ' ใบ?\n\n' +
+        '• วัสดุที่ตัดไปจะถูกคืนเข้าสต็อกให้อัตโนมัติ\n' +
+        '• เลขทดลองจะเริ่มนับใหม่ที่ T1\n' +
+        '• ออเดอร์จริงไม่ถูกแตะต้อง\n\n' +
+        'การลบนี้ย้อนกลับไม่ได้'
+    );
+    if (!ok) return;
+
+    const old = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'กำลังลบ...'; }
+    try {
+        log('กำลังลบใบทดลอง ' + n + ' ใบ...', 'info');
+        const { data, error } = await db.rpc('rpc_purge_test_orders');
+        if (error) throw error;
+        const deleted = (data && data.deleted != null) ? data.deleted : n;
+        log('ลบใบทดลองสำเร็จ ' + deleted + ' ใบ · คืนวัสดุเข้าสต็อกแล้ว', 'success');
+        alert('✅ ลบใบทดลองแล้ว ' + deleted + ' ใบ\nวัสดุถูกคืนเข้าสต็อกเรียบร้อย');
+        await loadData();
+    } catch (e) {
+        log('ลบใบทดลองไม่สำเร็จ: ' + (e.message || e), 'error');
+        alert('❌ ลบไม่สำเร็จ: ' + (e.message || e));
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = old; }
+    }
+}
+window.purgeTestOrders = purgeTestOrders;
 
 function renderCards() {
     const statusMap = {

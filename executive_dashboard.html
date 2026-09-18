@@ -1181,7 +1181,7 @@
       }
 
       try {
-        const { data, error } = await dbClient.from(TABLE).select('*').order('order_date', { ascending: false });
+        const { data, error } = await dbClient.from(TABLE).select('*').eq('is_test', false).order('order_date', { ascending: false });
         if (error) throw error;
 
         allData = (data || []).map(normalizeRow);
