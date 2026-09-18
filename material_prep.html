@@ -1383,6 +1383,92 @@
             color: var(--muted);
             min-height: 2rem;
         }
+
+        /* ═══ ใบเบิกวัสดุ: ติ๊กรายการ + พิมพ์ ═══════════════════════════ */
+        .pick-check {
+            flex: 0 0 auto;
+            width: 42px; height: 42px; margin-right: 12px;
+            border-radius: 10px;
+            border: 2px solid var(--border-strong, #cbd5e1);
+            background: var(--surface, #fff);
+            color: #16a34a;
+            font-size: 1.35rem; font-weight: 800; line-height: 1;
+            cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
+            transition: all .15s ease;
+        }
+        .pick-check:hover { border-color: #22c55e; }
+        .pick-check.on { background: #16a34a; border-color: #16a34a; color: #fff; }
+        /* หรี่เฉพาะเนื้อหา ไม่หรี่ช่องติ๊ก — ติ๊กแล้วต้องเห็นเขียวชัดจากระยะไกล */
+        .material-item.is-picked { background: rgba(22, 163, 74, .07); }
+        .material-item.is-picked .material-name,
+        .material-item.is-picked .material-code,
+        .material-item.is-picked .material-time,
+        .material-item.is-picked .material-icon,
+        .material-item.is-picked .material-qty { opacity: .45; }
+        .material-item.is-picked .material-name { text-decoration: line-through; }
+        .material-cat-head {
+            margin: 16px 0 6px; padding: 7px 13px;
+            font-weight: 700; font-size: .86rem;
+            color: var(--muted-strong, #64748b);
+            background: var(--bg-soft, rgba(148,163,184,.14));
+            border-radius: 9px;
+        }
+        .pick-progress {
+            display: inline-block; margin-top: 6px;
+            padding: 4px 13px; border-radius: 99px;
+            background: rgba(59,130,246,.12); color: #2563eb;
+            font-size: .82rem; font-weight: 700;
+        }
+        .pick-progress.complete { background: rgba(34,197,94,.16); color: #16a34a; }
+        .btn-print { background: #475569; color: #fff; }
+        .btn-print:hover { background: #334155; }
+        @media (max-width: 640px) {
+            /* บนมือถือ: ช่องติ๊ก | ชื่อวัสดุ | จำนวน ให้อยู่บรรทัดเดียวกัน
+               (เขียนทับกฎเดิมที่สั่งให้เรียงแนวตั้ง ซึ่งทำให้ช่องติ๊กตกบรรทัด) */
+            .material-item {
+                flex-direction: row;
+                align-items: center;
+                gap: 0.5rem;
+                padding: 0.6rem 0.7rem;
+            }
+            .material-item-left { width: auto; flex: 1 1 auto; min-width: 0; gap: 0.5rem; }
+            .material-qty { width: auto; flex: 0 0 auto; justify-content: flex-end; gap: 4px; }
+            .material-icon { display: none; }
+            .material-name { font-size: 1.02rem; line-height: 1.35; }
+            .material-code { word-break: break-word; }
+            .pick-check { width: 52px; height: 52px; font-size: 1.6rem; margin-right: 2px; }
+            .order-group-actions { display: flex; flex-direction: row; gap: 8px; flex-wrap: wrap; }
+        }
+
+        /* ═══ หน้ากระดาษสำหรับพิมพ์ ════════════════════════════════════ */
+        #printArea { display: none; }
+        @media print {
+            @page { size: A4; margin: 13mm; }
+            body > *:not(#printArea) { display: none !important; }
+            #printArea { display: block !important; color: #000; font-family: 'Kanit', sans-serif; }
+            .pl-head { display: flex; justify-content: space-between; align-items: flex-end;
+                       border-bottom: 3px solid #000; padding-bottom: 8px; margin-bottom: 10px; }
+            .pl-title { font-size: 22pt; font-weight: 800; }
+            .pl-prod { font-size: 13pt; text-align: right; }
+            .pl-prod strong { font-size: 21pt; display: block; }
+            .pl-meta { width: 100%; border-collapse: collapse; margin-bottom: 13px; font-size: 11pt; }
+            .pl-meta td { padding: 5px 7px; border: 1px solid #999; }
+            .pl-meta td:nth-child(odd) { background: #f2f2f2; width: 15%; }
+            .pl-items { width: 100%; border-collapse: collapse; font-size: 12pt; }
+            .pl-items th, .pl-items td { border: 1px solid #000; padding: 7px 6px; }
+            .pl-items th { background: #e5e5e5; }
+            .pl-items .c { text-align: center; }
+            .pl-items .qty { font-weight: 800; font-size: 14pt; }
+            .pl-items .code { font-size: 8.5pt; color: #333; }
+            .pl-items .box { width: 64px; }
+            .pl-items .box::after { content: ''; display: block; width: 19px; height: 19px;
+                                    border: 2px solid #000; margin: 0 auto; }
+            .pl-items tr.cat td { background: #d9d9d9; font-weight: 800; font-size: 11pt; }
+            .pl-sign { margin-top: 28px; display: flex; justify-content: space-between; font-size: 11pt; }
+            .pl-foot { margin-top: 12px; font-size: 9pt; color: #555; text-align: right; }
+            .pl-items tr { page-break-inside: avoid; }
+        }
     </style>
 </head>
 
@@ -1597,6 +1683,7 @@
         let orderNumbersMap = {}; // mapping of orderId -> order_number
         let orderQuantitiesMap = {}; // mapping of orderId -> quantity
         let materialCodesMap = {}; // mapping of stock_items.id -> product_code
+        let materialCategoryMap = {}; // mapping of stock_items.id -> category
         let realtimeChannel = null;
         let dmgRealtimeChannel = null;
 
@@ -1721,13 +1808,14 @@
 
         async function fetchMaterialCodes() {
             materialCodesMap = {};
+            materialCategoryMap = {};
             const itemIds = [...new Set(allLogs.map(log => log.item_id).filter(Boolean))];
             if (itemIds.length === 0) return;
 
             try {
                 const { data, error } = await db
                     .from('stock_items')
-                    .select('id, product_code')
+                    .select('id, product_code, category')
                     .in('id', itemIds);
                 if (error) {
                     console.error('Error fetching material codes:', error);
@@ -1735,6 +1823,7 @@
                 }
                 (data || []).forEach(item => {
                     if (item.product_code) materialCodesMap[item.id] = item.product_code;
+                    if (item.category) materialCategoryMap[item.id] = item.category;
                 });
             } catch (err) {
                 console.error('fetchMaterialCodes exception:', err);
@@ -2088,6 +2177,130 @@
             modal.classList.add('open');
         }
 
+        // ═══ ใบเบิกวัสดุ: ติ๊กรายการที่หยิบแล้ว + พิมพ์ใบเบิก ═══════════════
+        const CATEGORY_LABELS = {
+            aluminum: 'อลูมิเนียม',
+            glass: 'กระจก',
+            general: 'ของทั่วไป',
+            tools: 'เครื่องมือ/อุปกรณ์'
+        };
+        const CATEGORY_ORDER = ['aluminum', 'glass', 'general', 'tools'];
+
+        function materialUid(log, idx) {
+            return String(log.id != null ? log.id : `${log.item_id || 'x'}_${idx}`);
+        }
+
+        function getMaterialCategory(log) {
+            const c = materialCategoryMap[log.item_id];
+            if (c && CATEGORY_LABELS[c]) return c;
+            const n = (log.item_name || '').toLowerCase();
+            if (n.includes('กระจก') || n.includes('glass')) return 'glass';
+            if (n.includes('อลูมิเนียม') || n.includes('aluminum') || n.includes('aluminium')) return 'aluminum';
+            return 'general';
+        }
+
+        function sortItemsForPicking(items) {
+            return items
+                .map((log, idx) => ({ log, uid: materialUid(log, idx), cat: getMaterialCategory(log) }))
+                .sort((a, b) => {
+                    const d = CATEGORY_ORDER.indexOf(a.cat) - CATEGORY_ORDER.indexOf(b.cat);
+                    return d !== 0 ? d : String(a.log.item_name || '').localeCompare(String(b.log.item_name || ''), 'th');
+                });
+        }
+
+        function pickStoreKey(groupKey) { return 'matprep_pick_' + groupKey; }
+
+        function loadPicked(groupKey) {
+            try { return new Set(JSON.parse(localStorage.getItem(pickStoreKey(groupKey)) || '[]')); }
+            catch (e) { return new Set(); }
+        }
+
+        function savePicked(groupKey, set) {
+            try { localStorage.setItem(pickStoreKey(groupKey), JSON.stringify([...set])); }
+            catch (e) { /* โหมดส่วนตัว/พื้นที่เต็ม — ติ๊กยังใช้ได้ในหน้านี้ แค่ไม่จำข้ามรอบ */ }
+        }
+
+        function clearPicked(groupKey) {
+            try { localStorage.removeItem(pickStoreKey(groupKey)); } catch (e) {}
+        }
+
+        function updatePickProgress(groupKey) {
+            const group = pendingGroups[groupKey] || doneGroups[groupKey];
+            if (!group) return;
+            const total = group.items.length;
+            const done = [...loadPicked(groupKey)].length;
+            document.querySelectorAll('.pick-progress').forEach(el => {
+                if (el.dataset.group !== groupKey) return;
+                el.textContent = `☑️ เตรียมแล้ว ${done}/${total} รายการ`;
+                el.classList.toggle('complete', total > 0 && done >= total);
+            });
+        }
+
+        function toggleMaterialPick(groupKey, uid, btn) {
+            const set = loadPicked(groupKey);
+            if (set.has(uid)) set.delete(uid); else set.add(uid);
+            savePicked(groupKey, set);
+            const on = set.has(uid);
+            btn.classList.toggle('on', on);
+            btn.textContent = on ? '✓' : '';
+            const row = btn.closest('.material-item');
+            if (row) row.classList.toggle('is-picked', on);
+            updatePickProgress(groupKey);
+        }
+
+        function printPickList(groupKey) {
+            const group = pendingGroups[groupKey] || doneGroups[groupKey];
+            if (!group) { showToast('ไม่พบรายการวัสดุของออเดอร์นี้', 'error'); return; }
+
+            let rows = '', lastCat = null, no = 0;
+            sortItemsForPicking(group.items).forEach(({ log, cat }) => {
+                if (cat !== lastCat) {
+                    lastCat = cat;
+                    rows += `<tr class="cat"><td colspan="5">${escHtml(CATEGORY_LABELS[cat] || 'อื่น ๆ')}</td></tr>`;
+                }
+                no++;
+                const qty = Math.abs(log.delta != null ? log.delta : (log.old_qty - log.new_qty)) || '?';
+                const code = materialCodesMap[log.item_id] || '-';
+                rows += `<tr>
+                    <td class="c">${no}</td>
+                    <td class="box"></td>
+                    <td>${escHtml(log.item_name || '-')}</td>
+                    <td class="code">${escHtml(code)}</td>
+                    <td class="c qty">${qty}</td>
+                </tr>`;
+            });
+
+            const qtyText = (group.orderQuantity != null && Number.isFinite(Number(group.orderQuantity)))
+                ? Number(group.orderQuantity).toLocaleString('th-TH') : '-';
+
+            document.getElementById('printArea').innerHTML = `
+                <div class="pl-head">
+                    <div class="pl-title">ใบเบิกวัสดุ</div>
+                    <div class="pl-prod">เลขที่การผลิต<strong>${escHtml(group.productionNumber || 'ยังไม่กำหนด')}</strong></div>
+                </div>
+                <table class="pl-meta">
+                    <tr><td>เลขที่ออเดอร์</td><td><strong>${escHtml(group.orderNo || '-')}</strong></td>
+                        <td>รหัสสินค้า</td><td><strong>${escHtml(group.orderSku || '-')}</strong></td></tr>
+                    <tr><td>สินค้า</td><td colspan="3">${escHtml(group.productName || '-')}</td></tr>
+                    <tr><td>จำนวนออเดอร์</td><td>${qtyText} ชิ้น</td>
+                        <td>รายการวัสดุ</td><td>${group.items.length} รายการ</td></tr>
+                </table>
+                <table class="pl-items">
+                    <thead><tr>
+                        <th class="c">#</th><th class="c">เก็บแล้ว</th>
+                        <th>รายการวัสดุ</th><th>รหัส</th><th class="c">จำนวน</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                <div class="pl-sign">
+                    <div>ผู้จัดเตรียม ____________________ วันที่ __________</div>
+                    <div>ผู้รับวัสดุ ____________________ วันที่ __________</div>
+                </div>
+                <div class="pl-foot">พิมพ์เมื่อ ${escHtml(new Date().toLocaleString('th-TH', { hour12: false }))}</div>`;
+
+            window.print();
+        }
+
         function renderGroupCard(group) {
             const isDone = activeTab === 'done';
             const dateStr = group.createdAt
@@ -2107,12 +2320,30 @@
                        </div>
                    </div>`;
 
-            const itemsHtml = group.items.map(log => {
-                const qty = Math.abs(log.delta ?? (log.old_qty - log.new_qty) ?? 0) || '?';
+            const printBtn = `<button class="btn btn-print btn-sm"
+                    onclick="printPickList('${escHtml(group.key)}')">
+                    🖨️ พิมพ์ใบเบิก
+               </button>`;
+
+            const picked = isDone ? new Set() : loadPicked(group.key);
+            let lastCat = null;
+            const itemsHtml = sortItemsForPicking(group.items).map(({ log, uid, cat }) => {
+                const qty = Math.abs(log.delta != null ? log.delta : (log.old_qty - log.new_qty)) || '?';
                 const icons = getCategoryIcon(log.item_name);
-                return `
-                    <div class="material-item">
+                const isPicked = picked.has(uid);
+                let catHead = '';
+                if (cat !== lastCat) {
+                    lastCat = cat;
+                    catHead = `<div class="material-cat-head">${escHtml(CATEGORY_LABELS[cat] || 'อื่น ๆ')}</div>`;
+                }
+                const checkBtn = isDone ? '' : `<button type="button"
+                        class="pick-check${isPicked ? ' on' : ''}"
+                        onclick="toggleMaterialPick('${escHtml(group.key)}', '${escHtml(uid)}', this)"
+                        aria-label="ติ๊กเมื่อหยิบวัสดุชิ้นนี้แล้ว">${isPicked ? '✓' : ''}</button>`;
+                return catHead + `
+                    <div class="material-item${isPicked ? ' is-picked' : ''}">
                         <div class="material-item-left">
+                            ${checkBtn}
                             <div class="material-icon">${icons}</div>
                             <div>
                                 <div class="material-name">${escHtml(log.item_name || '-')}</div>
@@ -2150,14 +2381,16 @@
                                 </div>
                                 ${group.productName ? `<div class="order-product-name">📦 ${escHtml(group.productName)}</div>` : ''}
                                 <div class="order-time">🕐 เริ่มผลิต: ${dateStr} • ${group.items.length} รายการวัสดุ</div>
+                                ${!isDone ? `<div><span class="pick-progress" data-group="${escHtml(group.key)}">☑️ เตรียมแล้ว ${loadPicked(group.key).size}/${group.items.length} รายการ</span></div>` : ''}
                             </div>
                         </div>
                         <div class="order-group-actions">
+                            ${printBtn}
                             ${dispatchBtn}
                         </div>
                     </div>
                     <div class="material-list">${itemsHtml}</div>
-                    ${!isDone ? `<div class="section-note">📌 กรุณาเตรียมวัสดุตามรายการข้างต้น แล้วกด "จ่ายวัสดุแล้ว" เมื่อเตรียมเสร็จ</div>` : ''}
+                    ${!isDone ? `<div class="section-note">📌 เปิดหน้านี้ในมือถือแล้วแตะช่องติ๊กทีละชิ้นตอนหยิบของได้เลย • เน็ตล่มให้กด "พิมพ์ใบเบิก" • หยิบครบแล้วกด "จ่ายวัสดุแล้ว"</div>` : ''}
                 </div>`;
         }
 
@@ -2304,6 +2537,9 @@
                         log.operator = productionTeam;
                     }
                 });
+                // จ่ายวัสดุแล้ว — ล้างค่าติ๊กของใบนี้ออกจากเครื่อง ไม่ให้ค้างสะสม
+                clearPicked(pendingDispatchData.groupKey);
+
                 processData();
                 renderContent();
                 updateKPIs();
@@ -2674,6 +2910,7 @@
             if (el) el.addEventListener('input', dmgRenderTable);
         });
     </script>
+    <div id="printArea" aria-hidden="true"></div>
 </body>
 
 </html>
