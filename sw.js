@@ -4,7 +4,7 @@
 // เหตุผล: ระบบนี้ข้อมูลเปลี่ยนตลอด ถ้าให้อ่านจากแคชก่อนจะเห็นของเก่า
 // แคชเป็นแค่ตาข่ายรองตอนเน็ตหลุด ไม่ใช่แหล่งข้อมูลหลัก
 
-const VERSION = 'v1-20260918';
+const VERSION = 'v2-20260918';
 const CACHE = 'ccga-' + VERSION;
 
 self.addEventListener('install', e => self.skipWaiting());
