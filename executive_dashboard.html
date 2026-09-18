@@ -1235,9 +1235,15 @@
       document.getElementById('btnExport').addEventListener('click', exportCsv);
       document.getElementById('btnFilter').addEventListener('click', applyFilters);
       document.getElementById('btnClear').addEventListener('click', clearFilters);
-      document.getElementById('fAluminum').addEventListener('change', applyFilters);
-      document.getElementById('fGlass').addEventListener('change', applyFilters);
-      document.getElementById('fSlots').addEventListener('change', applyFilters);
+      // ผูกตัวกรองทุกตัวให้กรองทันทีที่เปลี่ยนค่า
+      // เดิมผูกไว้แค่ 3 ตัว (สีอลูมิเนียม/สีกระจก/จำนวนช่อง) อีก 7 ตัวต้องกดปุ่ม "กรอง" ก่อน
+      // ผู้ใช้เลือกแล้วหน้าจอไม่ขยับ จึงเข้าใจว่าตัวกรองเสีย
+      // หน้าแดชบอร์ดเงินผูกครบทุกตัวอยู่แล้ว ตรงนี้ทำให้เหมือนกัน
+      ['fPlatform', 'fStatus', 'fProduct', 'fPattern', 'fMesh', 'fMonth', 'fYear',
+       'fAluminum', 'fGlass', 'fSlots'].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', applyFilters);
+      });
       document.getElementById('fSearch').addEventListener('keydown', event => {
         if (event.key === 'Enter') applyFilters();
       });
