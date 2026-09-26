@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#6366f1">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-180.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Alu ERP">
+    <script src="pwa.js?v=20260918-2" defer></script>
+    <title>ตรวจนับสต็อก | Stock Count</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="auth.js?v=20260926-2"></script>
+    <link rel="stylesheet" href="theme.css">
+    <script src="theme.js" defer></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin:0; font-family:'Kanit',sans-serif;
+               background: var(--bg,#f1f5f9); color: var(--text-main,#0f172a); }
+        .shell { max-width:900px; margin:0 auto; padding:16px 14px 90px; }
+        .back { color: var(--muted-strong,#64748b); text-decoration:none; font-size:.92rem; }
+        h1 { font-size:1.35rem; margin:10px 0 2px; }
+        .sub { color: var(--muted-strong,#64748b); font-size:.88rem; margin:0 0 14px; }
+        .kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin-bottom:14px; }
+        .kpi { background: var(--surface,#fff); border:1px solid var(--border-strong,#e2e8f0);
+               border-radius:14px; padding:11px 12px; text-align:center; }
+        .kpi b { display:block; font-size:1.45rem; line-height:1.25; }
+        .kpi span { font-size:.74rem; color: var(--muted-strong,#64748b); }
+        .kpi.ok b { color:#16a34a; }
+        .kpi.todo b { color:#d97706; }
+        .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+        .toolbar input, .toolbar select { font-family:inherit; font-size:.95rem; padding:11px 13px;
+               border:1px solid var(--border-strong,#cbd5e1); border-radius:12px;
+               background: var(--surface,#fff); color: var(--text-main,#0f172a); }
+        .toolbar input { flex:1 1 200px; min-width:0; }
+        .item { background: var(--surface,#fff); border:1px solid var(--border-strong,#e2e8f0);
+                border-radius:15px; padding:13px 14px; margin-bottom:10px; }
+        .item.done { border-color: rgba(22,163,74,.45); background: rgba(22,163,74,.05); }
+        .item-name { font-weight:600; line-height:1.4; margin-bottom:3px; }
+        .item-code { font-size:.8rem; color: var(--muted-strong,#64748b); word-break:break-all; }
+        .item-meta { font-size:.76rem; color: var(--muted-strong,#94a3b8); margin-top:3px; }
+        .never { color:#d97706; font-weight:600; }
+        .count-row { display:flex; align-items:center; gap:9px; margin-top:11px; flex-wrap:wrap; }
+        .sys-qty { background: var(--bg-soft,rgba(148,163,184,.16)); border-radius:11px;
+                   padding:9px 13px; font-size:.86rem; white-space:nowrap; }
+        .sys-qty b { font-size:1.15rem; }
+        .count-input { flex:1 1 110px; min-width:96px; font-family:inherit;
+                font-size:1.3rem; font-weight:700; text-align:center; padding:11px 8px;
+                border:2px solid var(--border-strong,#cbd5e1); border-radius:12px;
+                background: var(--surface,#fff); color: var(--text-main,#0f172a); }
+        .count-input:focus { outline:none; border-color:#6366f1; }
+        .btn-save { padding:12px 20px; border:0; border-radius:12px; cursor:pointer;
+                background: linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff;
+                font:600 .95rem 'Kanit',sans-serif; white-space:nowrap; }
+        .btn-save:disabled { opacity:.5; cursor:default; }
+        .result { margin-top:9px; font-size:.88rem; font-weight:600; }
+        .result.same { color:#16a34a; }
+        .result.diff { color:#dc2626; }
+        .empty { text-align:center; padding:40px 16px; color: var(--muted-strong,#64748b); }
+        .more { display:block; width:100%; padding:13px; margin-top:6px;
+                border:1px dashed var(--border-strong,#cbd5e1); border-radius:13px;
+                background:transparent; color: var(--muted-strong,#64748b);
+                font:600 .92rem 'Kanit',sans-serif; cursor:pointer; }
+        .hist { margin-top:26px; }
+        .hist h2 { font-size:1.05rem; margin:0 0 10px; }
+        .hist-row { display:flex; justify-content:space-between; gap:10px; align-items:flex-start;
+                background: var(--surface,#fff); border:1px solid var(--border-strong,#e2e8f0);
+                border-radius:12px; padding:10px 12px; margin-bottom:7px; font-size:.86rem; }
+        .pill { padding:3px 10px; border-radius:99px; font-weight:700; font-size:.8rem; white-space:nowrap; }
+        .pill.same { background: rgba(22,163,74,.15); color:#16a34a; }
+        .pill.up { background: rgba(37,99,235,.15); color:#2563eb; }
+        .pill.down { background: rgba(220,38,38,.15); color:#dc2626; }
+        .toast { position:fixed; left:50%; bottom:22px; transform:translateX(-50%);
+                background:#0f172a; color:#fff; padding:12px 20px; border-radius:13px;
+                font-size:.92rem; z-index:9999; box-shadow:0 12px 30px rgba(0,0,0,.3);
+                max-width:calc(100vw - 32px); text-align:center; }
+        @media (max-width:640px) {
+            .kpi b { font-size:1.25rem; }
+            .count-input { font-size:1.45rem; padding:13px 8px; }
+            .btn-save { flex:1 1 100%; padding:14px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="shell">
+        <a href="stock_management.html" class="back">← กลับหน้าจัดการสต็อก</a>
+        <h1>📋 ตรวจนับสต็อก</h1>
+        <p class="sub">เดินนับของจริงในคลัง แล้วกรอกจำนวนที่นับได้ · ระบบจะปรับยอดให้ตรงและเก็บประวัติไว้</p>
+
+        <div id="user-display-area"></div>
+
+        <div class="kpis">
+            <div class="kpi ok"><b id="kpiToday">0</b><span>นับแล้ววันนี้</span></div>
+            <div class="kpi todo"><b id="kpiNever">-</b><span>ยังไม่เคยนับ</span></div>
+            <div class="kpi"><b id="kpiTotal">-</b><span>วัสดุทั้งหมด</span></div>
+        </div>
+
+        <div class="toolbar">
+            <input id="q" type="text" placeholder="🔍 ค้นหาชื่อวัสดุ หรือรหัส" inputmode="search">
+            <select id="sortBy">
+                <option value="oldest">ไม่ได้นับนานที่สุดก่อน</option>
+                <option value="never">เฉพาะที่ยังไม่เคยนับ</option>
+                <option value="name">เรียงตามชื่อ</option>
+                <option value="low">ของใกล้หมดก่อน</option>
+            </select>
+        </div>
+
+        <div id="list"><div class="empty">กำลังโหลด...</div></div>
+        <button id="moreBtn" class="more" style="display:none;">โหลดเพิ่ม</button>
+
+        <div class="hist">
+            <h2>🕘 ประวัติการนับล่าสุด</h2>
+            <div id="hist"><div class="empty">ยังไม่มีประวัติ</div></div>
+        </div>
+    </div>
+<script>
+    const PAGE_SIZE = 40;
+    let db = null, offset = 0, loading = false, countedToday = 0;
+
+    function esc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function toast(msg, ms) {
+        const old = document.querySelector('.toast');
+        if (old) old.remove();
+        const el = document.createElement('div');
+        el.className = 'toast';
+        el.textContent = msg;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), ms || 3200);
+    }
+
+    function daysAgo(iso) {
+        if (!iso) return null;
+        const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+        return d <= 0 ? 'วันนี้' : (d === 1 ? 'เมื่อวาน' : d + ' วันก่อน');
+    }
+
+    // ── โหลดตัวเลขสรุปด้านบน ─────────────────────────────────────────
+    async function loadKpis() {
+        const total = await db.from('stock_items').select('id', { count: 'exact', head: true });
+        const never = await db.from('stock_items').select('id', { count: 'exact', head: true })
+            .is('last_stock_check', null);
+        const start = new Date(); start.setHours(0, 0, 0, 0);
+        const today = await db.from('stock_count_log').select('id', { count: 'exact', head: true })
+            .gte('counted_at', start.toISOString());
+        document.getElementById('kpiTotal').textContent = total.count != null ? total.count.toLocaleString('th-TH') : '-';
+        document.getElementById('kpiNever').textContent = never.count != null ? never.count.toLocaleString('th-TH') : '-';
+        countedToday = today.count || 0;
+        document.getElementById('kpiToday').textContent = countedToday.toLocaleString('th-TH');
+    }
+
+    // ── โหลดรายการวัสดุ ──────────────────────────────────────────────
+    async function loadItems(reset) {
+        if (loading) return;
+        loading = true;
+        if (reset) { offset = 0; document.getElementById('list').innerHTML = '<div class="empty">กำลังโหลด...</div>'; }
+
+        const q = document.getElementById('q').value.trim();
+        const sortBy = document.getElementById('sortBy').value;
+
+        let query = db.from('stock_items')
+            .select('id, product_code, product_name, quantity, unit, category, reorder_point, last_stock_check');
+
+        if (q) query = query.or('product_name.ilike.%' + q + '%,product_code.ilike.%' + q + '%');
+        if (sortBy === 'never') query = query.is('last_stock_check', null);
+
+        if (sortBy === 'name') query = query.order('product_name', { ascending: true });
+        else if (sortBy === 'low') query = query.order('quantity', { ascending: true });
+        else query = query.order('last_stock_check', { ascending: true, nullsFirst: true })
+                          .order('product_name', { ascending: true });
+
+        const { data, error } = await query.range(offset, offset + PAGE_SIZE - 1);
+        loading = false;
+
+        if (error) {
+            document.getElementById('list').innerHTML = '<div class="empty">❌ โหลดไม่สำเร็จ: ' + esc(error.message) + '</div>';
+            return;
+        }
+        renderItems(data || [], reset);
+        offset += (data || []).length;
+        document.getElementById('moreBtn').style.display = (data && data.length === PAGE_SIZE) ? 'block' : 'none';
+    }
+
+    function renderItems(rows, reset) {
+        const box = document.getElementById('list');
+        if (reset) box.innerHTML = '';
+        if (!rows.length && reset) {
+            box.innerHTML = '<div class="empty">ไม่พบวัสดุที่ตรงกับเงื่อนไข</div>';
+            return;
+        }
+        const html = rows.map(it => {
+            const last = it.last_stock_check
+                ? 'นับล่าสุด: ' + daysAgo(it.last_stock_check)
+                : '<span class="never">⚠️ ยังไม่เคยนับ</span>';
+            return '<div class="item" id="it_' + esc(it.id) + '">'
+                + '<div class="item-name">' + esc(it.product_name) + '</div>'
+                + (it.product_code ? '<div class="item-code">รหัส: ' + esc(it.product_code) + '</div>' : '')
+                + '<div class="item-meta">' + last + '</div>'
+                + '<div class="count-row">'
+                +   '<span class="sys-qty">ระบบมี <b>' + Number(it.quantity).toLocaleString('th-TH') + '</b> ' + esc(it.unit || 'ชิ้น') + '</span>'
+                +   '<input class="count-input" type="number" min="0" inputmode="numeric" placeholder="นับได้"'
+                +     ' data-id="' + esc(it.id) + '" data-sys="' + Number(it.quantity) + '"'
+                +     ' data-name="' + esc(it.product_name) + '">'
+                +   '<button class="btn-save" type="button" data-id="' + esc(it.id) + '">บันทึก</button>'
+                + '</div>'
+                + '<div class="result" id="res_' + esc(it.id) + '"></div>'
+                + '</div>';
+        }).join('');
+        box.insertAdjacentHTML('beforeend', html);
+    }
+</script>
+<script>
+    // ── บันทึกผลการนับ ───────────────────────────────────────────────
+    async function saveCount(itemId, btn) {
+        const input = document.querySelector('.count-input[data-id="' + itemId + '"]');
+        if (!input) return;
+
+        const raw = input.value.trim();
+        if (raw === '') { toast('ยังไม่ได้กรอกจำนวนที่นับได้'); input.focus(); return; }
+
+        const counted = parseInt(raw, 10);
+        if (!Number.isFinite(counted) || counted < 0) { toast('จำนวนต้องเป็นตัวเลข 0 ขึ้นไป'); input.focus(); return; }
+
+        const sys = parseInt(input.dataset.sys, 10) || 0;
+        const name = input.dataset.name || '';
+        const diff = counted - sys;
+
+        // กันพิมพ์ผิด: ถ้าต่างจากระบบเยอะผิดปกติ ให้ยืนยันก่อน
+        const bigGap = Math.abs(diff) >= 20 || (sys > 0 && Math.abs(diff) / sys >= 0.5);
+        if (diff !== 0 && bigGap) {
+            const ok = confirm('ยืนยันจำนวนที่นับได้?\n\n' + name + '\n\n'
+                + 'ระบบมี: ' + sys + '\nนับได้: ' + counted + '\nส่วนต่าง: ' + (diff > 0 ? '+' : '') + diff
+                + '\n\nส่วนต่างค่อนข้างเยอะ กรุณาตรวจสอบว่าไม่ได้พิมพ์ผิด');
+            if (!ok) { input.focus(); input.select(); return; }
+        }
+
+        btn.disabled = true;
+        const oldText = btn.textContent;
+        btn.textContent = 'กำลังบันทึก...';
+
+        try {
+            const { data, error } = await db.rpc('rpc_record_stock_count', {
+                p_item_id: itemId,
+                p_counted_qty: counted,
+                p_note: null
+            });
+            if (error) throw error;
+
+            const card = document.getElementById('it_' + itemId);
+            const res = document.getElementById('res_' + itemId);
+            if (card) card.classList.add('done');
+            if (res) {
+                res.className = 'result ' + (diff === 0 ? 'same' : 'diff');
+                res.textContent = diff === 0
+                    ? '✅ ยอดตรงพอดี บันทึกแล้ว'
+                    : '✅ ปรับยอดแล้ว: ' + sys + ' → ' + counted + ' (ส่วนต่าง ' + (diff > 0 ? '+' : '') + diff + ')';
+            }
+            const sysBox = card && card.querySelector('.sys-qty b');
+            if (sysBox) sysBox.textContent = counted.toLocaleString('th-TH');
+            input.dataset.sys = String(counted);
+            input.value = '';
+
+            countedToday++;
+            document.getElementById('kpiToday').textContent = countedToday.toLocaleString('th-TH');
+            toast(diff === 0 ? 'ยอดตรง บันทึกแล้ว' : 'ปรับยอดแล้ว ส่วนต่าง ' + (diff > 0 ? '+' : '') + diff);
+            loadKpis();
+            loadHistory();
+        } catch (e) {
+            const msg = (e && e.message) ? e.message : String(e);
+            toast('❌ ' + msg, 6000);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = oldText;
+        }
+    }
+
+    // ── ประวัติการนับล่าสุด ──────────────────────────────────────────
+    async function loadHistory() {
+        const { data, error } = await db.from('stock_count_log')
+            .select('item_name, system_qty, counted_qty, diff, counted_by, counted_at')
+            .order('counted_at', { ascending: false })
+            .limit(20);
+        const box = document.getElementById('hist');
+        if (error) { box.innerHTML = '<div class="empty">โหลดประวัติไม่สำเร็จ</div>'; return; }
+        if (!data || !data.length) { box.innerHTML = '<div class="empty">ยังไม่มีประวัติ</div>'; return; }
+        box.innerHTML = data.map(r => {
+            const cls = r.diff === 0 ? 'same' : (r.diff > 0 ? 'up' : 'down');
+            const txt = r.diff === 0 ? 'ตรง' : (r.diff > 0 ? '+' + r.diff : String(r.diff));
+            return '<div class="hist-row"><div>'
+                + '<div style="font-weight:600;">' + esc(r.item_name) + '</div>'
+                + '<div style="color:var(--muted-strong,#64748b);font-size:.79rem;">'
+                +   r.system_qty + ' → ' + r.counted_qty + ' · '
+                +   esc(r.counted_by) + ' · '
+                +   new Date(r.counted_at).toLocaleString('th-TH', { hour12: false })
+                + '</div></div>'
+                + '<span class="pill ' + cls + '">' + txt + '</span></div>';
+        }).join('');
+    }
+
+    // ── เริ่มทำงาน ───────────────────────────────────────────────────
+    window.addEventListener('auth-ready', () => {
+        db = window.auth && window.auth.supabase;
+        if (!db) { document.getElementById('list').innerHTML = '<div class="empty">❌ เชื่อมต่อฐานข้อมูลไม่ได้</div>'; return; }
+
+        loadKpis();
+        loadItems(true);
+        loadHistory();
+
+        let timer = null;
+        document.getElementById('q').addEventListener('input', () => {
+            clearTimeout(timer);
+            timer = setTimeout(() => loadItems(true), 400);
+        });
+        document.getElementById('sortBy').addEventListener('change', () => loadItems(true));
+        document.getElementById('moreBtn').addEventListener('click', () => loadItems(false));
+
+        document.getElementById('list').addEventListener('click', e => {
+            const btn = e.target.closest('.btn-save');
+            if (btn) saveCount(btn.dataset.id, btn);
+        });
+        document.getElementById('list').addEventListener('keydown', e => {
+            if (e.key === 'Enter' && e.target.classList.contains('count-input')) {
+                e.preventDefault();
+                const btn = e.target.closest('.count-row').querySelector('.btn-save');
+                if (btn) saveCount(btn.dataset.id, btn);
+            }
+        });
+    });
+</script>
+</body>
+</html>
