@@ -258,6 +258,75 @@ function getBangkokDateKey(value) {
     return `${values.year}-${values.month}-${values.day}`;
 }
 
+
+// ═══ ด่านตรวจออเดอร์ซ้ำก่อนบันทึกจริง ═══════════════════════════════
+// ทำไมต้องมี: เส้นทางอัปโหลดมี 2 เส้น และเส้นหนึ่งตั้งใจปล่อยให้เลขออเดอร์ซ้ำได้
+// (กันเฉพาะเลขพัสดุซ้ำ) แถวที่ยังไม่มีเลขพัสดุจึงไม่มีอะไรกันเลย
+// ผลคือ ส.ค.-ก.ย. 2569 เกิดออเดอร์ซ้ำ 7 กลุ่ม ออกใบสั่งผลิต 2 ใบ ตัดวัสดุ 2 รอบ
+//
+// ด่านนี้ไม่ไปแก้ตรรกะเดิม แต่ตรวจซ้ำอีกชั้นตรงก่อนเขียนลงฐานข้อมูล
+// แล้วให้คนตัดสินใจ ไม่ตัดสินใจแทน
+async function findExistingDuplicates(rows) {
+    if (!rows || !rows.length) return [];
+    const wanted = new Map();          // 'เลขออเดอร์|รหัสสินค้า' -> แถวในไฟล์
+    rows.forEach(r => {
+        const on = String(r.order_number || '').trim();
+        const pc = String(r.product_code || '').trim();
+        if (on) wanted.set(on + '|' + pc, r);
+    });
+    if (!wanted.size) return [];
+
+    const orderNumbers = [...new Set([...wanted.keys()].map(k => k.split('|')[0]))];
+    const found = [];
+    const chunkSize = 80;
+    for (let i = 0; i < orderNumbers.length; i += chunkSize) {
+        const chunk = orderNumbers.slice(i, i + chunkSize);
+        const { data, error } = await dbSupabase
+            .from(SUPABASE_TABLE_NAME)
+            .select('order_number, product_code, production_number, tracking_status, created_at')
+            .in('order_number', chunk);
+        if (error) throw error;
+        (data || []).forEach(e => {
+            const key = String(e.order_number || '').trim() + '|' + String(e.product_code || '').trim();
+            if (wanted.has(key)) found.push({ key, row: wanted.get(key), existing: e });
+        });
+    }
+    // กันกรณีออเดอร์เดิมมีหลายแถว ให้รายงานกลุ่มละครั้ง
+    return [...new Map(found.map(f => [f.key, f])).values()];
+}
+
+// ถามผู้ใช้ว่าจะทำยังไงกับแถวที่ซ้ำ
+// คืนค่า: null = ยกเลิกทั้งหมด · หรือ array ของแถวที่จะบันทึกจริง
+function askAboutDuplicates(rows, dupes) {
+    if (!dupes.length) return rows;
+
+    const sample = dupes.slice(0, 8).map(d =>
+        '  • ' + d.existing.order_number +
+        ' (' + (d.existing.product_code || '-') + ')' +
+        ' → มีใบผลิต ' + (d.existing.production_number || '-') +
+        ' สถานะ ' + (d.existing.tracking_status || '-')
+    ).join('\n');
+
+    const msg =
+        '⚠️ พบ ' + dupes.length + ' รายการที่มีอยู่ในระบบแล้ว\n\n' +
+        sample + (dupes.length > 8 ? '\n  • ... และอีก ' + (dupes.length - 8) + ' รายการ' : '') +
+        '\n\nถ้าอัปซ้ำจะได้ใบสั่งผลิตใบใหม่ และตัดวัสดุอีกรอบ\n\n' +
+        'กด "ตกลง"  = ข้ามรายการซ้ำ บันทึกเฉพาะของใหม่ ' + (rows.length - dupes.length) + ' รายการ  (แนะนำ)\n' +
+        'กด "ยกเลิก" = หยุดทั้งหมด ไม่บันทึกอะไรเลย';
+
+    if (confirm(msg)) {
+        const dupKeys = new Set(dupes.map(d => d.key));
+        const clean = rows.filter(r => {
+            const k = String(r.order_number || '').trim() + '|' + String(r.product_code || '').trim();
+            return !dupKeys.has(k);
+        });
+        log('ข้ามรายการซ้ำ ' + dupes.length + ' รายการ · จะบันทึก ' + clean.length + ' รายการ', 'warn');
+        return clean;
+    }
+    log('ผู้ใช้ยกเลิกการอัปโหลดเพราะพบรายการซ้ำ', 'warn');
+    return null;
+}
+
 async function generateProductionNumber(orderDateValue, existingValue = null) {
     const manualValue = normalizeString(existingValue);
     if (manualValue) {
@@ -2082,6 +2151,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 2. ทำการเพิ่มข้อมูลใหม่
                 const chunkSize = 50;
                 let insertedCount = 0;
+                // ด่านตรวจซ้ำก่อนเขียนจริง
+                const dupesMain = await findExistingDuplicates(itemsToInsert);
+                const cleanedMain = askAboutDuplicates(itemsToInsert, dupesMain);
+                if (cleanedMain === null) { log('ยกเลิกการอัปโหลด', 'warn'); return; }
+                itemsToInsert = cleanedMain;
+                if (!itemsToInsert.length) {
+                    alert('ไม่มีรายการใหม่ที่ต้องบันทึก (รายการซ้ำถูกข้ามทั้งหมด)');
+                    return;
+                }
+
                 for (let i = 0; i < itemsToInsert.length; i += chunkSize) {
                     const chunk = itemsToInsert.slice(i, i + chunkSize);
                     // Normalize payment_time on each item to be ISO string or null
@@ -2223,6 +2302,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     alert(`ไม่พบรายการใหม่ที่จะอัปโหลด (ข้าม ${skipped} รายการ)`);
                     return;
                 }
+
+                // ด่านตรวจซ้ำก่อนเขียนจริง
+                // (เส้นทางนี้เดิมกันเฉพาะเลขพัสดุซ้ำ แถวที่ยังไม่มีเลขพัสดุจึงไม่มีอะไรกัน)
+                let pmToInsert = toInsert;
+                try {
+                    const dupesPm = await findExistingDuplicates(pmToInsert);
+                    const cleanedPm = askAboutDuplicates(pmToInsert, dupesPm);
+                    if (cleanedPm === null) return;
+                    pmToInsert = cleanedPm;
+                } catch (err) {
+                    log('ตรวจรายการซ้ำไม่สำเร็จ: ' + err.message, 'error');
+                    if (!confirm('ตรวจสอบรายการซ้ำไม่สำเร็จ' + String.fromCharCode(10,10) + 'จะอัปโหลดต่อโดยไม่ตรวจซ้ำหรือไม่?')) return;
+                }
+                if (!pmToInsert.length) {
+                    alert('ไม่มีรายการใหม่ที่ต้องบันทึก (รายการซ้ำถูกข้ามทั้งหมด)');
+                    return;
+                }
+                toInsert.length = 0;
+                pmToInsert.forEach(r => toInsert.push(r));
 
                 if (!confirm(`จะอัปโหลด ${toInsert.length} รายการ (ข้าม ${skipped}) ใช่หรือไม่?`)) return;
 
