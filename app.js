@@ -2152,10 +2152,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const chunkSize = 50;
                 let insertedCount = 0;
                 // ด่านตรวจซ้ำก่อนเขียนจริง
-                const dupesMain = await findExistingDuplicates(itemsToInsert);
-                const cleanedMain = askAboutDuplicates(itemsToInsert, dupesMain);
-                if (cleanedMain === null) { log('ยกเลิกการอัปโหลด', 'warn'); return; }
-                itemsToInsert = cleanedMain;
+                // ห่อ try ไว้: ถ้าด่านตรวจมีปัญหา ต้องไม่ทำให้อัปโหลดทั้งหมดพัง
+                // ให้ถามผู้ใช้แทนว่าจะไปต่อโดยไม่ตรวจไหม
+                try {
+                    const dupesMain = await findExistingDuplicates(itemsToInsert);
+                    const cleanedMain = askAboutDuplicates(itemsToInsert, dupesMain);
+                    if (cleanedMain === null) { log('ยกเลิกการอัปโหลด', 'warn'); return; }
+                    itemsToInsert = cleanedMain;
+                } catch (err) {
+                    log('ตรวจรายการซ้ำไม่สำเร็จ (เส้นทางหลัก): ' + err.message, 'error');
+                    if (!confirm('ตรวจสอบรายการซ้ำไม่สำเร็จ' + String.fromCharCode(10,10) + 'จะอัปโหลดต่อโดยไม่ตรวจซ้ำหรือไม่?')) return;
+                }
                 if (!itemsToInsert.length) {
                     alert('ไม่มีรายการใหม่ที่ต้องบันทึก (รายการซ้ำถูกข้ามทั้งหมด)');
                     return;
