@@ -1740,6 +1740,7 @@
         //       ทำให้เปลืองโควต้าเดือนละหลาย GB และกินเน็ตของพนักงาน
         // ใหม่: ใช้สัญญาณเรียลไทม์เป็นหลัก · ดึงซ้ำเฉพาะตอนเรียลไทม์หลุดเท่านั้น
         let realtimeOk = false;
+        let lastLoadAt = 0;   // เวลาที่โหลดข้อมูลล่าสุด ใช้คุมตาข่าย 5 นาที
         let loadDataTimer = null;
         let visibilityHooked = false;
 
@@ -1762,7 +1763,13 @@
             if (pollingInterval) clearInterval(pollingInterval);
             pollingInterval = setInterval(() => {
                 if (document.hidden) return;   // ไม่ได้เปิดดูอยู่ ไม่ต้องดึง
-                if (realtimeOk) return;        // เรียลไทม์ปกติดี ปล่อยให้สัญญาณทำงาน
+
+                // ตาข่ายกันข้อมูลค้างเงียบ ๆ
+                //   เรียลไทม์ปกติดี -> ดึงซ้ำห่าง ๆ ทุก 5 นาทีก็พอ (กันกรณีต่ออยู่แต่ไม่มีสัญญาณมา)
+                //   เรียลไทม์หลุด   -> ดึงทุกรอบ คือทุก 1 นาที
+                const backstopMs = realtimeOk ? 300000 : 0;
+                if (Date.now() - lastLoadAt < backstopMs) return;
+
                 loadData();
                 dmgLoadBadgeCount();
                 if (activeTab === 'damage' && dmgLoaded) {
@@ -1885,6 +1892,7 @@
 
         // ─── LOAD DATA ───────────────────────────────────────────────────────
         async function loadData() {
+            lastLoadAt = Date.now();
             try {
                 const { data, error } = await db
                     .from('stock_movement_log')
