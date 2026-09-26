@@ -2182,10 +2182,18 @@ function setupRealtime() {
         })
         .subscribe();
 
+    // ประหยัดเน็ต: หน้านี้มีสัญญาณเรียลไทม์ครบแล้ว (prod:dispatch_watch ด้านบน)
+    // การดึงซ้ำทุก 10 วินาทีจึงเป็นของซ้ำซ้อน เหลือไว้เป็นตัวสำรองรอบละ 1 นาที
+    // และหยุดเมื่อไม่ได้เปิดดูหน้าจอ (มือถืออยู่ในกระเป๋า)
     if (dispatchPollInterval) clearInterval(dispatchPollInterval);
     dispatchPollInterval = setInterval(() => {
+        if (document.hidden) return;
         enrichOrdersWithDispatchStatus().then(() => applyFilters());
-    }, 10000);
+    }, 60000);
+
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) enrichOrdersWithDispatchStatus().then(() => applyFilters());
+    });
 }
 
 // ─── UTILS ────────────────────────────────

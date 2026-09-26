@@ -1735,6 +1735,25 @@
         // ─── REALTIME ────────────────────────────────────────────────────────
         let pollingInterval = null;
 
+        // ── ตัวช่วยประหยัดเน็ต ──────────────────────────────────────────
+        // เดิม: ดึงข้อมูล 1,000 แถวใหม่ทุก 10 วินาที ตลอดเวลา แม้มือถืออยู่ในกระเป๋า
+        //       ทำให้เปลืองโควต้าเดือนละหลาย GB และกินเน็ตของพนักงาน
+        // ใหม่: ใช้สัญญาณเรียลไทม์เป็นหลัก · ดึงซ้ำเฉพาะตอนเรียลไทม์หลุดเท่านั้น
+        let realtimeOk = false;
+        let loadDataTimer = null;
+        let visibilityHooked = false;
+
+        // รวบคำสั่งโหลดที่มาติด ๆ กันให้เหลือรอบเดียว
+        // (กด "จ่ายวัสดุแล้ว" กับวัสดุ 18 ชิ้น จะมีสัญญาณยิงมา 18 ครั้ง
+        //  ของเดิมจะโหลดข้อมูล 1,000 แถว 18 รอบรวด = เปลืองมาก)
+        function loadDataSoon(delay) {
+            if (loadDataTimer) clearTimeout(loadDataTimer);
+            loadDataTimer = setTimeout(function () {
+                loadDataTimer = null;
+                loadData();
+            }, delay || 800);
+        }
+
         function startRealtime() {
             if (!db) return;
 
@@ -1742,12 +1761,25 @@
             // ดึงข้อมูลใหม่ทุก 10 วินาที เพื่อตรวจสอบการเปลี่ยนแปลง
             if (pollingInterval) clearInterval(pollingInterval);
             pollingInterval = setInterval(() => {
+                if (document.hidden) return;   // ไม่ได้เปิดดูอยู่ ไม่ต้องดึง
+                if (realtimeOk) return;        // เรียลไทม์ปกติดี ปล่อยให้สัญญาณทำงาน
                 loadData();
                 dmgLoadBadgeCount();
                 if (activeTab === 'damage' && dmgLoaded) {
                     dmgLoadData(true);
                 }
-            }, 10000);
+            }, 60000);
+
+            // กลับมาเปิดดูหน้าจออีกครั้ง -> ดึงทันที 1 รอบ ข้อมูลจึงสดเสมอ
+            if (!visibilityHooked) {
+                visibilityHooked = true;
+                document.addEventListener('visibilitychange', () => {
+                    if (!document.hidden) {
+                        loadDataSoon(200);
+                        dmgLoadBadgeCount();
+                    }
+                });
+            }
 
             // ── WebSocket Realtime (ทำงานบน http:// / https:// เท่านั้น) ────
             realtimeChannel = db
@@ -1757,7 +1789,7 @@
                     schema: 'public',
                     table: 'stock_movement_log'
                 }, () => {
-                    loadData();
+                    loadDataSoon();
                 })
                 .on('postgres_changes', {
                     event: '*',
@@ -1771,7 +1803,8 @@
                 })
                 .subscribe(status => {
                     const dot = document.getElementById('realtimeDot');
-                    if (status === 'SUBSCRIBED') {
+                    realtimeOk = (status === 'SUBSCRIBED');
+                    if (realtimeOk) {
                         if (dot) dot.classList.remove('off');
                     } else {
                         if (dot) dot.classList.add('off');
