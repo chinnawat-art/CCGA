@@ -21,7 +21,7 @@
     <style>
         * { box-sizing: border-box; }
         body { margin:0; font-family:'Kanit',sans-serif;
-               background: var(--bg,#f1f5f9); color: var(--text-main,#0f172a); }
+               background: var(--bg-body,#f1f5f9); color: var(--text-main,#0f172a); }
         .shell { max-width:900px; margin:0 auto; padding:16px 14px 90px; }
         .back { color: var(--muted-strong,#64748b); text-decoration:none; font-size:.92rem; }
         h1 { font-size:1.35rem; margin:10px 0 2px; }
@@ -38,6 +38,11 @@
                border:1px solid var(--border-strong,#cbd5e1); border-radius:12px;
                background: var(--surface,#fff); color: var(--text-main,#0f172a); }
         .toolbar input { flex:1 1 200px; min-width:0; }
+        .toolbar select { flex:1 1 130px; min-width:0; }
+        .toolbar select.active { border-color:#6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,.3); font-weight:600; }
+        .result-info { font-size:.85rem; color: var(--muted-strong,#64748b); margin:-4px 2px 10px; min-height:1.2em; }
+        .result-info b { color: var(--text-main,#0f172a); }
+        .result-info a { color:#6366f1; cursor:pointer; margin-left:8px; text-decoration:underline; }
         .item { background: var(--surface,#fff); border:1px solid var(--border-strong,#e2e8f0);
                 border-radius:15px; padding:13px 14px; margin-bottom:10px; }
         .item.done { border-color: rgba(22,163,74,.45); background: rgba(22,163,74,.05); }
@@ -102,6 +107,25 @@
 
         <div class="toolbar">
             <input id="q" type="text" placeholder="🔍 ค้นหาชื่อวัสดุ หรือรหัส" inputmode="search">
+            <select id="cat">
+                <option value="">ทุกหมวด</option>
+                <option value="glass">🪟 กระจก</option>
+                <option value="aluminum">📐 อลูมิเนียม</option>
+                <option value="tools">🔩 อะไหล่</option>
+            </select>
+            <select id="color">
+                <option value="">ทุกสี</option>
+                <optgroup label="สีกระจก">
+                    <option value="ใส">ใส</option>
+                    <option value="เขียว">เขียว</option>
+                    <option value="ชาดำ">ชาดำ</option>
+                    <option value="ฝ้า">ฝ้า</option>
+                </optgroup>
+                <optgroup label="สีอลูมิเนียม">
+                    <option value="ขาว">ขาว</option>
+                    <option value="ดำ">ดำ</option>
+                </optgroup>
+            </select>
             <select id="sortBy">
                 <option value="oldest">ไม่ได้นับนานที่สุดก่อน</option>
                 <option value="never">เฉพาะที่ยังไม่เคยนับ</option>
@@ -110,6 +134,7 @@
             </select>
         </div>
 
+        <div id="resultInfo" class="result-info"></div>
         <div id="list"><div class="empty">กำลังโหลด...</div></div>
         <button id="moreBtn" class="more" style="display:none;">โหลดเพิ่ม</button>
 
@@ -167,8 +192,20 @@
         const q = document.getElementById('q').value.trim();
         const sortBy = document.getElementById('sortBy').value;
 
+        const cat = document.getElementById('cat').value;
+        const color = document.getElementById('color').value;
+
         let query = db.from('stock_items')
-            .select('id, product_code, product_name, quantity, unit, category, reorder_point, last_stock_check');
+            .select('id, product_code, product_name, quantity, unit, category, reorder_point, last_stock_check',
+                    { count: 'exact' });
+
+        // หมวด: ใช้ช่อง category ในฐานข้อมูลตรง ๆ (glass / aluminum / tools ใส่ไว้ครบทุกรายการ)
+        if (cat) query = query.eq('category', cat);
+
+        // สี: เขียนอยู่ในชื่อวัสดุ เช่น "กระจกสีฟ้า ..." / "เสากุญแจ สีขาว ..."
+        // ใช้คำว่า "สี" นำหน้า เพื่อไม่ให้ "ดำ" ไปติด "ชาดำ"
+        // และกระจกบางตัวเขียนว่า "กระจกฝ้า" โดยไม่มีคำว่าสี จึงรวมแบบนั้นด้วย
+        if (color) query = query.or('product_name.ilike.%สี' + color + '%,product_name.ilike.%กระจก' + color + '%');
 
         if (q) query = query.or('product_name.ilike.%' + q + '%,product_code.ilike.%' + q + '%');
         if (sortBy === 'never') query = query.is('last_stock_check', null);
@@ -178,7 +215,8 @@
         else query = query.order('last_stock_check', { ascending: true, nullsFirst: true })
                           .order('product_name', { ascending: true });
 
-        const { data, error } = await query.range(offset, offset + PAGE_SIZE - 1);
+        const { data, error, count } = await query.range(offset, offset + PAGE_SIZE - 1);
+        if (reset) showResultInfo(error ? null : count, q, cat, color);
         loading = false;
 
         if (error) {
@@ -188,6 +226,30 @@
         renderItems(data || [], reset);
         offset += (data || []).length;
         document.getElementById('moreBtn').style.display = (data && data.length === PAGE_SIZE) ? 'block' : 'none';
+    }
+
+    const CAT_LABEL = { glass: 'กระจก', aluminum: 'อลูมิเนียม', tools: 'อะไหล่' };
+
+    function showResultInfo(count, q, cat, color) {
+        const box = document.getElementById('resultInfo');
+        ['cat', 'color'].forEach(id => {
+            const el = document.getElementById(id);
+            el.classList.toggle('active', !!el.value);
+        });
+        if (count == null) { box.innerHTML = ''; return; }
+        const parts = [];
+        if (cat) parts.push(CAT_LABEL[cat] || cat);
+        if (color) parts.push('สี' + color);
+        if (q) parts.push('"' + esc(q) + '"');
+        box.innerHTML = 'พบ <b>' + count.toLocaleString('th-TH') + '</b> รายการ'
+            + (parts.length ? ' · ' + parts.join(' · ') + '<a id="clearFilters">ล้างตัวกรอง</a>' : '');
+        const clr = document.getElementById('clearFilters');
+        if (clr) clr.onclick = () => {
+            document.getElementById('q').value = '';
+            document.getElementById('cat').value = '';
+            document.getElementById('color').value = '';
+            loadItems(true);
+        };
     }
 
     function renderItems(rows, reset) {
@@ -321,6 +383,8 @@
             timer = setTimeout(() => loadItems(true), 400);
         });
         document.getElementById('sortBy').addEventListener('change', () => loadItems(true));
+        document.getElementById('cat').addEventListener('change', () => loadItems(true));
+        document.getElementById('color').addEventListener('change', () => loadItems(true));
         document.getElementById('moreBtn').addEventListener('click', () => loadItems(false));
 
         document.getElementById('list').addEventListener('click', e => {
