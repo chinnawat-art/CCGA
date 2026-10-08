@@ -1351,3 +1351,69 @@ body::before {
         grid-row: 1 / span 2;
     }
 }
+
+/* ═══ ขั้นตอน QC (ต.ค. 2569) ═══════════════════════════════════════
+   แท็บ "ผลิตสำเร็จแล้ว" กลายเป็นคิวงาน "รอ QC ตรวจ" -> ต้องเห็นชัด ไม่จางแบบเดิม
+   งานที่จางลงคือ "ตรวจเสร็จรอจัดส่ง" ซึ่งเป็นงานที่จบแล้วแทน */
+.tab-btn.active-qcdone {
+    background: var(--status-done-bg);
+    border-color: rgba(16, 185, 129, 0.5);
+    color: var(--status-done-text);
+}
+.order-card.is-done {
+    --card-accent: #f59e0b;
+    --card-glow: rgba(245, 158, 11, 0.15);
+    opacity: 1;
+}
+.order-card.is-qcdone {
+    --card-accent: #10b981;
+    --card-glow: rgba(16, 185, 129, 0.15);
+    opacity: 0.75;
+}
+.badge-proddone {
+    background: rgba(245, 158, 11, 0.18);
+    color: #d97706;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+}
+.badge-qcdone {
+    background: rgba(16, 185, 129, 0.2);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.badge-qcreject {
+    background: rgba(239, 68, 68, 0.15);
+    color: #dc2626;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    margin-left: 6px;
+}
+.btn-qc-pass {
+    background: linear-gradient(135deg, var(--green), #059669);
+    color: #ffffff;
+    box-shadow: 0 3px 10px var(--green-glow);
+}
+.btn-qc-reject {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.45);
+    color: #dc2626;
+}
+.qc-reject-note {
+    margin-top: 6px;
+    padding: 7px 10px;
+    border-radius: 9px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #dc2626;
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+.qc-reject-note small { display: block; opacity: 0.8; }
+.qc-reject-note.is-history {
+    background: transparent;
+    border-style: dashed;
+    font-size: 0.75rem;
+}
+.dark-theme .badge-proddone { color: #fbbf24; }
+.dark-theme .badge-qcdone { color: #34d399; }
+.dark-theme .badge-qcreject,
+.dark-theme .btn-qc-reject,
+.dark-theme .qc-reject-note { color: #f87171; }

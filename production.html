@@ -21,7 +21,7 @@
     <script src="config.js"></script>
     <script src="auth.js?v=20260926-2"></script>
     <script src="db-utils.js?v=20261008-1"></script>
-    <link rel="stylesheet" href="production.css?v=20260918-3">
+    <link rel="stylesheet" href="production.css?v=20261008-2">
     <link rel="stylesheet" href="theme.css">
     <script src="theme.js" defer></script>
 </head>
@@ -102,7 +102,7 @@
                 <input type="date" id="filterDateTo" onchange="applyFilters()">
             </div>
             <div class="filter-group">
-                <label class="filter-label-success">วันที่ผลิตสำเร็จ</label>
+                <label class="filter-label-success">วันที่ตรวจเสร็จ</label>
                 <input type="date" id="filterCompletedDate" onchange="applyFilters()">
             </div>
             <div style="margin-left:auto;margin-top:auto; display:flex; gap:0.5rem;">
@@ -125,7 +125,7 @@
             </div>
             <div class="kpi-card green" data-required-permission="data_view_production_done">
                 <div class="kpi-icon">✅</div>
-                <div class="kpi-label">ผลิตสำเร็จแล้ว</div>
+                <div class="kpi-label">รอ QC ตรวจ</div>
                 <div class="kpi-value" id="kpiDone">-</div>
             </div>
             <div class="kpi-card blue">
@@ -182,7 +182,10 @@
                 🔨 กำลังผลิต <span class="tab-count" id="tc-producing">0</span>
             </button>
             <button class="tab-btn" id="tab-done" data-required-permission="data_view_production_done" onclick="switchTab('done')">
-                ✅ ผลิตสำเร็จแล้ว <span class="tab-count" id="tc-done">0</span>
+                🔍 รอ QC ตรวจ <span class="tab-count" id="tc-done">0</span>
+            </button>
+            <button class="tab-btn" id="tab-qcdone" data-required-permission="data_view_production_done" onclick="switchTab('qcdone')">
+                ✔️ ตรวจเสร็จรอจัดส่ง <span class="tab-count" id="tc-qcdone">0</span>
             </button>
         </div>
 
@@ -287,7 +290,7 @@
         </div>
     </div>
 
-    <script src="production.js?v=20261008-1"></script>
+    <script src="production.js?v=20261008-2"></script>
 </body>
 
 </html>

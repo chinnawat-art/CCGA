@@ -641,7 +641,7 @@
       const map = {
         success: 'success',
         successful: 'success',
-        'ผลิตสำเร็จ': 'success',
+        'ผลิตสำเร็จ': 'success', 'ผลิตสำเร็จแล้ว': 'success', 'ตรวจเสร็จรอจัดส่ง': 'success',
         'จัดส่งสำเร็จ': 'success',
         'สำเร็จ': 'success',
         cancelled: 'cancelled',
@@ -679,6 +679,11 @@
         order_number: row.order_number || row.id || '-',
         slots: row.slots ?? row.channel ?? ''
       };
+    }
+
+    // รายได้ไม่นับใบที่ยกเลิก (ผู้ใช้ยืนยัน ต.ค. 2569)
+    function rowRevenue(row) {
+      return row && row.status === 'cancelled' ? 0 : safeNumber(row && row.price);
     }
 
     function safeNumber(value) {
@@ -798,7 +803,7 @@
 
     function renderMetrics() {
       const rows = filtered;
-      const revenue = rows.reduce((s, row) => s + safeNumber(row.price), 0);
+      const revenue = rows.reduce((s, row) => s + rowRevenue(row), 0);
       const orders = rows.length;
       const done = rows.filter(row => row.status === 'success').length;
       const qty = rows.reduce((s, row) => s + safeNumber(row.quantity), 0);
@@ -811,7 +816,7 @@
         const d = new Date(row.order_date);
         if (Number.isNaN(d.getTime())) return sum;
         if (d.getFullYear() !== now.getFullYear() || d.getMonth() !== now.getMonth()) return sum;
-        return sum + safeNumber(row.price);
+        return sum + rowRevenue(row);
       }, 0);
 
       const dayRevenue = rows.reduce((sum, row) => {
@@ -819,7 +824,7 @@
         const d = new Date(row.order_date);
         if (Number.isNaN(d.getTime())) return sum;
         if (d.toISOString().slice(0, 10) !== now.toISOString().slice(0, 10)) return sum;
-        return sum + safeNumber(row.price);
+        return sum + rowRevenue(row);
       }, 0);
 
       setTextIfExists('kpiFiltered', rows.length.toLocaleString('th-TH'));
@@ -858,7 +863,7 @@
         const d = new Date(row.order_date);
         if (Number.isNaN(d.getTime())) return;
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        monthMap[key] = (monthMap[key] || 0) + safeNumber(row.price);
+        monthMap[key] = (monthMap[key] || 0) + rowRevenue(row);
       });
 
       const chartMonths = [];
@@ -896,7 +901,7 @@
       rows.forEach(row => {
         if (!row.order_date) return;
         const key = new Date(row.order_date).toISOString().slice(0, 10);
-        dayMap[key] = (dayMap[key] || 0) + safeNumber(row.price);
+        dayMap[key] = (dayMap[key] || 0) + rowRevenue(row);
       });
 
       const labels = [];
@@ -965,7 +970,7 @@
         if (!row.order_date) return;
         const d = new Date(row.order_date);
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        if (!Number.isNaN(d.getTime())) revenueByMonth[key] = (revenueByMonth[key] || 0) + safeNumber(row.price);
+        if (!Number.isNaN(d.getTime())) revenueByMonth[key] = (revenueByMonth[key] || 0) + rowRevenue(row);
       });
 
       const revenueLabels = [];
@@ -1054,12 +1059,12 @@
         platformMap[row.platform] = (platformMap[row.platform] || { orders: 0, quantity: 0, revenue: 0 });
         platformMap[row.platform].orders += 1;
         platformMap[row.platform].quantity += safeNumber(row.quantity);
-        platformMap[row.platform].revenue += safeNumber(row.price);
+        platformMap[row.platform].revenue += rowRevenue(row);
 
         const key = `${row.product_name || 'ไม่ระบุ'}|${row.pattern || 'ไม่ระบุ'}`;
         variantMap[key] = (variantMap[key] || { product: row.product_name || 'ไม่ระบุ', detail: row.pattern || 'ไม่ระบุ', quantity: 0, revenue: 0 });
         variantMap[key].quantity += safeNumber(row.quantity);
-        variantMap[key].revenue += safeNumber(row.price);
+        variantMap[key].revenue += rowRevenue(row);
       });
 
       const platformRows = Object.entries(platformMap).sort((a, b) => b[1].revenue - a[1].revenue);
@@ -1093,9 +1098,9 @@
 
       filtered.forEach(row => {
         const specs = [
-          { type: 'สีอลูมิเนียม', value: row.aluminum_color || 'ไม่ระบุ', orders: 1, quantity: safeNumber(row.quantity), revenue: safeNumber(row.price) },
-          { type: 'สีกระจก', value: row.glass_color || 'ไม่ระบุ', orders: 1, quantity: safeNumber(row.quantity), revenue: safeNumber(row.price) },
-          { type: 'ช่อง', value: String(row.slots ?? row.channel ?? 'ไม่ระบุ'), orders: 1, quantity: safeNumber(row.quantity), revenue: safeNumber(row.price) }
+          { type: 'สีอลูมิเนียม', value: row.aluminum_color || 'ไม่ระบุ', orders: 1, quantity: safeNumber(row.quantity), revenue: rowRevenue(row) },
+          { type: 'สีกระจก', value: row.glass_color || 'ไม่ระบุ', orders: 1, quantity: safeNumber(row.quantity), revenue: rowRevenue(row) },
+          { type: 'ช่อง', value: String(row.slots ?? row.channel ?? 'ไม่ระบุ'), orders: 1, quantity: safeNumber(row.quantity), revenue: rowRevenue(row) }
         ];
 
         specs.forEach(spec => {
@@ -1156,7 +1161,7 @@
               <td>${row.glass_color || '-'}</td>
               <td>${row.mosquito_net || '-'}</td>
               <td>${safeNumber(row.quantity)}</td>
-              <td>฿${safeNumber(row.price).toLocaleString('th-TH', { maximumFractionDigits: 0 })}</td>
+              <td>฿${rowRevenue(row).toLocaleString('th-TH', { maximumFractionDigits: 0 })}</td>
               <td><span class="badge ${statusClass(row.status)}">${statusLabel(row.status)}</span></td>
             </tr>
           `).join('')

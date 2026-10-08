@@ -488,7 +488,7 @@
       const input = String(value || '').trim();
       if (!input) return 'pending';
       const map = {
-        success: 'success', successful: 'success', 'ผลิตสำเร็จ': 'success', 'จัดส่งสำเร็จ': 'success', 'สำเร็จ': 'success',
+        success: 'success', successful: 'success', 'ผลิตสำเร็จ': 'success', 'ผลิตสำเร็จแล้ว': 'success', 'ตรวจเสร็จรอจัดส่ง': 'success', 'จัดส่งสำเร็จ': 'success', 'สำเร็จ': 'success',
         cancelled: 'cancelled', canceled: 'cancelled', 'ยกเลิก': 'cancelled',
         pending: 'pending', 'รอดำเนินการ': 'pending',
         producing: 'producing', 'กำลังผลิต': 'producing',
@@ -496,6 +496,11 @@
         returned: 'returned', 'พัสดุตีกลับ': 'returned'
       };
       return map[input.toLowerCase()] || 'pending';
+    }
+
+    // รายได้ไม่นับใบที่ยกเลิก (ผู้ใช้ยืนยัน ต.ค. 2569)
+    function rowRevenue(row) {
+      return row && row.status === 'cancelled' ? 0 : safeNumber(row && row.price);
     }
 
     function safeNumber(value) {
@@ -621,8 +626,8 @@
 
     function renderMetrics() {
       const rows = filtered;
-      const revenue = rows.reduce((s, row) => s + safeNumber(row.price), 0);
-      const successRevenue = rows.filter(row => row.status === 'success').reduce((s, row) => s + safeNumber(row.price), 0);
+      const revenue = rows.reduce((s, row) => s + rowRevenue(row), 0);
+      const successRevenue = rows.filter(row => row.status === 'success').reduce((s, row) => s + rowRevenue(row), 0);
       const orders = rows.length;
       const totalData = allData.length;
       const highestProductMap = {};
@@ -630,9 +635,9 @@
 
       rows.forEach(row => {
         const productKey = row.product_name || 'ไม่ระบุ';
-        highestProductMap[productKey] = (highestProductMap[productKey] || 0) + safeNumber(row.price);
+        highestProductMap[productKey] = (highestProductMap[productKey] || 0) + rowRevenue(row);
         const platformKey = row.platform || 'ไม่ระบุ';
-        highestPlatformMap[platformKey] = (highestPlatformMap[platformKey] || 0) + safeNumber(row.price);
+        highestPlatformMap[platformKey] = (highestPlatformMap[platformKey] || 0) + rowRevenue(row);
       });
 
       const topProduct = Object.entries(highestProductMap).sort((a, b) => b[1] - a[1])[0];
@@ -643,14 +648,14 @@
         const d = new Date(row.order_date);
         if (Number.isNaN(d.getTime())) return sum;
         if (d.getFullYear() !== now.getFullYear() || d.getMonth() !== now.getMonth()) return sum;
-        return sum + safeNumber(row.price);
+        return sum + rowRevenue(row);
       }, 0);
       const dayRevenue = rows.reduce((sum, row) => {
         if (!row.order_date) return sum;
         const d = new Date(row.order_date);
         if (Number.isNaN(d.getTime())) return sum;
         if (d.toISOString().slice(0, 10) !== now.toISOString().slice(0, 10)) return sum;
-        return sum + safeNumber(row.price);
+        return sum + rowRevenue(row);
       }, 0);
 
       const setValue = (id, value) => {
@@ -692,7 +697,7 @@
         const d = new Date(row.order_date);
         if (Number.isNaN(d.getTime())) return;
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        monthMap[key] = (monthMap[key] || 0) + safeNumber(row.price);
+        monthMap[key] = (monthMap[key] || 0) + rowRevenue(row);
       });
 
       const chartMonths = [];
@@ -715,7 +720,7 @@
       rows.forEach(row => {
         if (!row.order_date) return;
         const key = new Date(row.order_date).toISOString().slice(0, 10);
-        dayMap[key] = (dayMap[key] || 0) + safeNumber(row.price);
+        dayMap[key] = (dayMap[key] || 0) + rowRevenue(row);
       });
       const labels = [];
       const revenueDay = [];
@@ -748,43 +753,43 @@
         const aluminumKey = row.aluminum_color || 'ไม่ระบุ';
         summaryAluminum[aluminumKey] = (summaryAluminum[aluminumKey] || { value: aluminumKey, quantity: 0, revenue: 0 });
         summaryAluminum[aluminumKey].quantity += safeNumber(row.quantity);
-        summaryAluminum[aluminumKey].revenue += safeNumber(row.price);
+        summaryAluminum[aluminumKey].revenue += rowRevenue(row);
 
         const glassKey = row.glass_color || 'ไม่ระบุ';
         summaryGlass[glassKey] = (summaryGlass[glassKey] || { value: glassKey, quantity: 0, revenue: 0 });
         summaryGlass[glassKey].quantity += safeNumber(row.quantity);
-        summaryGlass[glassKey].revenue += safeNumber(row.price);
+        summaryGlass[glassKey].revenue += rowRevenue(row);
 
         const platformKey = row.platform || 'ไม่ระบุ';
         summaryPlatform[platformKey] = (summaryPlatform[platformKey] || { value: platformKey, orders: 0, quantity: 0, revenue: 0 });
         summaryPlatform[platformKey].orders += 1;
         summaryPlatform[platformKey].quantity += safeNumber(row.quantity);
-        summaryPlatform[platformKey].revenue += safeNumber(row.price);
+        summaryPlatform[platformKey].revenue += rowRevenue(row);
 
         const productAluminumKey = `${row.product_name || 'ไม่ระบุ'}|${row.aluminum_color || 'ไม่ระบุ'}`;
         summaryProductAluminum[productAluminumKey] = (summaryProductAluminum[productAluminumKey] || { product: row.product_name || 'ไม่ระบุ', value: row.aluminum_color || 'ไม่ระบุ', quantity: 0, revenue: 0 });
         summaryProductAluminum[productAluminumKey].quantity += safeNumber(row.quantity);
-        summaryProductAluminum[productAluminumKey].revenue += safeNumber(row.price);
+        summaryProductAluminum[productAluminumKey].revenue += rowRevenue(row);
 
         const productGlassKey = `${row.product_name || 'ไม่ระบุ'}|${row.glass_color || 'ไม่ระบุ'}`;
         summaryProductGlass[productGlassKey] = (summaryProductGlass[productGlassKey] || { product: row.product_name || 'ไม่ระบุ', value: row.glass_color || 'ไม่ระบุ', quantity: 0, revenue: 0 });
         summaryProductGlass[productGlassKey].quantity += safeNumber(row.quantity);
-        summaryProductGlass[productGlassKey].revenue += safeNumber(row.price);
+        summaryProductGlass[productGlassKey].revenue += rowRevenue(row);
 
         const productMeshKey = `${row.product_name || 'ไม่ระบุ'}|${row.mosquito_net || 'ไม่ระบุ'}`;
         summaryProductMesh[productMeshKey] = (summaryProductMesh[productMeshKey] || { product: row.product_name || 'ไม่ระบุ', value: row.mosquito_net || 'ไม่ระบุ', quantity: 0, revenue: 0 });
         summaryProductMesh[productMeshKey].quantity += safeNumber(row.quantity);
-        summaryProductMesh[productMeshKey].revenue += safeNumber(row.price);
+        summaryProductMesh[productMeshKey].revenue += rowRevenue(row);
 
         const productSizeKey = `${row.product_name || 'ไม่ระบุ'}|${row.size || 'ไม่ระบุ'}`;
         summaryProductSize[productSizeKey] = (summaryProductSize[productSizeKey] || { product: row.product_name || 'ไม่ระบุ', value: row.size || 'ไม่ระบุ', quantity: 0, revenue: 0 });
         summaryProductSize[productSizeKey].quantity += safeNumber(row.quantity);
-        summaryProductSize[productSizeKey].revenue += safeNumber(row.price);
+        summaryProductSize[productSizeKey].revenue += rowRevenue(row);
 
         const fullKey = `${row.product_name || 'ไม่ระบุ'}|${row.size || 'ไม่ระบุ'}|${row.aluminum_color || 'ไม่ระบุ'}|${row.glass_color || 'ไม่ระบุ'}|${row.slots ?? row.channel ?? 'ไม่ระบุ'}|${row.pattern || 'ไม่ระบุ'}|${row.mosquito_net || 'ไม่ระบุ'}`;
         summaryFullVariant[fullKey] = (summaryFullVariant[fullKey] || { product: row.product_name || 'ไม่ระบุ', size: row.size || 'ไม่ระบุ', aluminum: row.aluminum_color || 'ไม่ระบุ', glass: row.glass_color || 'ไม่ระบุ', slots: row.slots ?? row.channel ?? 'ไม่ระบุ', pattern: row.pattern || 'ไม่ระบุ', mesh: row.mosquito_net || 'ไม่ระบุ', quantity: 0, revenue: 0 });
         summaryFullVariant[fullKey].quantity += safeNumber(row.quantity);
-        summaryFullVariant[fullKey].revenue += safeNumber(row.price);
+        summaryFullVariant[fullKey].revenue += rowRevenue(row);
       });
 
       document.getElementById('summaryAluminumRows').innerHTML = Object.values(summaryAluminum).sort((a, b) => b.revenue - a.revenue).slice(0, 12).map(row => `
@@ -879,7 +884,7 @@
           <td>${row.pattern || '-'}</td>
           <td>${row.mosquito_net || '-'}</td>
           <td class="right">${safeNumber(row.quantity).toLocaleString('th-TH')}</td>
-          <td class="right">฿${safeNumber(row.price).toLocaleString('th-TH', { maximumFractionDigits: 0 })}</td>
+          <td class="right">฿${rowRevenue(row).toLocaleString('th-TH', { maximumFractionDigits: 0 })}</td>
           <td><span class="badge ${statusClass(row.status)}">${statusLabel(row.status)}</span></td>
         </tr>
       `).join('') : '<tr><td colspan="13" class="empty">📭 ไม่พบรายการ</td></tr>';

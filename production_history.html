@@ -253,6 +253,8 @@
                     <option value="ผลิตสำเร็จ">ผลิตสำเร็จแล้ว (เสร็จสิ้น)</option>
                     <option value="เริ่มผลิต">กำลังผลิต (กำลังทำ)</option>
                     <option value="ยกเลิก">ยกเลิกออเดอร์</option>
+                    <option value="QC ตรวจเสร็จ">QC ตรวจเสร็จรอจัดส่ง</option>
+                    <option value="QC ตีกลับ">QC ตีกลับไปแก้ไข</option>
 
                     <option value="ทุกสถานะ">ทุกสถานะทั้งหมด</option>
                 </select>
@@ -367,7 +369,7 @@
 
                     let actionBadgeClass = 'badge-started';
                     if (log.action.includes('สำเร็จ') || log.action.includes('จัดส่ง')) actionBadgeClass = 'badge-done';
-                    if (log.action.includes('ยกเลิก')) actionBadgeClass = 'badge-cancel';
+                    if (log.action.includes('ยกเลิก') || log.action.includes('ตีกลับ')) actionBadgeClass = 'badge-cancel';
 
                     let actionBadge = `<span class="badge ${actionBadgeClass}">${log.action}</span>`;
 

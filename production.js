@@ -22,12 +22,15 @@ let dispatchPollInterval = null; // polling interval สำหรับ file:// 
 // ─── PRODUCTION STATUSES ──────────────────
 const STATUS_PENDING = 'รอดำเนินการ';
 const STATUS_PRODUCING = 'กำลังผลิต';
-const STATUS_DONE = 'ผลิตสำเร็จแล้ว';
-const PROD_STATUSES = [STATUS_PENDING, STATUS_PRODUCING, STATUS_DONE];
+const STATUS_DONE = 'ผลิตสำเร็จแล้ว';          // ฝ่ายผลิตกดแล้ว = รอ QC ตรวจ
+const STATUS_QC_DONE = 'ตรวจเสร็จรอจัดส่ง';      // QC ตรวจผ่านแล้ว (ต.ค. 2569)
+const PROD_STATUSES = [STATUS_PENDING, STATUS_PRODUCING, STATUS_DONE, STATUS_QC_DONE];
 const STATUS_VIEW_PERMISSIONS = {
     [STATUS_PENDING]: 'data_view_production_pending',
     [STATUS_PRODUCING]: 'data_view_production_producing',
-    [STATUS_DONE]: 'data_view_production_done'
+    [STATUS_DONE]: 'data_view_production_done',
+    // ใช้สิทธิ์ดูเดียวกับแท็บผลิตสำเร็จ คนที่เคยเห็นงานเสร็จจะเห็นแท็บนี้ต่อได้เลย
+    [STATUS_QC_DONE]: 'data_view_production_done'
 };
 const PRODUCTION_SKUS = ['ANWD', 'CMD', 'CMWD', 'D', 'FDD', 'FDWD', 'FXWD', 'LVWD', 'SAWD', 'SLD', 'SLWD'];
 const PRODUCTION_SKU_PERMISSION_PREFIX = 'data_view_production_sku_';
@@ -58,10 +61,11 @@ function selectFirstAllowedTab() {
     const statusByTab = {
         pending: STATUS_PENDING,
         producing: STATUS_PRODUCING,
-        done: STATUS_DONE
+        done: STATUS_DONE,
+        qcdone: STATUS_QC_DONE
     };
     if (canViewProductionStatus(statusByTab[activeTab])) return;
-    activeTab = ['pending', 'producing', 'done'].find(tab =>
+    activeTab = ['pending', 'producing', 'done', 'qcdone'].find(tab =>
         canViewProductionStatus(statusByTab[tab])
     ) || 'pending';
 }
@@ -197,8 +201,8 @@ async function loadProductImage(sku) {
 // ─── LOAD DATA ────────────────────────────
 async function loadData() {
     log('กำลังโหลดข้อมูลจาก Supabase...');
-    const selectColumns = 'id,order_date,platform,order_number,production_number,tracking_number,product_code,product_name,product_size,slots,quantity,buyer_name,tracking_status,note,pattern,production_started_at,production_completed_at,payment_time,ship_by_date,aluminum_color,glass_color,screen_type,stock_deducted';
-    const fallbackColumns = 'id,order_date,platform,order_number,production_number,tracking_number,product_code,product_name,product_size,slots,quantity,buyer_name,tracking_status,note,pattern,production_started_at,production_completed_at,aluminum_color,glass_color,screen_type';
+    const selectColumns = 'id,order_date,platform,order_number,production_number,tracking_number,product_code,product_name,product_size,slots,quantity,buyer_name,tracking_status,note,pattern,production_started_at,production_completed_at,payment_time,ship_by_date,aluminum_color,glass_color,screen_type,stock_deducted,qc_checked_at,qc_checked_by,qc_reject_count,qc_last_reject_reason,qc_last_rejected_at,qc_last_rejected_by';
+    const fallbackColumns = 'id,order_date,platform,order_number,production_number,tracking_number,product_code,product_name,product_size,slots,quantity,buyer_name,tracking_status,note,pattern,production_started_at,production_completed_at,aluminum_color,glass_color,screen_type,qc_checked_at,qc_checked_by,qc_reject_count,qc_last_reject_reason,qc_last_rejected_at,qc_last_rejected_by';
     const viewableStatuses = getViewableProductionStatuses();
     try {
         // ดึงให้ครบทุกใบ (เดิมขอทีเดียว ถ้าเกิน 1,000 ใบ ใบใหม่ล่าสุดจะหายจากหน้านี้
@@ -207,7 +211,7 @@ async function loadData() {
             .from(TABLE)
             .select(selectColumns)
             .in('tracking_status', viewableStatuses)
-            .is('tracking_number', null)
+            .or('tracking_number.is.null,tracking_status.eq.' + STATUS_DONE)
             .order('order_date', { ascending: true })
             .order('id', { ascending: true }));
 
@@ -219,7 +223,7 @@ async function loadData() {
                     .from(TABLE)
                     .select(fallbackColumns)
                     .in('tracking_status', viewableStatuses)
-                    .is('tracking_number', null)
+                    .or('tracking_number.is.null,tracking_status.eq.' + STATUS_DONE)
                     .order('order_date', { ascending: true })
                     .order('id', { ascending: true }));
             }
@@ -310,7 +314,9 @@ function getFiltered(statusList, { autoApplyLatestDoneDate = false } = {}) {
     const dateTo = document.getElementById('filterDateTo').value;
     const completedDateInput = document.getElementById('filterCompletedDate').value;
     let completedDate = completedDateInput;
-    const isDoneOnly = statusList.length === 1 && statusList[0] === STATUS_DONE;
+    // ตัวกรอง "วันที่เสร็จ" ใช้กับแท็บตรวจเสร็จรอจัดส่ง (งานจบแล้วสะสมเยอะ)
+    // แท็บรอ QC ไม่กรองวัน เพราะเป็นคิวงาน งานที่ผลิตเสร็จเมื่อวานแต่ยังไม่ตรวจต้องยังเห็น
+    const isDoneOnly = statusList.length === 1 && statusList[0] === STATUS_QC_DONE;
 
     if (isDoneOnly && autoApplyLatestDoneDate && !completedDateInput) {
         completedDate = getTodayDateString();
@@ -327,8 +333,9 @@ function getFiltered(statusList, { autoApplyLatestDoneDate = false } = {}) {
         if (dateTo && o.order_date > dateTo) return false;
 
         if (shouldApplyCompletedDate) {
-            if (!o.production_completed_at) return false;
-            const d = new Date(o.production_completed_at);
+            const doneAt = o.qc_checked_at || o.production_completed_at;
+            if (!doneAt) return false;
+            const d = new Date(doneAt);
             const offset = d.getTimezoneOffset() * 60000;
             const localDateStr = (new Date(d - offset)).toISOString().split('T')[0];
             if (localDateStr !== completedDate) return false;
@@ -363,7 +370,8 @@ function applyFilters() {
     updateActiveTabUi();
     const pending = getFiltered([STATUS_PENDING]);
     const producing = getFiltered([STATUS_PRODUCING]);
-    const done = getFiltered([STATUS_DONE], { autoApplyLatestDoneDate: true });
+    const done = getFiltered([STATUS_DONE]);
+    const qcdone = getFiltered([STATUS_QC_DONE], { autoApplyLatestDoneDate: true });
 
     // KPIs
     document.getElementById('kpiPending').textContent = pending.length;
@@ -376,6 +384,8 @@ function applyFilters() {
     document.getElementById('tc-pending').textContent = pending.length;
     document.getElementById('tc-producing').textContent = producing.length;
     document.getElementById('tc-done').textContent = done.length;
+    const tcQcDone = document.getElementById('tc-qcdone');
+    if (tcQcDone) tcQcDone.textContent = qcdone.length;
 
     // Summary table (pending + producing)
     renderSummaryTable([...pending, ...producing]);
@@ -394,11 +404,12 @@ function clearFilters() {
 const TAB_CFG = {
     pending: { label: '📦 รายการออเดอร์รอผลิต', cls: 'active-pending' },
     producing: { label: '🔨 รายการกำลังผลิต', cls: 'active-producing' },
-    done: { label: '✅ รายการผลิตสำเร็จแล้ว', cls: 'active-done' }
+    done: { label: '🔍 รายการรอ QC ตรวจ (ผลิตสำเร็จแล้ว)', cls: 'active-done' },
+    qcdone: { label: '✔️ รายการตรวจเสร็จรอจัดส่ง', cls: 'active-qcdone' }
 };
 
 function updateActiveTabUi() {
-    ['pending', 'producing', 'done'].forEach(tab => {
+    ['pending', 'producing', 'done', 'qcdone'].forEach(tab => {
         const button = document.getElementById('tab-' + tab);
         if (button) button.className = 'tab-btn' + (tab === activeTab ? ' ' + TAB_CFG[tab].cls : '');
     });
@@ -410,7 +421,8 @@ function switchTab(tab) {
     const statusByTab = {
         pending: STATUS_PENDING,
         producing: STATUS_PRODUCING,
-        done: STATUS_DONE
+        done: STATUS_DONE,
+        qcdone: STATUS_QC_DONE
     };
     if (!canViewProductionStatus(statusByTab[tab])) return;
     activeTab = tab;
@@ -1109,7 +1121,8 @@ function renderOrderCard(o) {
     const canEditProductionNumber = window.auth?.hasPermission?.('action_edit_production_number') === true;
     const canRevert = window.auth?.role === 'Ceo' || window.auth?.hasPermission?.('action_revert_production_order') === true;
     const platCls = { Shopee: 'p-shopee', Lazada: 'p-lazada', TikTok: 'p-tiktok' }[o.platform] || 'p-other';
-    const cardCls = status === STATUS_DONE ? 'is-done' : (status === STATUS_PRODUCING ? 'is-producing' : 'is-pending');
+    const cardCls = status === STATUS_QC_DONE ? 'is-qcdone'
+        : (status === STATUS_DONE ? 'is-done' : (status === STATUS_PRODUCING ? 'is-producing' : 'is-pending'));
 
     let badgeHtml = '';
     let actionsHtml = '';
@@ -1122,7 +1135,8 @@ function renderOrderCard(o) {
             <button class="btn btn-produce btn-sm" onclick="updateStatus('${o.id}','${STATUS_PRODUCING}',this)">🔨 เริ่มผลิต</button>
             ${canFinishPending ? `<button class="btn btn-done btn-sm" onclick="updateStatus('${o.id}','${STATUS_DONE}',this)">✅ ผลิตสำเร็จ</button>` : ''}`;
     } else if (status === STATUS_PRODUCING) {
-        badgeHtml = `<span class="badge badge-producing">🔨 กำลังผลิต</span>`;
+        badgeHtml = `<span class="badge badge-producing">🔨 กำลังผลิต</span>`
+            + (Number(o.qc_reject_count) > 0 ? `<span class="badge badge-qcreject">🔁 QC ตีกลับ</span>` : '');
         const canFinish = ['Ceo', 'pdtPerson'].includes(window.auth.role);
         actionsHtml = `
             ${canRevert ? `<button class="btn btn-outline btn-sm" onclick="updateStatus('${o.id}','${STATUS_PENDING}',this)">↩ ย้อนกลับ</button>` : ''}
@@ -1136,11 +1150,18 @@ function renderOrderCard(o) {
                 const btnLabel = hasUndispatched ? `⚠️ วัสดุยังไม่เรียบร้อย` : `✅ ผลิตสำเร็จ`;
                 return `<button class="btn btn-done btn-sm" style="${btnStyle}" ${btnTitle} onclick="updateStatus('${o.id}','${STATUS_DONE}',this)">${btnLabel}</button>`;
             })() : ''}`;  
+    } else if (status === STATUS_QC_DONE) {
+        badgeHtml = `<span class="badge badge-qcdone">✔️ ตรวจเสร็จรอจัดส่ง</span>`;
+        actionsHtml = '';
     } else {
-        badgeHtml = `<span class="badge badge-proddone">✅ ผลิตสำเร็จแล้ว</span>`;
+        badgeHtml = `<span class="badge badge-proddone">🔍 รอ QC ตรวจ</span>`;
         const targetRevertStatus = (o.stock_deducted === true) ? STATUS_PRODUCING : STATUS_PENDING;
+        // ฐานข้อมูลเช็คสิทธิ์อีกชั้น (current_user_has_action นับ CEO ให้แล้ว)
+        const canQc = window.auth?.role === 'Ceo' || window.auth?.hasPermission?.('action_qc_inspect') === true;
         actionsHtml = `
-            ${canRevert ? `<button class="btn btn-outline btn-sm" onclick="updateStatus('${o.id}','${targetRevertStatus}',this)">↩ ย้อนกลับ</button>` : ''}`;
+            ${canRevert ? `<button class="btn btn-outline btn-sm" onclick="updateStatus('${o.id}','${targetRevertStatus}',this)">↩ ย้อนกลับ</button>` : ''}
+            ${canQc ? `<button class="btn btn-sm btn-qc-reject" onclick="qcReject('${o.id}',this)">↩ ตีกลับไปแก้ไข</button>
+            <button class="btn btn-sm btn-qc-pass" onclick="qcPass('${o.id}',this)">✔️ ตรวจเสร็จรอจัดส่ง</button>` : ''}`;
     }
 
     actionsHtml += `
@@ -1155,6 +1176,19 @@ function renderOrderCard(o) {
     if (o.production_completed_at) {
         const d = new Date(o.production_completed_at);
         timeDetails.push(`<div style="font-size:0.75rem;color:#34d399;margin-top:2px;">✅ เสร็จ: ${d.toLocaleDateString('th-TH')} ${d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</div>`);
+    }
+    if (o.qc_checked_at && status === STATUS_QC_DONE) {
+        const qd = new Date(o.qc_checked_at);
+        timeDetails.push(`<div style="font-size:0.75rem;color:#10b981;margin-top:2px;">✔️ QC: ${qd.toLocaleDateString('th-TH')} ${qd.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}${o.qc_checked_by ? ' · ' + esc(o.qc_checked_by) : ''}</div>`);
+    }
+    if (Number(o.qc_reject_count) > 0 && o.qc_last_reject_reason) {
+        const rd = o.qc_last_rejected_at ? new Date(o.qc_last_rejected_at) : null;
+        const when = rd ? rd.toLocaleDateString('th-TH') + ' ' + rd.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '';
+        const isActive = status === STATUS_PRODUCING;
+        timeDetails.push(`<div class="qc-reject-note${isActive ? '' : ' is-history'}">
+            🔁 ${isActive ? 'QC ตีกลับให้แก้' : 'เคยถูกตีกลับ'} (ครั้งที่ ${Number(o.qc_reject_count)}): <b>${esc(o.qc_last_reject_reason)}</b>
+            <small>${esc(o.qc_last_rejected_by || '')}${when ? ' · ' + when : ''}</small>
+        </div>`);
     }
     if (o.payment_time) {
         try {
@@ -1315,15 +1349,69 @@ async function purgeTestOrders(btn) {
 }
 window.purgeTestOrders = purgeTestOrders;
 
+// ═══ ปุ่มแผนก QC ═══════════════════════════════════════════════════
+// ทำงานผ่านฟังก์ชันในฐานข้อมูล (rpc_qc_pass / rpc_qc_reject) ซึ่งเช็คสิทธิ์
+// action_qc_inspect และสถานะเอง ต่อให้หน้าเว็บถูกแก้ก็ข้ามไม่ได้
+async function runQcAction(btn, call, okMessage) {
+    const oldHtml = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '⏳'; }
+    try {
+        const { error } = await call();
+        if (error) throw error;
+        log(okMessage, 'success');
+        await loadData();
+    } catch (e) {
+        const msg = (e && e.message) ? e.message : String(e);
+        log('QC ไม่สำเร็จ: ' + msg, 'error');
+        alert('❌ ' + msg);
+        if (btn) { btn.disabled = false; btn.innerHTML = oldHtml; }
+    }
+}
+
+async function qcPass(id, btn) {
+    const order = allOrders.find(o => o.id === id);
+    if (!order) return;
+    const ok = confirm(
+        'ยืนยัน QC ตรวจเสร็จ พร้อมจัดส่ง\n\n' +
+        'เลขที่ผลิต: ' + formatProductionNumberLabel(order) + '\n' +
+        'ออเดอร์: ' + (order.order_number || '-') + '\n' +
+        'สินค้า: ' + (order.product_name || '-')
+    );
+    if (!ok) return;
+    await runQcAction(btn,
+        () => db.rpc('rpc_qc_pass', { p_order_id: id }),
+        'QC ตรวจเสร็จรอจัดส่ง: ' + (order.order_number || id));
+}
+
+async function qcReject(id, btn) {
+    const order = allOrders.find(o => o.id === id);
+    if (!order) return;
+    const reason = prompt(
+        'ตีกลับไปแก้ไข\n' +
+        'เลขที่ผลิต: ' + formatProductionNumberLabel(order) + '  ·  ออเดอร์: ' + (order.order_number || '-') + '\n\n' +
+        'กรุณาระบุเหตุผล (ช่างจะเห็นข้อความนี้ที่การ์ดงาน)\nเช่น กระจกมีรอย / ขนาดไม่ตรง / สีไม่ตรงออเดอร์',
+        ''
+    );
+    if (reason === null) return;
+    if (reason.trim().length < 3) { alert('กรุณาใส่เหตุผลอย่างน้อย 3 ตัวอักษร'); return; }
+    await runQcAction(btn,
+        () => db.rpc('rpc_qc_reject', { p_order_id: id, p_reason: reason.trim() }),
+        'ตีกลับไปแก้ไข: ' + (order.order_number || id) + ' — ' + reason.trim());
+}
+
+window.qcPass = qcPass;
+window.qcReject = qcReject;
+
 function renderCards() {
     const statusMap = {
         pending: STATUS_PENDING,
         producing: STATUS_PRODUCING,
-        done: STATUS_DONE
+        done: STATUS_DONE,
+        qcdone: STATUS_QC_DONE
     };
     selectFirstAllowedTab();
     const orders = getFiltered([statusMap[activeTab]], {
-        autoApplyLatestDoneDate: activeTab === 'done'
+        autoApplyLatestDoneDate: activeTab === 'qcdone'
     });
     const container = document.getElementById('ordersContainer');
 
@@ -1470,7 +1558,7 @@ async function deleteProductionOrder(id, btnEl) {
         return;
     }
 
-    const isDone = order.tracking_status === STATUS_DONE;
+    const isDone = order.tracking_status === STATUS_DONE || order.tracking_status === STATUS_QC_DONE;
 
     const confirmed = confirm(
         `ยืนยันลบออเดอร์ ${order.order_number || '-'}\nSKU: ${order.product_code || '-'}\n\n` +

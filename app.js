@@ -1979,7 +1979,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const skippedMissingOrderNumberRows = [];
                 let skippedUnmatchedExistingCount = 0;
                 const skippedUnmatchedExistingNumbers = [];
-                const productionDoneStatuses = new Set(['ผลิตสำเร็จ', 'ผลิตสำเร็จแล้ว']);
+                // ต.ค. 2569 เพิ่มสถานะ QC ตรวจเสร็จ ไม่งั้นอัปโหลดเลขพัสดุให้ออเดอร์ที่ตรวจแล้วจะถูกบล็อก
+                const productionDoneStatuses = new Set(['ผลิตสำเร็จ', 'ผลิตสำเร็จแล้ว', 'ตรวจเสร็จรอจัดส่ง']);
                 const existingByTracking = new Map(
                     existingOrders
                         .filter(order => isUsableTrackingNumber(order.tracking_number))

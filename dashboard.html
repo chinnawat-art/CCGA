@@ -771,7 +771,8 @@
                 <option value="พัสดุตีกลับ">🔄 พัสดุตีกลับ</option>
                 <option value="รอดำเนินการ">⏳ รอดำเนินการ</option>
                 <option value="กำลังผลิต">🔨 กำลังผลิต</option>
-                <option value="ผลิตสำเร็จแล้ว">✅ ผลิตสำเร็จแล้ว</option>
+                <option value="ผลิตสำเร็จแล้ว">🔍 ผลิตสำเร็จแล้ว (รอ QC)</option>
+                <option value="ตรวจเสร็จรอจัดส่ง">✔️ ตรวจเสร็จรอจัดส่ง</option>
                 <option value="ยกเลิก">❌ ยกเลิก</option>
             </select>
         </div>
@@ -1152,7 +1153,8 @@ function updateCharts() {
     const sLabels = Object.keys(statusCounts);
     const sData = Object.values(statusCounts);
     const sColors = sLabels.map(s => {
-        if (s === 'จัดส่งสำเร็จ' || s === 'ผลิตสำเร็จแล้ว') return '#10b981';
+        if (s === 'จัดส่งสำเร็จ' || s === 'ตรวจเสร็จรอจัดส่ง') return '#10b981';
+        if (s === 'ผลิตสำเร็จแล้ว') return '#eab308';
         if (s === 'รอดำเนินการ') return '#f59e0b';
         if (s === 'กำลังผลิต') return '#f97316';
         if (s === 'กำลังจัดส่ง' || s === 'ระหว่างการขนส่ง') return '#6366f1';
@@ -1380,7 +1382,8 @@ function renderOrderRow(o) {
                 <span class="badge ${statusBadge(o.tracking_status)}">
                     ${o.tracking_status === 'รอดำเนินการ' ? '⏳ รอดำเนินการ' : 
                       o.tracking_status === 'กำลังผลิต' ? '🔨 กำลังผลิต' :
-                      o.tracking_status === 'ผลิตสำเร็จแล้ว' ? '✅ ผลิตสำเร็จแล้ว' :
+                      o.tracking_status === 'ผลิตสำเร็จแล้ว' ? '🔍 ผลิตสำเร็จ (รอ QC)' :
+                      o.tracking_status === 'ตรวจเสร็จรอจัดส่ง' ? '✔️ ตรวจเสร็จรอจัดส่ง' :
                       (o.tracking_status === 'กำลังจัดส่ง' || o.tracking_status === 'ระหว่างการขนส่ง') ? '🚚 ระหว่างการขนส่ง' : 
                       o.tracking_status === 'จัดส่งสำเร็จ' ? '✅ จัดส่งสำเร็จ' : 
                       o.tracking_status === 'พัสดุตีกลับ' ? '🔄 พัสดุตีกลับ' : 
@@ -1515,7 +1518,7 @@ async function updateNote(id, btnElement) {
 function goPage(p) { currentPage = p; renderTable(); }
 
 function statusBadge(s) {
-    if (s === 'จัดส่งสำเร็จ') return 'badge-success';
+    if (s === 'จัดส่งสำเร็จ' || s === 'ตรวจเสร็จรอจัดส่ง') return 'badge-success';
     if (s === 'รอดำเนินการ') return 'badge-pending';
     if (s === 'กำลังผลิต') return 'badge-producing';
     if (s === 'ผลิตสำเร็จแล้ว') return 'badge-proddone';
@@ -1526,7 +1529,7 @@ function statusBadge(s) {
 }
 
 function statusClass(s) {
-    if (s === 'จัดส่งสำเร็จ') return 's-delivered';
+    if (s === 'จัดส่งสำเร็จ' || s === 'ตรวจเสร็จรอจัดส่ง') return 's-delivered';
     if (s === 'รอดำเนินการ') return 's-pending';
     if (s === 'กำลังผลิต') return 's-producing';
     if (s === 'ผลิตสำเร็จแล้ว') return 's-proddone';
@@ -1582,7 +1585,7 @@ async function updateStatus(id, selectEl) {
 }
 
 async function removeDashboardBackupStock(order) {
-    const completedStatuses = new Set(['ผลิตสำเร็จ', 'ผลิตสำเร็จแล้ว']);
+    const completedStatuses = new Set(['ผลิตสำเร็จ', 'ผลิตสำเร็จแล้ว', 'ตรวจเสร็จรอจัดส่ง']);
     if (!completedStatuses.has(order?.tracking_status)) return;
 
     const trackingNumber = String(order?.tracking_number || '').trim().toLowerCase();
@@ -1644,7 +1647,8 @@ async function deleteDashboardOrder(id, btnEl) {
     }
 
     try {
-        const isDone = order.tracking_status === 'ผลิตสำเร็จแล้ว';
+        // งานที่ตรวจเสร็จแล้วก็ใช้วัสดุไปจริง ลบแล้วห้ามคืนสต็อก
+        const isDone = order.tracking_status === 'ผลิตสำเร็จแล้ว' || order.tracking_status === 'ตรวจเสร็จรอจัดส่ง';
         if (!isDone) {
             await removeDashboardBackupStock(order);
 
