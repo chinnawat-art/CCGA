@@ -19,6 +19,7 @@
     <!-- Config (Supabase Keys - gitignored, ดูตัวอย่างใน config.example.js) -->
     <script src="config.js"></script>
     <script src="auth.js?v=20260926-2"></script>
+    <script src="db-utils.js?v=20261008-1"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="theme.css">
     <script src="theme.js" defer></script>
@@ -940,11 +941,13 @@ async function loadAll() {
     }, 10000);
 
     try {
-        const { data, error } = await dbClient
+        // ดึงให้ครบทุกใบ (เดิมขอทีเดียว ฐานข้อมูลตัดที่ 1,000 ใบ ออเดอร์เก่าหายเงียบ ๆ)
+        const { data, error } = await fetchAllRows(() => dbClient
             .from(TABLE)
             .select('*')
             .order('order_date', { ascending: false })
-            .abortSignal(controller.signal);
+            .order('id', { ascending: true })
+            .abortSignal(controller.signal));
 
         clearTimeout(timeoutId);
 

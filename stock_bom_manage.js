@@ -247,10 +247,13 @@ async function rememberProductsWithBom(productCodes) {
     if (!uniqueCodes.length || !dbClient) return;
 
     for (let index = 0; index < uniqueCodes.length; index += 500) {
-        const { data, error } = await dbClient
+        // สินค้า 1 ตัวมี BOM ~12-14 แถว ขอ 500 รหัสได้กลับมา ~6,000 แถว
+        // แต่ฐานข้อมูลตัดที่ 1,000 สินค้าหลายตัวจึงถูกบอกผิดว่า 'ยังไม่มี BOM' -> ดึงให้ครบ
+        const { data, error } = await fetchAllRows(() => dbClient
             .from('stock_bom')
             .select('product_code')
-            .in('product_code', uniqueCodes.slice(index, index + 500));
+            .in('product_code', uniqueCodes.slice(index, index + 500))
+            .order('id', { ascending: true }));
         if (error) throw error;
         (data || []).forEach(row => knownProductsWithBom.add(normalizeCode(row.product_code)));
     }

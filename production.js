@@ -201,23 +201,27 @@ async function loadData() {
     const fallbackColumns = 'id,order_date,platform,order_number,production_number,tracking_number,product_code,product_name,product_size,slots,quantity,buyer_name,tracking_status,note,pattern,production_started_at,production_completed_at,aluminum_color,glass_color,screen_type';
     const viewableStatuses = getViewableProductionStatuses();
     try {
-        let response = await db
+        // ดึงให้ครบทุกใบ (เดิมขอทีเดียว ถ้าเกิน 1,000 ใบ ใบใหม่ล่าสุดจะหายจากหน้านี้
+        // เพราะเรียงจากเก่าไปใหม่ แล้วฐานข้อมูลตัดท้ายทิ้ง · ต.ค. 2569 อยู่ที่ 926 ใบแล้ว)
+        let response = await fetchAllRows(() => db
             .from(TABLE)
             .select(selectColumns)
             .in('tracking_status', viewableStatuses)
             .is('tracking_number', null)
-            .order('order_date', { ascending: true });
+            .order('order_date', { ascending: true })
+            .order('id', { ascending: true }));
 
         if (response.error) {
             const message = String(response.error.message || '');
             if (/stock_deducted/i.test(message)) {
                 log('stock_deducted ยังไม่มีใน schema, โหลดข้อมูลโดยไม่ใส่คอลัมน์นี้', 'warn');
-                response = await db
+                response = await fetchAllRows(() => db
                     .from(TABLE)
                     .select(fallbackColumns)
                     .in('tracking_status', viewableStatuses)
                     .is('tracking_number', null)
-                    .order('order_date', { ascending: true });
+                    .order('order_date', { ascending: true })
+                    .order('id', { ascending: true }));
             }
         }
 
@@ -526,7 +530,7 @@ async function deductSingleStockForOrder(order) {
         }
 
         if (!stockItem) {
-            result = await db.from('stock_items').select('*');
+            result = await fetchAllRows(() => db.from('stock_items').select('*').order('id'));
             if (!result.error && result.data) {
                 stockItem = result.data.find(item => {
                     const code = String(item.product_code || '').replace(/\s+/g, '').toUpperCase();
@@ -580,7 +584,7 @@ async function returnSingleStockForOrder(order) {
             if (!result.error && result.data) stockItem = result.data;
         }
         if (!stockItem) {
-            result = await db.from('stock_items').select('*');
+            result = await fetchAllRows(() => db.from('stock_items').select('*').order('id'));
             if (!result.error && result.data) {
                 stockItem = result.data.find(item => {
                     const code = String(item.product_code || '').replace(/\s+/g, '').toUpperCase();

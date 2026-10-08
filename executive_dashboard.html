@@ -607,6 +607,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
   <script src="auth.js?v=20260926-2"></script>
+    <script src="db-utils.js?v=20261008-1"></script>
   <script>
     if (window.location.protocol === 'file:') {
       document.addEventListener('DOMContentLoaded', () => {
@@ -1181,7 +1182,9 @@
       }
 
       try {
-        const { data, error } = await dbClient.from(TABLE).select('*').eq('is_test', false).order('order_date', { ascending: false });
+        // ดึงให้ครบทุกใบ (เดิมฐานข้อมูลตัดที่ 1,000 ใบ ยอดขายจึงขาดไป)
+        const { data, error } = await fetchAllRows(() => dbClient.from(TABLE).select('*').eq('is_test', false)
+            .order('order_date', { ascending: false }).order('id', { ascending: true }));
         if (error) throw error;
 
         allData = (data || []).map(normalizeRow);
