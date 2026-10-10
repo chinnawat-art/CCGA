@@ -770,15 +770,33 @@ body::before {
     box-shadow: 0 2px 8px var(--primary-glow);
 }
 
+/* หมายเหตุลูกค้า — ทำให้เด่น พนักงานไม่มองข้าม (เดิมตัวเล็กสีจาง) */
 .card-note {
-    font-size: 1.0rem;
-    color: var(--muted);
-    background: var(--bg-card-strong);
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1.5;
+    color: #78350f;
+    background: #fef3c7;
+    border: 2px solid #f59e0b;
+    border-left-width: 8px;
     border-radius: 10px;
-    padding: 10px 12px;
-    border-left: 3px solid var(--primary);
-    margin-top: 8px;
+    padding: 10px 14px;
+    margin-top: 10px;
+    word-break: break-word;
 }
+.card-note-label {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: #b45309;
+    letter-spacing: 0.02em;
+    margin-bottom: 2px;
+}
+.dark-theme .card-note {
+    color: #fde68a;
+    background: rgba(245, 158, 11, 0.16);
+    border-color: #f59e0b;
+}
+.dark-theme .card-note-label { color: #fbbf24; }
 
 .card-actions {
     display: flex;
@@ -1042,8 +1060,15 @@ body::before {
         background: transparent !important;
     }
 
+    .card-note {
+        color: #000 !important;
+        background: transparent !important;
+        border: 2px solid #000 !important;
+        border-left-width: 8px !important;
+        font-weight: 700 !important;
+    }
+
     .card-date,
-    .card-note,
     .detail-pill {
         color: #333 !important;
         background: transparent !important;

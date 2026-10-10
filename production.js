@@ -1294,7 +1294,7 @@ function renderOrderCard(o) {
                 </div>
                 <div class="card-details" style="margin-bottom:8px;">${details}</div>
                 ${timeDetails.join('')}
-                ${o.note ? `<div class="card-note">📝 ${esc(o.note)}</div>` : ''}
+                ${o.note ? `<div class="card-note"><div class="card-note-label">📢 หมายเหตุ — อ่านก่อนผลิต</div><div class="card-note-text">${esc(o.note)}</div></div>` : ''}
                 <div style="font-size:0.85rem;color:var(--muted);margin-top:auto;padding-top:8px;">👤 ${esc(o.buyer_name || '-')} &nbsp;|&nbsp; #${esc(o.order_number || '-')}</div>
             </div>
         </div>
