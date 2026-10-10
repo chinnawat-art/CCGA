@@ -852,6 +852,34 @@
         }
         .dark-theme .order-sku-badge { color: #fbbf24; }
 
+        /* หมายเหตุลูกค้า — เด่นแบบเดียวกับหน้าฝ่ายผลิต พนักงานไม่มองข้าม */
+        .order-note-box {
+            flex: 1 1 280px;
+            max-width: 560px;
+            align-self: center;
+            font-size: 1.15rem;
+            font-weight: 700;
+            line-height: 1.5;
+            color: #78350f;
+            background: #fef3c7;
+            border: 2px solid #f59e0b;
+            border-left-width: 8px;
+            border-radius: 10px;
+            padding: 10px 14px;
+            word-break: break-word;
+        }
+        .order-note-label {
+            font-size: 0.85rem;
+            font-weight: 800;
+            color: #b45309;
+            margin-bottom: 2px;
+        }
+        .dark-theme .order-note-box {
+            color: #fde68a;
+            background: rgba(245, 158, 11, 0.16);
+        }
+        .dark-theme .order-note-label { color: #fbbf24; }
+
         .order-quantity-badge {
             display: inline-flex;
             align-items: center;
@@ -1735,6 +1763,7 @@
         let materialCodesMap = {}; // mapping of stock_items.id -> product_code
         let materialCategoryMap = {}; // mapping of stock_items.id -> category
         let orderIsTestMap = {}; // mapping of orderId -> is_test (ใบทดลอง)
+        let orderNotesMap = {}; // mapping of orderId -> note (หมายเหตุลูกค้า)
         let realtimeChannel = null;
         let dmgRealtimeChannel = null;
 
@@ -1882,6 +1911,7 @@
             orderSkusMap = {};
             orderNumbersMap = {};
             orderQuantitiesMap = {};
+            orderNotesMap = {};
             const orderIds = [];
             allLogs.forEach(log => {
                 const idMatch = log.reason ? log.reason.match(/ID ออเดอร์:\s*([^\s]+)/) : null;
@@ -1896,7 +1926,7 @@
             try {
                 const { data, error } = await db
                     .from('stock_orders')
-                    .select('id, product_code, product_name, order_number, production_number, quantity, is_test')
+                    .select('id, product_code, product_name, order_number, production_number, quantity, is_test, note')
                     .in('id', orderIds);
                 if (error) {
                     console.error('Error fetching order names:', error);
@@ -1910,6 +1940,7 @@
                         orderNumbersMap[o.id] = o.order_number;
                         orderQuantitiesMap[o.id] = Number(o.quantity) || 0;
                         orderIsTestMap[o.id] = o.is_test === true;
+                        orderNotesMap[o.id] = String(o.note || '').trim() || null;
                     });
                 }
             } catch (err) {
@@ -2001,6 +2032,7 @@
                         orderNo,
                         productionNumber: orderId ? (orderProductionNumbersMap[orderId] || null) : null,
                         productName: orderId ? (orderNamesMap[orderId] || null) : null,
+                        note: orderId ? (orderNotesMap[orderId] || null) : null,
                         orderQuantity: orderId ? (orderQuantitiesMap[orderId] ?? null) : null,
                         isTest: orderId ? (orderIsTestMap[orderId] === true) : false,
                         createdAt: log.created_at,
@@ -2411,6 +2443,7 @@
                     <tr><td>เลขที่ออเดอร์</td><td><strong>${escHtml(group.orderNo || '-')}</strong></td>
                         <td>รหัสสินค้า</td><td><strong>${escHtml(group.orderSku || '-')}</strong></td></tr>
                     <tr><td>สินค้า</td><td colspan="3">${escHtml(group.productName || '-')}</td></tr>
+                    ${group.note ? `<tr><td>📢 หมายเหตุ</td><td colspan="3" style="font-weight:800; font-size:13pt; border:2px solid #000;">${escHtml(group.note)}</td></tr>` : ''}
                     <tr><td>จำนวนออเดอร์</td><td>${qtyText} ชิ้น</td>
                         <td>รายการวัสดุ</td><td>${group.items.length} รายการ</td></tr>
                 </table>
@@ -2517,6 +2550,7 @@
                                 ${!isDone && canAct ? `<div><span class="pick-progress" data-group="${escHtml(group.key)}">☑️ เตรียมแล้ว ${loadPicked(group.key).size}/${group.items.length} รายการ</span></div>` : ''}
                             </div>
                         </div>
+                        ${group.note ? `<div class="order-note-box"><div class="order-note-label">📢 หมายเหตุ — อ่านก่อนจัดของ</div><div>${escHtml(group.note)}</div></div>` : ''}
                         <div class="order-group-actions">
                             ${printBtn}
                             ${dispatchBtn}
