@@ -425,7 +425,7 @@
         </div>
         <div class="field full">
           <label>ค้นหา</label>
-          <input id="fSearch" type="text" placeholder="ค้นหา SKU, ชื่อสินค้า, เลขออเดอร์..." />
+          <input id="fSearch" type="text" placeholder="ค้นหาเลขที่ผลิต, SKU, ชื่อสินค้า, เลขออเดอร์..." />
         </div>
         <div class="field action-field">
           <label>&nbsp;</label>
@@ -776,7 +776,7 @@
         }
 
         if (search) {
-          const haystack = [row.product_name, row.product_code, row.platform, row.order_number, row.pattern, row.size, row.aluminum_color, row.glass_color, row.slots ?? row.channel ?? ''].join(' ').toLowerCase();
+          const haystack = [row.production_number, row.product_name, row.product_code, row.platform, row.order_number, row.pattern, row.size, row.aluminum_color, row.glass_color, row.slots ?? row.channel ?? ''].join(' ').toLowerCase();
           if (!haystack.includes(search)) return false;
         }
 

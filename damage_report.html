@@ -461,7 +461,7 @@
         <div class="filter-bar">
             <input type="date" id="filterDateFrom" placeholder="วันที่เริ่ม">
             <input type="date" id="filterDateTo" placeholder="วันที่สิ้นสุด">
-            <input type="text" id="filterItem" placeholder="🔍 ค้นหาชื่อวัสดุ..." style="min-width:200px;">
+            <input type="text" id="filterItem" placeholder="🔍 ค้นหาชื่อวัสดุ เลขออเดอร์ หรือเลขที่ผลิต..." style="min-width:260px;">
             <button class="btn btn-refresh" onclick="loadData()">🔄 รีเฟรช</button>
         </div>
 
@@ -528,7 +528,7 @@
             try {
                 const { data, error } = await db
                     .from('damaged_materials')
-                    .select('*')
+                    .select('*, stock_orders(production_number)')
                     .order('created_at', { ascending: false })
                     .limit(500);
                 if (error) throw error;
@@ -553,7 +553,8 @@
                 const created = r.created_at ? r.created_at.substring(0, 10) : '';
                 if (dateFrom && created < dateFrom) return false;
                 if (dateTo && created > dateTo) return false;
-                if (searchItem && !String(r.item_name || '').toLowerCase().includes(searchItem)) return false;
+                if (searchItem && ![r.item_name, r.order_number, r.stock_orders?.production_number]
+                    .some(v => String(v || '').toLowerCase().includes(searchItem))) return false;
                 return true;
             });
         }
@@ -669,7 +670,7 @@
                             <div style="font-size:0.88rem;">${dateStr}</div>
                             <div style="font-size:0.75rem;color:var(--muted);">${timeStr}</div>
                         </td>
-                        <td><span style="font-family:monospace;color:var(--muted); font-size:0.88rem;">${esc(r.order_number || '-')}</span></td>
+                        <td><span style="font-family:monospace;color:var(--muted); font-size:0.88rem;">${esc(r.order_number || '-')}</span>${r.stock_orders?.production_number ? `<br><span style="font-weight:700;font-size:0.85rem;">🧾 ${esc(r.stock_orders.production_number)}</span>` : ''}</td>
                         <td><span class="item-name">${esc(r.item_name)}</span></td>
                         <td><span class="qty-diff">-${r.quantity}</span></td>
                         <td><span class="badge-damage">${esc(r.reason || 'เสียหาย')}</span></td>

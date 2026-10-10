@@ -248,6 +248,9 @@
                 <p>บันทึกประวัติการเปลี่ยนสถานะการผลิตล่าสุด</p>
             </div>
             <div class="controls">
+                <input type="search" id="filterSearch" class="form-control" autocomplete="off"
+                    placeholder="🔍 เลขที่ผลิต / เลขออเดอร์ (ค้นทุกวันที่)" style="cursor:text; min-width:240px;"
+                    oninput="loadDataSoon()" onkeydown="if (event.key === 'Enter') loadData()">
                 <input type="date" id="filterDate" class="form-control" onchange="loadData()">
                 <select id="filterAction" class="form-control" onchange="loadData()">
                     <option value="ผลิตสำเร็จ">ผลิตสำเร็จแล้ว (เสร็จสิ้น)</option>
@@ -276,7 +279,7 @@
                     <tr>
                         <th>ลำดับ</th>
                         <th>วัน-เวลา</th>
-                        <th>เลขออเดอร์</th>
+                        <th>เลขออเดอร์ / เลขที่ผลิต</th>
                         <th>ชื่อสินค้า/SKU</th>
                         <th>ไซส์</th>
                         <th>ลาย</th>
@@ -332,20 +335,45 @@
         // ==========================================
         let currentData = [];
 
+        let loadDataTimer = null;
+        function loadDataSoon() {
+            clearTimeout(loadDataTimer);
+            loadDataTimer = setTimeout(loadData, 400);
+        }
+
         async function loadData() {
+            clearTimeout(loadDataTimer);
             const tbody = document.getElementById('tableBody');
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:2rem;">⏳ กำลังโหลด...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="12" style="text-align:center; padding:2rem;">⏳ กำลังโหลด...</td></tr>';
 
             const filterDate = document.getElementById('filterDate').value;
             const filterAction = document.getElementById('filterAction').value;
+            // ตัดอักขระที่ทำให้คำสั่งค้นหาของฐานข้อมูลพัง ( , ( ) * % และ backslash )
+            const filterSearch = (document.getElementById('filterSearch').value || '').trim().replace(/[,()*%]/g, '').split(String.fromCharCode(92)).join('');
 
             try {
                 let query = dbClient.from('production_logs').select(`
             id, created_at, action, order_number,
-            stock_orders (product_code, product_name, product_size, slots, pattern, quantity, aluminum_color, glass_color, screen_type)
+            stock_orders (production_number, product_code, product_name, product_size, slots, pattern, quantity, aluminum_color, glass_color, screen_type)
         `).order('created_at', { ascending: false }).limit(500);
 
-                if (filterDate) {
+                // ค้นหาเลขที่ผลิต/เลขออเดอร์: หาออเดอร์ที่ตรงก่อน แล้วดึงประวัติของออเดอร์เหล่านั้น (ไม่จำกัดแค่ 500 รายการล่าสุด)
+                if (filterSearch) {
+                    const { data: hits, error: hitError } = await dbClient.from('stock_orders')
+                        .select('id')
+                        .or(`production_number.ilike.%${filterSearch}%,order_number.ilike.%${filterSearch}%`)
+                        .limit(300);
+                    if (hitError) throw hitError;
+                    if (!hits || !hits.length) {
+                        currentData = [];
+                        tbody.innerHTML = `<tr><td colspan="12" class="empty-state">ไม่พบออเดอร์ที่ตรงกับ “${filterSearch.replace(/[<>&"]/g, '')}”</td></tr>`;
+                        return;
+                    }
+                    query = query.in('order_id', hits.map(h => h.id));
+                }
+
+                // พิมพ์ค้นหาแล้ว = ค้นทุกวันที่ (ช่องวันที่ตั้งเป็นวันนี้อัตโนมัติ ถ้าไม่ข้ามจะเจอแค่ของวันนี้)
+                if (filterDate && !filterSearch) {
                     query = query.gte('created_at', filterDate + 'T00:00:00')
                         .lte('created_at', filterDate + 'T23:59:59');
                 }
@@ -400,7 +428,7 @@
                 <tr>
                     <td>${index + 1}</td>
                     <td>${dateStr}</td>
-                    <td><div style="font-family:monospace; background:rgba(255,255,255,0.05); display:inline-block; padding:2px 6px; border-radius:4px;">${log.order_number || '-'}</div></td>
+                    <td><div style="font-family:monospace; background:rgba(255,255,255,0.05); display:inline-block; padding:2px 6px; border-radius:4px;">${log.order_number || '-'}</div>${(() => { const so = Array.isArray(log.stock_orders) ? log.stock_orders[0] : log.stock_orders; return so && so.production_number ? `<div style="font-weight:700; margin-top:2px;">🧾 ${so.production_number}</div>` : ''; })()}</td>
                     ${orderDetails}
                     <td style="text-align:center;">${actionBadge}</td>
                     <td style="text-align:center;"><span style="font-weight:700; font-size:1.1rem; color:var(--primary-bright);">${qtyStr}</span></td>

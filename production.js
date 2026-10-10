@@ -1423,6 +1423,7 @@ function renderCards() {
         if (q) {
             filtered = orders.filter(o => {
                 const fields = [
+                    String(o.production_number || ''),
                     String(o.product_code || ''),
                     String(o.product_name || ''),
                     String(o.buyer_name || ''),

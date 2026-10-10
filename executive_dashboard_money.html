@@ -312,7 +312,7 @@
         <div class="field"><label>สีกระจก</label><select id="fGlass"><option value="">ทั้งหมด</option></select></div>
         <div class="field"><label>ขนาด</label><select id="fSize"><option value="">ทั้งหมด</option></select></div>
         <div class="field"><label>ช่อง</label><select id="fSlots"><option value="">ทั้งหมด</option></select></div>
-        <div class="field full"><label>ค้นหา</label><input id="fSearch" type="text" placeholder="พิมพ์เพื่อค้นหา..." /></div>
+        <div class="field full"><label>ค้นหา</label><input id="fSearch" type="text" placeholder="ค้นหาเลขที่ผลิต, SKU, ชื่อสินค้า, เลขออเดอร์..." /></div>
         <div class="field action-field"><label>&nbsp;</label><div style="display:flex; gap:8px;"><button class="btn btn-primary" id="btnFilter">🔍 กรอง</button><button class="btn" id="btnClear">✕ ล้าง</button></div></div>
       </div>
     </div>
@@ -612,7 +612,7 @@
           if (Number.isNaN(d.getTime()) || String(d.getFullYear()) !== year) return false;
         }
         if (search) {
-          const haystack = [row.product_name, row.product_code, row.platform, row.order_number, row.pattern, row.size, row.aluminum_color, row.glass_color, row.slots ?? row.channel ?? ''].join(' ').toLowerCase();
+          const haystack = [row.production_number, row.product_name, row.product_code, row.platform, row.order_number, row.pattern, row.size, row.aluminum_color, row.glass_color, row.slots ?? row.channel ?? ''].join(' ').toLowerCase();
           if (!haystack.includes(search)) return false;
         }
         return true;
