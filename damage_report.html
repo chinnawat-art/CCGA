@@ -658,7 +658,7 @@
                     let statusHtml = '';
                     if (r.status === 'pending') {
                         statusHtml = `<span class="badge-status pending">⏳ รอจ่ายของ</span>
-                                     <button class="btn-issue" onclick="openIssueModal('${r.id}')">✔️ จ่ายของแล้ว</button>`;
+                                     ${canDispatchMaterial() ? `<button class="btn-issue" onclick="openIssueModal('${r.id}')">✔️ จ่ายของแล้ว</button>` : ''}`;
                     } else {
                         statusHtml = `<span class="badge-status delivered">✅ จ่ายแล้ว</span>`;
                     }
@@ -685,7 +685,21 @@
 
         let pendingIssueId = null;
 
+        // ปุ่ม "จ่ายของแล้ว" ต้องมีสิทธิ์ action_dispatch_material (ฐานข้อมูลกันซ้ำอีกชั้น)
+        function canDispatchMaterial() {
+            return Boolean(window.auth?.hasPermission?.('action_dispatch_material'));
+        }
+
+        function denyIfCannotDispatch() {
+            if (canDispatchMaterial()) return false;
+            alert('⛔ บัญชีนี้ไม่มีสิทธิ์จ่ายวัสดุ');
+            return true;
+        }
+
+        window.addEventListener('auth-ready', () => { if (allLogs.length) renderTable(); });
+
         function openIssueModal(id) {
+            if (denyIfCannotDispatch()) return;
             const row = allLogs.find(r => String(r.id) === String(id));
             pendingIssueId = id;
             document.getElementById('issueModalInfo').innerHTML = row
@@ -715,6 +729,7 @@
 
         async function confirmIssueWithName() {
             if (!pendingIssueId) return;
+            if (denyIfCannotDispatch()) return;
             const name = document.getElementById('issuerName').value.trim();
             if (!name) {
                 document.getElementById('issuerName').style.borderColor = '#ef4444';

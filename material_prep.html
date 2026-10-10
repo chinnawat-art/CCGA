@@ -975,6 +975,12 @@
             color: #34d399;
         }
 
+        .dispatch-badge.view-only {
+            background: rgba(100, 116, 139, 0.12);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+            color: var(--muted);
+        }
+
         .dispatch-info {
             font-size: 0.78rem;
             color: var(--muted);
@@ -1732,6 +1738,25 @@
             dmgLoadBadgeCount();
         });
 
+        // ─── สิทธิ์จ่ายวัสดุ ─────────────────────────────────────────────────
+        // ไม่มีสิทธิ์ action_dispatch_material = ดูอย่างเดียว (ไม่มีช่องติ๊ก ไม่มีพิมพ์ใบเบิก ไม่มีปุ่มจ่าย)
+        // ฐานข้อมูลกันซ้ำอีกชั้น (trigger บน stock_movement_log และ damaged_materials)
+        function canDispatchMaterial() {
+            return Boolean(window.auth?.hasPermission?.('action_dispatch_material'));
+        }
+
+        function denyIfCannotDispatch() {
+            if (canDispatchMaterial()) return false;
+            showToast('⛔ บัญชีนี้ดูได้อย่างเดียว ไม่มีสิทธิ์จ่ายวัสดุ', 'error');
+            return true;
+        }
+
+        // สิทธิ์โหลดเสร็จทีหลังข้อมูลได้ — วาดการ์ดใหม่ให้ปุ่มตรงกับสิทธิ์จริง
+        window.addEventListener('auth-ready', () => {
+            if (allLogs.length) renderContent();
+            if (dmgLoaded) dmgRenderTable();
+        });
+
         // ─── REALTIME ────────────────────────────────────────────────────────
         let pollingInterval = null;
 
@@ -2299,6 +2324,7 @@
         }
 
         function toggleMaterialPick(groupKey, uid, btn) {
+            if (denyIfCannotDispatch()) return;
             const set = loadPicked(groupKey);
             if (set.has(uid)) set.delete(uid); else set.add(uid);
             savePicked(groupKey, set);
@@ -2311,6 +2337,7 @@
         }
 
         function printPickList(groupKey) {
+            if (denyIfCannotDispatch()) return;
             const group = pendingGroups[groupKey] || doneGroups[groupKey];
             if (!group) { showToast('ไม่พบรายการวัสดุของออเดอร์นี้', 'error'); return; }
 
@@ -2365,11 +2392,14 @@
 
         function renderGroupCard(group) {
             const isDone = activeTab === 'done';
+            const canAct = canDispatchMaterial();
             const dateStr = group.createdAt
                 ? new Date(group.createdAt).toLocaleString('th-TH', { hour12: false, hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })
                 : '-';
 
-            const dispatchBtn = !isDone
+            const dispatchBtn = !isDone && !canAct
+                ? `<div class="dispatch-badge view-only" title="บัญชีนี้ไม่มีสิทธิ์จ่ายวัสดุ">👁️ ดูอย่างเดียว</div>`
+                : !isDone
                 ? `<button class="btn btn-dispatch btn-sm" 
                         onclick="openDispatchModal('${escHtml(group.key)}', '${escHtml(group.orderSku)}')">
                         ✅ จ่ายวัสดุแล้ว
@@ -2382,12 +2412,12 @@
                        </div>
                    </div>`;
 
-            const printBtn = `<button class="btn btn-print btn-sm"
+            const printBtn = !canAct ? '' : `<button class="btn btn-print btn-sm"
                     onclick="printPickList('${escHtml(group.key)}')">
                     🖨️ พิมพ์ใบเบิก
                </button>`;
 
-            const picked = isDone ? new Set() : loadPicked(group.key);
+            const picked = isDone || !canAct ? new Set() : loadPicked(group.key);
             let lastCat = null;
             const itemsHtml = sortItemsForPicking(group.items).map(({ log, uid, cat }) => {
                 const qty = Math.abs(log.delta != null ? log.delta : (log.old_qty - log.new_qty)) || '?';
@@ -2398,7 +2428,7 @@
                     lastCat = cat;
                     catHead = `<div class="material-cat-head">${escHtml(CATEGORY_LABELS[cat] || 'อื่น ๆ')}</div>`;
                 }
-                const checkBtn = isDone ? '' : `<button type="button"
+                const checkBtn = isDone || !canAct ? '' : `<button type="button"
                         class="pick-check${isPicked ? ' on' : ''}"
                         onclick="toggleMaterialPick('${escHtml(group.key)}', '${escHtml(uid)}', this)"
                         aria-label="ติ๊กเมื่อหยิบวัสดุชิ้นนี้แล้ว">${isPicked ? '✓' : ''}</button>`;
@@ -2444,7 +2474,7 @@
                                 </div>
                                 ${group.productName ? `<div class="order-product-name">📦 ${escHtml(group.productName)}</div>` : ''}
                                 <div class="order-time">🕐 เริ่มผลิต: ${dateStr} • ${group.items.length} รายการวัสดุ</div>
-                                ${!isDone ? `<div><span class="pick-progress" data-group="${escHtml(group.key)}">☑️ เตรียมแล้ว ${loadPicked(group.key).size}/${group.items.length} รายการ</span></div>` : ''}
+                                ${!isDone && canAct ? `<div><span class="pick-progress" data-group="${escHtml(group.key)}">☑️ เตรียมแล้ว ${loadPicked(group.key).size}/${group.items.length} รายการ</span></div>` : ''}
                             </div>
                         </div>
                         <div class="order-group-actions">
@@ -2453,7 +2483,9 @@
                         </div>
                     </div>
                     <div class="material-list">${itemsHtml}</div>
-                    ${!isDone ? `<div class="section-note">📌 เปิดหน้านี้ในมือถือแล้วแตะช่องติ๊กทีละชิ้นตอนหยิบของได้เลย • เน็ตล่มให้กด "พิมพ์ใบเบิก" • หยิบครบแล้วกด "จ่ายวัสดุแล้ว"</div>` : ''}
+                    ${isDone ? '' : canAct
+                        ? `<div class="section-note">📌 เปิดหน้านี้ในมือถือแล้วแตะช่องติ๊กทีละชิ้นตอนหยิบของได้เลย • เน็ตล่มให้กด "พิมพ์ใบเบิก" • หยิบครบแล้วกด "จ่ายวัสดุแล้ว"</div>`
+                        : `<div class="section-note">👁️ บัญชีนี้ดูรายการวัสดุได้อย่างเดียว — การจ่ายวัสดุทำโดยฝ่ายที่มีสิทธิ์ "จ่ายวัสดุ"</div>`}
                 </div>`;
         }
 
@@ -2506,6 +2538,7 @@
 
         // ─── DISPATCH MODAL ──────────────────────────────────────────────────
         function openDispatchModal(groupKey, orderSku) {
+            if (denyIfCannotDispatch()) return;
             const group = pendingGroups[groupKey];
             if (!group) return;
 
@@ -2550,6 +2583,7 @@
 
         async function confirmDispatch() {
             if (!pendingDispatchData) return;
+            if (denyIfCannotDispatch()) return;
 
             const name = document.getElementById('dispatcherName').value.trim();
             const productionTeam = document.getElementById('productionTeamName').value.trim();
@@ -2822,7 +2856,7 @@
                     let statusHtml = '';
                     if (r.status === 'pending') {
                         statusHtml = `<span class="badge-status-dmg pending">⏳ รอจ่ายของ</span>
-                                     <button class="btn-issue" onclick="dmgConfirmIssue('${r.id}')">✔️ จ่ายของแล้ว</button>`;
+                                     ${canDispatchMaterial() ? `<button class="btn-issue" onclick="dmgConfirmIssue('${r.id}')">✔️ จ่ายของแล้ว</button>` : ''}`;
                     } else {
                         statusHtml = `<span class="badge-status-dmg delivered">✅ จ่ายแล้ว</span>`;
                     }
@@ -2849,6 +2883,7 @@
         let pendingDmgIssueId = null;
 
         function dmgConfirmIssue(id) {
+            if (denyIfCannotDispatch()) return;
             const row = dmgAllLogs.find(r => String(r.id) === String(id));
             pendingDmgIssueId = id;
 
@@ -2879,6 +2914,7 @@
 
         async function confirmDmgIssue() {
             if (!pendingDmgIssueId) return;
+            if (denyIfCannotDispatch()) return;
 
             const name = document.getElementById('dmgIssuerName').value.trim();
             if (!name) {
