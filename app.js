@@ -266,6 +266,63 @@ function getBangkokDateKey(value) {
 //
 // ด่านนี้ไม่ไปแก้ตรรกะเดิม แต่ตรวจซ้ำอีกชั้นตรงก่อนเขียนลงฐานข้อมูล
 // แล้วให้คนตัดสินใจ ไม่ตัดสินใจแทน
+// ═══ กู้เลขยาวที่ถูกปัดหลักท้าย ═════════════════════════════════════
+// ตัวเลขในคอมพิวเตอร์แม่นแค่ ~15 หลัก เลขออเดอร์ 18 หลักที่ไฟล์เก็บเป็นตัวเลขจะเพี้ยนตัวท้าย
+// ไฟล์ CSV: อ่านซ้ำแบบ raw ได้ข้อความเต็ม · ไฟล์ xlsx: อ่านค่าดิบจาก XML ในไฟล์โดยตรง
+// แก้ช่องในชีตโดยตรง (เปลี่ยนเป็นข้อความเต็ม) ก่อนแปลงเป็นแถว · คืน { restored, lost }
+function isImpreciseNumber(v) {
+    return typeof v === 'number' && Number.isFinite(v) && Math.abs(v) >= 1e15;
+}
+
+function readRawCellTexts(data, sheetName) {
+    const texts = {};   // 'A1' -> ข้อความดิบ
+    // 1) CSV / ไฟล์ข้อความ: อ่านซ้ำแบบไม่แปลงค่า
+    try {
+        const rawWb = XLSX.read(data, { type: 'array', raw: true });
+        const ws = rawWb.Sheets[sheetName] || rawWb.Sheets[rawWb.SheetNames[0]];
+        Object.keys(ws || {}).forEach(addr => {
+            if (addr[0] === '!') return;
+            const v = ws[addr] && ws[addr].v;
+            if (typeof v === 'string' && /^\d{16,}$/.test(v.trim())) texts[addr] = v.trim();
+        });
+    } catch (e) { /* ไม่ใช่ไฟล์ข้อความ ไปลองแบบ xlsx */ }
+    // 2) xlsx: เปิด zip แล้วอ่าน <c r="A1"><v>เลขเต็ม</v></c> จาก XML ของชีตแรก
+    try {
+        const zip = XLSX.CFB.read(data, { type: 'array' });
+        // ชื่อเต็มอยู่ใน FullPaths (FileIndex.name เก็บแค่ชื่อไฟล์ท้าย)
+        let idx = zip.FullPaths.findIndex(p => /xl\/worksheets\/sheet1\.xml$/i.test(p));
+        if (idx < 0) idx = zip.FullPaths.findIndex(p => /xl\/worksheets\/sheet\d*\.xml$/i.test(p));
+        const content = idx >= 0 ? zip.FileIndex[idx].content : null;
+        if (content) {
+            const xml = new TextDecoder('utf-8').decode(content instanceof Uint8Array ? content : new Uint8Array(content));
+            const re = /<c\b[^>]*\br="([A-Z]+\d+)"[^>]*>(?:(?!<\/c>)[\s\S])*?<v>(\d{16,})<\/v>/g;
+            let m;
+            while ((m = re.exec(xml))) texts[m[1]] = m[2];
+        }
+    } catch (e) { /* ไม่ใช่ zip (เช่น CSV/xls เก่า) */ }
+    return texts;
+}
+
+function restoreLongNumbers(data, sheetName, worksheet) {
+    const result = { restored: 0, lost: [] };
+    const addrs = Object.keys(worksheet || {}).filter(addr =>
+        addr[0] !== '!' && worksheet[addr] && worksheet[addr].t === 'n' && isImpreciseNumber(worksheet[addr].v));
+    if (!addrs.length) return result;
+    const texts = readRawCellTexts(data, sheetName);
+    addrs.forEach(addr => {
+        const cell = worksheet[addr];
+        const text = texts[addr];
+        // ข้อความดิบต้องเป็นเลขเดียวกันจริง (แปลงแล้วได้ค่าเท่ากัน) ถึงจะใช้แทน
+        if (text && Number(text) === cell.v) {
+            worksheet[addr] = { t: 's', v: text, w: text };
+            result.restored++;
+        } else {
+            result.lost.push({ row: XLSX.utils.decode_cell(addr).r, shown: String(cell.v) });
+        }
+    });
+    return result;
+}
+
 async function findExistingDuplicates(rows) {
     if (!rows || !rows.length) return [];
     const wanted = new Map();          // 'เลขออเดอร์|รหัสสินค้า' -> แถวในไฟล์
@@ -995,6 +1052,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const firstSheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[firstSheetName];
+
+                // เลขยาวเกิน 15 หลัก (เช่น เลขออเดอร์ TikTok 18 หลัก) ถ้าไฟล์เก็บเป็น "ตัวเลข"
+                // คอมพิวเตอร์จะปัดหลักท้าย: 586555287991387578 → 586555287991387500
+                // แก้: อ่านค่าดิบจากไฟล์ แล้วใส่เลขเต็มกลับในชีต · ถ้ากู้ไม่ได้ ต้องหยุด ห้ามบันทึกเลขผิด
+                const longNumberCheck = restoreLongNumbers(data, firstSheetName, worksheet);
+                if (longNumberCheck.restored) {
+                    log(`กู้เลขยาวที่ถูกปัดหลักท้ายกลับมาครบ ${longNumberCheck.restored} ช่อง`, 'warn');
+                }
+                if (longNumberCheck.lost.length) {
+                    const sampleLost = longNumberCheck.lost.slice(0, 5)
+                        .map(x => `  • แถว ${x.row + 1}: ${x.shown}`).join('\n');
+                    log(`พบเลขยาว ${longNumberCheck.lost.length} ช่องที่อ่านเลขเต็มไม่ได้ — หยุดอัปโหลด`, 'error');
+                    alert('⛔ หยุดอัปโหลด: ไฟล์นี้มีเลขยาว (เช่น เลขออเดอร์) ที่ถูกปัดหลักท้ายไปแล้ว\n\n' +
+                        sampleLost + (longNumberCheck.lost.length > 5 ? `\n  • ... และอีก ${longNumberCheck.lost.length - 5} ช่อง` : '') +
+                        '\n\nถ้าบันทึกต่อ เลขออเดอร์จะผิด และอัปโหลดเลขพัสดุทีหลังจะหาออเดอร์ไม่เจอ\n\n' +
+                        'วิธีแก้: ดาวน์โหลดไฟล์ใหม่จากหน้าร้าน แล้วอัปโหลดทันที (อย่าเปิดแก้ใน Excel ก่อน)');
+                    if (dropZone) dropZone.classList.remove('processing');
+                    return;
+                }
+
                 const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1, defval: ""});
                 let rawData = [];
 
