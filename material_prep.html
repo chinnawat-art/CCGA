@@ -1658,7 +1658,7 @@
 
         <div class="order-search-bar" id="orderSearchBar">
             <input type="search" id="orderSearch" class="order-search-input" autocomplete="off"
-                placeholder="🔍 ค้นหาเลขที่การผลิต เลขออเดอร์ SKU หรือชื่อสินค้า..."
+                placeholder="🔍 ค้นหาเลขที่การผลิต เลขออเดอร์ SKU ชื่อสินค้า หรือหมายเหตุ..."
                 aria-label="ค้นหาออเดอร์" oninput="renderContent()">
         </div>
 
@@ -2223,7 +2223,7 @@
             const searchText = (document.getElementById('orderSearch')?.value || '').trim().toLowerCase();
             if (searchText) {
                 entries = entries.filter(group =>
-                    [group.productionNumber, group.orderNo, group.orderSku, group.productName]
+                    [group.productionNumber, group.orderNo, group.orderSku, group.productName, group.note]
                         .some(v => String(v || '').toLowerCase().includes(searchText)));
             }
 
@@ -2244,7 +2244,7 @@
                         <div class="empty-state">
                             <div class="emoji">🔎</div>
                             <h3>ไม่พบออเดอร์ที่ตรงกับ “${escHtml(searchText)}”</h3>
-                            <p>ลองพิมพ์เลขที่การผลิต เช่น 181/12 หรือเลขออเดอร์ หรือดูที่แท็บอื่น</p>
+                            <p>ลองพิมพ์เลขที่การผลิต เช่น 181/12 เลขออเดอร์ หรือคำในหมายเหตุ หรือดูที่แท็บอื่น</p>
                         </div>`;
                 } else if (activeTab === 'pending') {
                     container.innerHTML = `

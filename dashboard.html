@@ -811,7 +811,7 @@
                 </button>
             </div>
             <div class="table-header-actions">
-                <input type="text" class="search-input" id="searchInput" placeholder="🔍 ค้นหา (เลขที่ผลิต, SKU, ชื่อ, เลขออเดอร์, ผู้ซื้อ)..." oninput="renderTable()">
+                <input type="text" class="search-input" id="searchInput" placeholder="🔍 ค้นหา (เลขที่ผลิต, SKU, ชื่อ, เลขออเดอร์, ผู้ซื้อ, หมายเหตุ)..." oninput="renderTable()">
             </div>
         </div>
 
@@ -1234,7 +1234,8 @@ function matchesCurrentFilters(o) {
             || (o.courier_phone || '').toLowerCase().includes(search)
             || (o.buyer_name || '').toLowerCase().includes(search)
             || (o.address || '').toLowerCase().includes(search)
-            || (o.province || '').toLowerCase().includes(search);
+            || (o.province || '').toLowerCase().includes(search)
+            || (o.note || '').toLowerCase().includes(search);
         if (!match) return false;
     }
     return true;
@@ -1423,7 +1424,8 @@ function renderTable() {
             || (o.courier_phone || '').toLowerCase().includes(search)
             || (o.buyer_name || '').toLowerCase().includes(search)
             || (o.address || '').toLowerCase().includes(search)
-            || (o.province || '').toLowerCase().includes(search);
+            || (o.province || '').toLowerCase().includes(search)
+            || (o.note || '').toLowerCase().includes(search);
     });
 
     // Sort

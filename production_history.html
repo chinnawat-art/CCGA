@@ -249,7 +249,7 @@
             </div>
             <div class="controls">
                 <input type="search" id="filterSearch" class="form-control" autocomplete="off"
-                    placeholder="🔍 เลขที่ผลิต / เลขออเดอร์ (ค้นทุกวันที่)" style="cursor:text; min-width:240px;"
+                    placeholder="🔍 เลขที่ผลิต / เลขออเดอร์ / หมายเหตุ (ค้นทุกวันที่)" style="cursor:text; min-width:280px;"
                     oninput="loadDataSoon()" onkeydown="if (event.key === 'Enter') loadData()">
                 <input type="date" id="filterDate" class="form-control" onchange="loadData()">
                 <select id="filterAction" class="form-control" onchange="loadData()">
@@ -361,7 +361,7 @@
                 if (filterSearch) {
                     const { data: hits, error: hitError } = await dbClient.from('stock_orders')
                         .select('id')
-                        .or(`production_number.ilike.%${filterSearch}%,order_number.ilike.%${filterSearch}%`)
+                        .or(`production_number.ilike.%${filterSearch}%,order_number.ilike.%${filterSearch}%,note.ilike.%${filterSearch}%`)
                         .limit(300);
                     if (hitError) throw hitError;
                     if (!hits || !hits.length) {
