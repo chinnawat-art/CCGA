@@ -1587,7 +1587,8 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < cleanData.length; i++) {
             const row = cleanData[i];
             const rowKeys = Object.keys(row);
-            let date = new Date().toISOString().split('T')[0];
+            // วันที่ทุกแบบแปลงเป็น "วันตามเวลาไทย" (เดิมตัดจากเวลา UTC ทำให้ออเดอร์ก่อน 7 โมงเช้าถอยไป 1 วัน)
+            let date = getBangkokDateKey(new Date());
             let orderNumber = `UNK-${i}`, trackingNumber = null, courierPhone = null, latestLocation = null, bookImageUrl = null, productCode = null, productName = "Unknown", quantity = 1, price = 0, shipping = 0, buyer = "Unknown", address = null, province = "Unknown", status = "รอดำเนินการ", productionNumber = null, note = null;
             // ship_by_date เฉพาะ Shopee — ประกาศไว้ล่วงหน้าเพื่อให้ push ด้านล่างอ่านได้ทุก platform
             var shipByDateRaw = null, shipByDate = null;
@@ -1597,7 +1598,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (dateRaw) {
                     try {
                         const parsedDate = parseShopeeDate(dateRaw);
-                        if (parsedDate) date = parsedDate.split('T')[0];
+                        if (parsedDate) date = getBangkokDateKey(parsedDate);
                         else date = new Date(dateRaw).toISOString().split('T')[0];
                     } catch(e){}
                 }
@@ -1669,10 +1670,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dateRaw = getValue(row, ['วันที่ทำการสั่งซื้อ', '*วันที่ทำการสั่งซื้อ', 'วันที่สั่งซื้อ', 'Order Creation Date', 'Created Time', 'Order Date'], rowKeys);
                 if (dateRaw) {
                     if (dateRaw instanceof Date) {
-                        date = dateRaw.toISOString().split('T')[0];
+                        date = getBangkokDateKey(dateRaw) || date;
                     } else {
                         const parsedDate = parseShopeeDate(dateRaw);
-                        if (parsedDate) date = parsedDate.split('T')[0];
+                        if (parsedDate) date = getBangkokDateKey(parsedDate);
                         else date = String(dateRaw).trim().split(' ')[0].replace(/\//g, '-');
                     }
                 }
@@ -1765,8 +1766,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 let paymentTime = normalizePaymentTime(paymentRaw || null);
                 if (paymentRaw) console.log(`[DEBUG] row ${i} Shopee paymentRaw ->`, paymentRaw, 'normalized->', paymentTime);
             } else if (platform === 'TikTok') {
+                // TikTok ส่ง "Created Time" แบบ วัน/เดือน/ปี เช่น 09/10/2026 05:30:00
+                // เดิมใช้ new Date() ซึ่งอ่านเป็น เดือน/วัน -> 9 ต.ค. กลายเป็น 10 ก.ย. (ผิดเดือน)
                 const dateRaw = getValue(row, ['Created Time'], rowKeys);
-                if (dateRaw) { try { date = new Date(dateRaw.split(' ')[0].replace(/\//g,'-')).toISOString().split('T')[0]; } catch(e){} }
+                if (dateRaw) {
+                    const parsedDate = parseShopeeDate(dateRaw);
+                    if (parsedDate) date = getBangkokDateKey(parsedDate) || date;
+                }
                 orderNumber = getValue(row, ['Order ID'], rowKeys) || orderNumber;
                 productCode = getValue(row, ['Seller SKU', 'SKU ID', 'sku'], rowKeys) || productCode;
                 productName = getValue(row, ['Product Name', 'ชื่อสินค้า'], rowKeys) || productName;
