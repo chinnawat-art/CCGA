@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- ติดตั้งลงหน้าจอมือถือ (PWA) -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#6366f1">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Alu ERP">
+<script src="pwa.js?v=20260918-2" defer></script>
+<title>ลาเบลส่งของ | Shipping Labels</title>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="auth.js?v=20261019-1"></script>
+<script src="db-utils.js"></script>
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<style>
+:root{
+  /* ผูกกับตัวแปรธีมของ ERP (theme.css) — โหมดมืดเปลี่ยนตามอัตโนมัติ */
+  --bg:var(--bg-body,#f9fafc); --card:var(--bg-card,#ffffff); --ink:var(--text,#1a2032);
+  --accent:var(--primary,#6366f1); --ok:#16a34a; --warn:#d97706; --danger:#dc2626;
+  --line:var(--border,#e5e8f0);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:"Kanit",sans-serif;font-size:15px;min-height:100vh}
+h1,h2,h3,.num{font-family:"Kanit",sans-serif}
+.topbar{position:sticky;top:0;z-index:10;background:var(--card);border-bottom:1px solid var(--line);height:58px;display:flex;align-items:center;gap:10px;padding:0 16px}
+.topbar h1{font-size:17px;font-weight:600}
+.topbar .logo{font-size:22px}
+.tabs{display:flex;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:58px;z-index:9}
+.tabs button{flex:1;padding:12px 4px;border:0;background:none;font-family:inherit;font-size:14px;color:var(--muted);cursor:pointer;border-bottom:2.5px solid transparent}
+.tabs button.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.wrap{max-width:680px;margin:0 auto;padding:16px}
+.card{background:var(--card);border-radius:14px;border:1px solid var(--line);box-shadow:0 1px 4px rgba(26,32,50,.05);padding:16px;margin-bottom:14px}
+.card h2{font-size:16px;margin-bottom:10px}
+label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+input[type=text],input[type=number],input[type=date],textarea,select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:15px;background:var(--input-bg,#fff);color:var(--ink)}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+textarea{resize:vertical}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;border:0;border-radius:12px;font-family:inherit;font-size:16px;font-weight:600;cursor:pointer;background:var(--accent);color:#fff;transition:background .15s}
+.btn:hover{background:var(--primary-hover,#4f46e5)}
+.btn:disabled{background:#aab0c0;cursor:not-allowed}
+.btn.secondary{background:var(--card);color:var(--ink);border:1.5px solid var(--line)}
+.btn.secondary:hover{border-color:var(--accent);color:var(--accent);background:var(--card)}
+.btn.small{width:auto;padding:8px 14px;font-size:14px}
+.btn.danger{background:var(--card);color:var(--danger);border:1.5px solid #f3c6c6}
+.pickzone{border:2px dashed #c5cbdc;border-radius:14px;padding:28px 16px;text-align:center;color:var(--muted);cursor:pointer;background:var(--surface,#fdfdff)}
+.pickzone:active{border-color:var(--accent)}
+.pickzone .big{font-size:38px;display:block;margin-bottom:6px}
+.pdfgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin:10px 0}
+.pdfgrid .pg{cursor:pointer;text-align:center}
+.pdfgrid img{width:100%;border:2px solid var(--line);border-radius:10px;display:block}
+.pdfgrid .pg:hover img,.pdfgrid .pg:active img{border-color:var(--accent)}
+.pdfgrid .cap{font-size:12.5px;color:var(--muted);margin-top:4px}
+#preview{max-width:100%;border-radius:12px;display:block;margin:0 auto}
+.progress{height:8px;background:#e9ecf4;border-radius:99px;overflow:hidden;margin-top:10px}
+.progress>div{height:100%;background:var(--accent);width:0%;transition:width .2s}
+.hint{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.6}
+.chip{display:inline-block;padding:3px 11px;border-radius:99px;font-size:12.5px;font-weight:600}
+.chip.sent{background:#e5f6ec;color:var(--ok)}
+.chip.fail{background:#fdeaea;color:var(--danger)}
+.chip.cod{background:#fdf2e3;color:var(--warn)}
+.row{display:flex;gap:10px}
+.row>*{flex:1}
+.hist-item{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--line)}
+.hist-item:last-child{border-bottom:0}
+.hist-item img{width:62px;height:62px;object-fit:cover;border-radius:10px;flex-shrink:0}
+.hist-item .t{font-weight:600;font-size:14.5px}
+.hist-item .s{font-size:13px;color:var(--muted);margin-top:2px;line-height:1.5}
+.steps{line-height:1.9;font-size:14.5px;padding-left:4px}
+.steps li{margin-bottom:6px}
+.steps b{color:var(--accent)}
+.ok-note{background:#e5f6ec;color:#116334;border-radius:10px;padding:10px 12px;font-size:14px;margin-top:10px;display:none}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 22px;border-radius:12px;font-size:15px;z-index:99;box-shadow:0 6px 24px rgba(0,0,0,.25);display:none;max-width:90vw;text-align:center}
+.empty{text-align:center;color:var(--muted);padding:30px 10px;font-size:14px}
+@media(min-width:720px){.tabs button{font-size:15px}}
+@media(max-width:640px){.hide-mobile{display:none}}
+#printArea{display:none}
+@media print{
+  #permission-page-navigation{display:none !important}
+  @page{margin:6mm}
+  body > *:not(#printArea){display:none !important}
+  #printArea{display:block !important}
+  /* ย่อให้พอดี 1 หน้าเสมอ — กันแถบเลขผลิตโดนตัดข้ามหน้า */
+  #printArea img{display:block;width:auto;height:auto;max-width:100%;max-height:96vh;margin:0 auto;
+    page-break-after:always;break-after:page;page-break-inside:avoid;break-inside:avoid}
+  #printArea img:last-child{page-break-after:auto;break-after:auto}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="logo">🚚</span><h1 style="flex:1">ลาเบลส่งของ</h1>
+  <div id="user-display-area" class="hide-mobile"></div>
+  <button class="btn secondary small" style="width:auto;padding:7px 12px;font-size:13px;color:var(--danger)" onclick="auth.logout()">🚪 ออก</button>
+</div>
+<div class="tabs">
+  <button id="tabSend" class="active" onclick="showTab('send')">📷 ส่งใบจัดส่ง</button>
+  <button id="tabHist" onclick="showTab('hist')">📋 ประวัติ</button>
+  <button id="tabSet" onclick="showTab('set')">⚙️ ตั้งค่า</button>
+</div>
+
+<div class="wrap">
+
+<!-- ===== TAB: ส่งใบจัดส่ง ===== -->
+<div id="pageSend">
+  <div class="card" id="pickCard">
+    <div class="pickzone" onclick="document.getElementById('file').click()">
+      <span class="big">📷</span>
+      <b>แตะเพื่อถ่ายรูป เลือกรูป หรือไฟล์ PDF ลาเบลส่งของ</b>
+      <div class="hint">ใช้ได้ทั้งรูปถ่ายลาเบล Shopee/Flash · ภาพแคปหน้าจอ · และไฟล์ PDF จาก Seller Centre (แอปแปลงเป็นรูปให้เอง)</div>
+    </div>
+    <input type="file" id="file" accept="image/*,application/pdf,.pdf" style="display:none" onchange="onPick(this)">
+  </div>
+
+  <div class="card" id="pdfCard" style="display:none">
+    <h2>เลือกลาเบลที่จะส่ง</h2>
+    <div class="hint" style="margin-top:0" id="pdfHint">PDF หนึ่งหน้ามักมี 2 ลาเบล — แตะลาเบลที่ต้องการได้เลย</div>
+    <button class="btn" id="batchBtn" onclick="batchScan()" style="margin:10px 0 4px">⚡ อ่านทุกลาเบลอัตโนมัติ</button>
+    <div id="batchList"></div>
+    <div id="matchBtn" style="display:none;margin:6px 0">
+      <button class="btn secondary" onclick="erpMatch()">🏭 ดึงเลขผลิตจาก ERP อีกครั้ง</button>
+      <div class="hint" id="erpResult"></div>
+      <a href="#" onclick="toggleMatch();return false" style="font-size:12.5px;color:var(--muted)">หรือวางข้อความเลขผลิตเอง (ทางสำรอง)</a>
+    </div>
+    <div id="matchBox" style="display:none;border:1.5px dashed #c5cbdc;border-radius:12px;padding:12px;margin:8px 0">
+      <label style="margin-top:0">คลุมข้อความหน้ารายการผลิต (Ctrl+A) → คัดลอก (Ctrl+C) → มาวางที่นี่</label>
+      <textarea id="matchText" rows="5" placeholder="วางข้อความจากระบบผลิตที่นี่ — แอปจะหาคู่ เลขออเดอร์ ↔ เลขที่การผลิต ให้เอง"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="btn small" onclick="runMatch()">🔗 จับคู่เลย</button>
+        <button class="btn secondary small" onclick="document.getElementById('matchFile').click()">📄 หรือเลือกไฟล์ CSV</button>
+      </div>
+      <input type="file" id="matchFile" accept=".csv,.txt" style="display:none" onchange="matchFromFile(this)">
+      <div class="hint" id="matchResult"></div>
+    </div>
+    <div class="row">
+      <button class="btn" id="batchSendBtn" onclick="batchSendAll()" style="display:none;margin:10px 0 4px">📨 ส่งเข้า Discord ทั้งหมด</button>
+      <button class="btn secondary" id="batchPrintBtn" onclick="printLabels()" style="display:none;margin:10px 0 4px">🖨️ พิมพ์ลาเบล+เลขผลิต</button>
+    </div>
+    <div class="hint" id="batchHint" style="display:none">หรือเลื่อนลงไปแตะเลือกส่งทีละลาเบลตามเดิมก็ได้</div>
+    <div class="pdfgrid" id="pdfGrid"></div>
+    <button class="btn secondary small" onclick="cancelPdf()">✖ ยกเลิก เลือกไฟล์ใหม่</button>
+  </div>
+
+  <div class="card" id="imgCard" style="display:none">
+    <img id="preview" alt="รูปใบจัดส่ง">
+    <div class="progress" id="prog" style="display:none"><div id="progBar"></div></div>
+    <div class="hint" id="ocrStatus"></div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn secondary small" onclick="resetPick()">🔄 เปลี่ยนรูป</button>
+      <button class="btn secondary small" id="reOcrBtn" onclick="runOCR()" style="display:none">🔁 อ่านใหม่</button>
+    </div>
+  </div>
+
+  <div class="card" id="formCard" style="display:none">
+    <h2>รายละเอียดที่จะบันทึก <span style="font-size:12.5px;color:var(--muted);font-weight:400">(ระบบอ่านให้ — ตรวจแก้ก่อนส่ง)</span></h2>
+    <div class="row">
+      <div>
+        <label>แพลตฟอร์ม</label>
+        <select id="fPlat">
+          <option>SHOPEE</option><option>LAZADA</option><option>TIKTOK</option>
+          <option>LINE</option><option>หน้าร้าน</option><option>อื่น ๆ</option>
+        </select>
+      </div>
+      <div>
+        <label>การเก็บเงิน</label>
+        <select id="fCod">
+          <option value="no">ไม่ต้องเก็บเงิน</option>
+          <option value="cod">เก็บเงินปลายทาง</option>
+        </select>
+      </div>
+    </div>
+    <label>หมายเลขคำสั่งซื้อ (Order No.)</label>
+    <input type="text" id="fOrder" placeholder="เช่น 260922PCKBOUAR">
+    <label>เลขพัสดุ (Tracking)</label>
+    <input type="text" id="fTrack" placeholder="เช่น TH10028XNVA75B">
+    <label>ชื่อผู้รับ</label>
+    <input type="text" id="fName" placeholder="เช่น นาย สุนทร แก้วอินทร์">
+    <label>ที่อยู่ในการจัดส่ง</label>
+    <textarea id="fAddr" rows="3" placeholder="เลขที่ หมู่ ตำบล อำเภอ จังหวัด รหัสไปรษณีย์"></textarea>
+    <label>รายละเอียดสินค้า / ตัวเลือกสินค้า</label>
+    <textarea id="fProd" rows="3" placeholder="เช่น 160x200 ประตูบานเลื่อนอลูมิเนียม แบ่ง2ช่อง หนา1มิลเต็ม กระจก5มิล · ตัวเลือก: ดำ+กระจกชาดำ+มุ้ง 1ชุด/429"></textarea>
+    <div class="row">
+      <div><label>จำนวน</label><input type="text" id="fQty" placeholder="เช่น 1 ชุด"></div>
+      <div><label>เลขที่การผลิต</label><input type="text" id="fProdNo" placeholder="เช่น 329/20"></div>
+    </div>
+    <div class="row">
+      <div><label>วันที่ส่งของ</label><input type="date" id="fDate"></div>
+      <div><label>ผู้บันทึก</label><input type="text" id="fBy" placeholder="ชื่อคนบันทึก"></div>
+    </div>
+    <label>หมายเหตุ</label>
+    <input type="text" id="fNote" placeholder="เช่น ของชิ้นใหญ่ แพ็คกันกระแทกแล้ว">
+    <div style="margin-top:14px">
+      <button class="btn" id="sendBtn" onclick="sendDiscord()">📨 ส่งเข้า Discord</button>
+    </div>
+    <div class="hint" id="sendHint"></div>
+  </div>
+</div>
+
+<!-- ===== TAB: ประวัติ ===== -->
+<div id="pageHist" style="display:none">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <h2 style="margin:0">ประวัติการส่ง</h2>
+      <button class="btn secondary small" onclick="exportCSV()">⬇️ ออกรายงาน CSV</button>
+    </div>
+    <div id="histList"></div>
+  </div>
+  <div class="card">
+    <h2>จัดการข้อมูล</h2>
+    <div class="hint" style="margin-top:0">ประวัติเก็บในเครื่องนี้เท่านั้น (รูปจริงอยู่ใน Discord แล้ว) — ถ้าเต็มหรืออยากเริ่มใหม่ ลบได้</div>
+    <button class="btn danger small" style="margin-top:10px" onclick="clearHist()">🗑️ ลบประวัติทั้งหมดในเครื่อง</button>
+  </div>
+</div>
+
+<!-- ===== TAB: ตั้งค่า ===== -->
+<div id="pageSet" style="display:none">
+  <div class="card">
+    <h2>Discord Webhook</h2>
+    <label>วางลิงก์ Webhook ที่นี่</label>
+    <input type="text" id="setHook" placeholder="https://discord.com/api/webhooks/...">
+    <div class="row" style="margin-top:12px">
+      <button class="btn small" onclick="saveHook()">💾 บันทึก</button>
+      <button class="btn secondary small" onclick="testHook()">🧪 ทดสอบส่ง</button>
+    </div>
+    <div class="ok-note" id="hookOk"></div>
+  </div>
+  <div class="card">
+    <h2>ชื่อผู้บันทึกประจำเครื่องนี้</h2>
+    <label>ชื่อที่จะขึ้นเป็นคนส่งข้อความใน Discord</label>
+    <input type="text" id="setName" placeholder="เช่น มายด์ สิรินทร์" onchange="saveName()">
+    <div class="hint">เครื่องใครเครื่องมัน — ตั้งครั้งเดียว แอปจะกรอกให้ทุกครั้ง และชื่อนี้จะขึ้นเป็นชื่อผู้โพสต์ในห้อง Discord</div>
+  </div>
+  <div class="card">
+    <h2>วิธีสร้าง Webhook (ทำครั้งเดียว ~2 นาที)</h2>
+    <ol class="steps">
+      <li>เปิดแอป Discord → สร้าง Server ใหม่ (ปุ่ม <b>+</b> ด้านซ้าย → "Create My Own")</li>
+      <li>สร้างห้อง (channel) ชื่อเช่น <b>#บันทึกส่งของ</b></li>
+      <li>กดรูป <b>⚙️ Edit Channel</b> ที่ห้องนั้น → เมนู <b>Integrations</b> → <b>Webhooks</b> → <b>New Webhook</b></li>
+      <li>กด <b>Copy Webhook URL</b> แล้วเอามาวางในช่องด้านบน → กดบันทึก → กดทดสอบส่ง</li>
+    </ol>
+    <div class="hint">⚠️ ลิงก์ Webhook เหมือนกุญแจห้อง — ใครมีลิงก์ก็โพสต์เข้าห้องได้ อย่าแชร์สาธารณะ</div>
+  </div>
+</div>
+
+</div>
+<div id="printArea"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const LS_KEY = "cga_shipping_labels";
+let DB = load();
+let curImage = null;   // {dataUrl, blob}
+
+function load(){
+  try{
+    const d = JSON.parse(localStorage.getItem(LS_KEY));
+    if(d && Array.isArray(d.history)) return d;
+  }catch(e){}
+  return {webhook:"", sender:"", history:[]};
+}
+function save(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(DB)); }catch(e){ toast("⚠️ เก็บข้อมูลไม่ได้ — พื้นที่เบราว์เซอร์อาจเต็ม"); } }
+
+function toast(msg, ms){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.style.display = "block";
+  clearTimeout(t._tm);
+  t._tm = setTimeout(()=>t.style.display="none", ms||2600);
+}
+const $ = id => document.getElementById(id);
+
+/* ---------- tabs ---------- */
+function showTab(name){
+  for(const k of ["Send","Hist","Set"]){
+    $("page"+k).style.display = "none";
+    $("tab"+k).classList.remove("active");
+  }
+  const k = name==="send"?"Send":name==="hist"?"Hist":"Set";
+  $("page"+k).style.display = "block";
+  $("tab"+k).classList.add("active");
+  if(k==="Hist") renderHist();
+  if(k==="Set"){ $("setHook").value = DB.webhook||""; $("setName").value = DB.sender||""; }
+}
+
+/* ---------- pick file (รูป หรือ PDF) ---------- */
+let pdfDirectText = null;  // ตัวอักษรจริงจาก PDF (แม่นกว่า OCR) — ถ้ามี จะใช้แทนการ OCR
+function onPick(inp){
+  const f = inp.files && inp.files[0];
+  inp.value = "";
+  if(!f) return;
+  if(f.type === "application/pdf" || /\.pdf$/i.test(f.name)){ handlePDF(f); return; }
+  if(!/^image\//.test(f.type)){ toast("รองรับเฉพาะรูปภาพหรือไฟล์ PDF"); return; }
+  pdfDirectText = null;
+  const rd = new FileReader();
+  rd.onload = e => useImage(e.target.result);
+  rd.readAsDataURL(f);
+}
+
+/* รับ dataUrl → ย่อรูป (ยาวสุด 2000px กัน OCR ช้า/ไฟล์เกินลิมิต Discord) → เข้าฟอร์ม+OCR */
+function useImage(srcDataUrl){
+  const img = new Image();
+  img.onload = () => {
+    const MAX = 2000;
+    let w = img.width, h = img.height;
+    if(Math.max(w,h) > MAX){ const r = MAX/Math.max(w,h); w=Math.round(w*r); h=Math.round(h*r); }
+    const cv = document.createElement("canvas"); cv.width=w; cv.height=h;
+    cv.getContext("2d").drawImage(img,0,0,w,h);
+    cv.toBlob(blob=>{
+      if(!blob){ toast("ประมวลผลรูปไม่สำเร็จ ลองรูปอื่น"); return; }
+      curImage = {dataUrl: cv.toDataURL("image/jpeg",.9), blob};
+      $("preview").src = curImage.dataUrl;
+      $("pickCard").style.display="none";
+      $("pdfCard").style.display="none";
+      $("imgCard").style.display="block";
+      $("formCard").style.display="block";
+      $("fBy").value = DB.sender||"";
+      $("fDate").value = new Date().toISOString().slice(0,10);
+      runOCR();
+    },"image/jpeg",.9);
+  };
+  img.onerror = ()=>toast("เปิดรูปไม่ได้ ลองรูปอื่น");
+  img.src = srcDataUrl;
+}
+
+/* ---------- PDF → รูป (ภาพย่อเร็วให้เลือกก่อน แล้วค่อยเรนเดอร์คมชัดเฉพาะลาเบลที่เลือก) ---------- */
+const PDF_MAX_PAGES = 20;
+let curPdf = null;
+async function handlePDF(file){
+  if(typeof pdfjsLib === "undefined"){ toast("ตัวอ่าน PDF ยังโหลดไม่มา — ต้องต่อเน็ตครั้งแรก แล้วลองใหม่"); return; }
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+  $("pickCard").style.display="none";
+  $("pdfCard").style.display="block";
+  $("pdfGrid").innerHTML = "";
+  clearBatchUI();
+  $("pdfHint").textContent = "⏳ กำลังเปิด PDF...";
+  try{
+    if(curPdf){ try{ curPdf.destroy(); }catch(e){} curPdf = null; }
+    const buf = await file.arrayBuffer();
+    curPdf = await pdfjsLib.getDocument({data: buf}).promise;
+    const nPages = Math.min(curPdf.numPages, PDF_MAX_PAGES);
+    const grid = $("pdfGrid");
+    for(let p=1; p<=nPages; p++){
+      $("pdfHint").textContent = "⏳ กำลังแปลงหน้า "+p+" / "+nPages+"...";
+      const cv = await renderPdfPage(p, 420);   // ภาพย่อเล็ก โหลดไว
+      const portrait = cv.height > cv.width*1.2;
+      const opts = portrait
+        ? [{cap:"หน้า "+p+" · ลาเบลบน", part:"top"}, {cap:"หน้า "+p+" · ลาเบลล่าง", part:"bottom"}, {cap:"หน้า "+p+" · ทั้งหน้า", part:"full"}]
+        : [{cap:"หน้า "+p, part:"full"}];
+      for(const o of opts){
+        const c2 = o.part==="top" ? cropCanvas(cv,0,0,cv.width,Math.ceil(cv.height/2))
+                 : o.part==="bottom" ? cropCanvas(cv,0,Math.floor(cv.height/2),cv.width,Math.ceil(cv.height/2))
+                 : cv;
+        const d = document.createElement("div");
+        d.className = "pg";
+        d.innerHTML = `<img alt=""><div class="cap">${o.cap}</div>`;
+        d.querySelector("img").src = c2.toDataURL("image/jpeg",.7);
+        d.onclick = ()=>pickFromPdf(p, o.part, d);
+        grid.appendChild(d);
+      }
+    }
+    $("pdfHint").textContent = curPdf.numPages > nPages
+      ? "แสดง "+nPages+" หน้าแรกจากทั้งหมด "+curPdf.numPages+" หน้า — แตะลาเบลที่ต้องการส่ง"
+      : "แตะลาเบลที่ต้องการส่ง";
+  }catch(err){
+    $("pdfHint").textContent = "❌ เปิด PDF ไม่สำเร็จ — ไฟล์อาจเสียหรือมีรหัสผ่าน ลองแคปหน้าจอเป็นรูปแทน";
+  }
+}
+async function renderPdfPage(p, targetWidth){
+  const page = await curPdf.getPage(p);
+  const vp1 = page.getViewport({scale:1});
+  const vp = page.getViewport({scale: Math.min(targetWidth/vp1.width, 4)});
+  const cv = document.createElement("canvas");
+  cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+  // intent:"print" ใช้ setTimeout แทน requestAnimationFrame — ไม่ค้างตอนแท็บถูกซ่อน
+  await page.render({canvasContext: cv.getContext("2d"), viewport: vp, intent: "print"}).promise;
+  return cv;
+}
+async function pickFromPdf(p, part, el){
+  if(!curPdf) return;
+  $("pdfHint").textContent = "⏳ กำลังเตรียมรูปคมชัดของลาเบลที่เลือก...";
+  try{
+    // ดึงตัวอักษรจริงจาก PDF ก่อน — แม่น 100% ไม่ต้องพึ่ง OCR (ถ้าไฟล์เป็น PDF สแกนไม่มีตัวอักษร จะ fallback ไป OCR)
+    pdfDirectText = null;
+    try{
+      const txt = await extractPdfText(p, part);
+      if(txt && txt.replace(/\s/g,"").length > 30) pdfDirectText = txt;
+    }catch(e){}
+    const cv = await renderPdfPage(p, 2000);  // คมชัดเฉพาะอันที่เลือก
+    const c2 = part==="top" ? cropCanvas(cv,0,0,cv.width,Math.ceil(cv.height/2))
+             : part==="bottom" ? cropCanvas(cv,0,Math.floor(cv.height/2),cv.width,Math.ceil(cv.height/2))
+             : cv;
+    useImage(c2.toDataURL("image/jpeg",.9));
+  }catch(e){
+    $("pdfHint").textContent = "❌ เตรียมรูปไม่สำเร็จ ลองแตะใหม่อีกครั้ง";
+  }
+}
+
+/* ดึง text layer จาก PDF — จัดกลุ่มเป็นบรรทัดตามตำแหน่ง y (เฉพาะครึ่งบน/ล่างตามลาเบลที่เลือก) */
+async function extractPdfText(p, part){
+  const page = await curPdf.getPage(p);
+  const vp1 = page.getViewport({scale:1});
+  const tc = await page.getTextContent();
+  const midY = vp1.height/2;
+  let items = tc.items.filter(it=>it.str && it.str.trim());
+  if(part==="top") items = items.filter(it=>it.transform[5] >= midY);       // แกน y ของ PDF เริ่มจากล่าง
+  else if(part==="bottom") items = items.filter(it=>it.transform[5] < midY);
+  items.sort((a,b)=> (b.transform[5]-a.transform[5]) || (a.transform[4]-b.transform[4]));
+  const lines=[]; let cur=null, curY=null;
+  for(const it of items){
+    const y = it.transform[5];
+    if(curY===null || Math.abs(y-curY) > 4){ cur=[]; lines.push(cur); curY=y; }
+    cur.push(it.str.trim());
+  }
+  return fixThaiPUA(lines.map(l=>l.join(" ")).join("\n"));
+}
+
+/* ฟอนต์ไทยใน PDF เก็บวรรณยุกต์เป็นรหัสพิเศษ (Private Use Area เช่น U+F70B แทน "้")
+   — แปลงกลับเป็นอักขระจริง แล้วเรียงสระ-วรรณยุกต์ให้ถูกลำดับ */
+const THAI_PUA = {"":"ฐ","":"ิ","":"ี","":"ึ","":"ื",
+  "":"่","":"้","":"๊","":"๋","":"์",
+  "":"่","":"้","":"๊","":"๋","":"์",
+  "":"ญ","":"ั","":"ํ","":"็",
+  "":"่","":"้","":"๊","":"๋","":"์",
+  "":"ุ","":"ู","":"ฺ"};
+function fixThaiPUA(s){
+  return s.replace(/[-]/g, c=>THAI_PUA[c]||"")
+          .replace(/[-]/g, "")
+          .replace(/\u0000/g, "")                                      // อิโมจิ/สัญลักษณ์ที่แปลงไม่ได้ กลายเป็น null — ตัดทิ้ง
+          .replace(/([็-ํ])([ำิ-ู])/g, "$2$1") // วรรณยุกต์มาก่อนสระ → สลับให้ถูก
+          .replace(/ํา/g, "ำ")                           // สระ ำ แบบแยกร่าง (ํ+า) → ำ ("จํานวน"→"จำนวน")
+          .replace(/\s+([,.])/g, "$1"); // ช่องว่างเกินหน้า , . ที่ติดมาจาก PDF
+}
+/* ---------- โหมดอ่านทุกลาเบลอัตโนมัติ (ใช้ text layer ของ PDF) ---------- */
+let batchItems = [];
+async function batchScan(){
+  if(!curPdf) return;
+  const n = Math.min(curPdf.numPages, 40);
+  batchItems = [];
+  $("batchBtn").disabled = true;
+  try{
+    for(let p=1; p<=n; p++){
+      $("pdfHint").textContent = "⚡ กำลังอ่านลาเบล หน้า "+p+"/"+n+"...";
+      // อ่านเต็มหน้าก่อนเพื่อให้ได้ข้อมูลครบ (รวมตารางสินค้า/จำนวนรวมท้ายใบ)
+      let fullTxt = "";
+      try{ fullTxt = await extractPdfText(p, "full"); }catch(e){}
+      const of = parseLabel(fullTxt);
+      // หน้านั้นเป็นแบบ 2 ลาเบล/หน้า ก็ต่อเมื่อในหน้ามีเลขออเดอร์ต่างกัน ≥2 ตัว
+      // (ลาเบลเต็มใบพิมพ์เลขออเดอร์ซ้ำ 2 ที่ แต่เป็นเลขเดียวกัน → นับเป็น 1)
+      const ordSet = new Set((fullTxt.match(/Order\s*No\.?\s*[:：]?\s*([A-Z0-9]{8,20})/gi)||[])
+        .map(s=>s.replace(/^.*?([A-Z0-9]{8,20})\s*$/i,"$1").toUpperCase()));
+      if(ordSet.size >= 2){
+        for(const part of ["top","bottom"]){
+          const o = parseLabel(await extractPdfText(p, part));
+          if(o.order || o.name) batchItems.push({page:p, part, checked:true, ...o});
+        }
+      }else if(of.order || of.name){
+        batchItems.push({page:p, part:"full", checked:true, ...of});
+      }
+    }
+  }catch(e){}
+  $("batchBtn").disabled = false;
+  if(!batchItems.length){
+    $("pdfHint").textContent = "อ่านอัตโนมัติไม่ได้ (PDF นี้อาจเป็นแบบสแกนไม่มีตัวอักษร) — แตะเลือกทีละลาเบลด้านล่างแทนครับ";
+    return;
+  }
+  $("pdfHint").textContent = "⚡ พบ "+batchItems.length+" ลาเบล — ตรวจรายการ ติ๊กออกได้ถ้าไม่ส่ง แล้วกดส่งทั้งหมด";
+  renderBatch();
+  erpMatch();
+}
+function renderBatch(){
+  $("batchList").innerHTML = batchItems.map((it,i)=>`
+    <div style="display:flex;gap:9px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px">
+      <input type="checkbox" ${it.checked?"checked":""} onchange="batchItems[${i}].checked=this.checked;updateBatchCount()" style="margin-top:3px;width:18px;height:18px;accent-color:var(--accent)">
+      <span style="flex:1;min-width:0"><b>${esc(it.order)||"(ไม่มีเลขออเดอร์)"}</b>
+        ${it.cod==="cod"?'<span class="chip cod">COD</span>':""} <span id="bst${i}" style="font-weight:600"></span><br>
+        <span style="color:var(--muted)">${esc(it.name)||"-"}${it.qty?" · จำนวน "+esc(it.qty):""} · หน้า ${it.page}${it.part==="top"?" บน":it.part==="bottom"?" ล่าง":""}</span></span>
+      <span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+        <input type="text" placeholder="เลขผลิต" value="${esc(it.prodNo||"")}" oninput="batchItems[${i}].prodNo=this.value.trim();batchItems[${i}].prodSrc='manual'"
+          style="width:104px;padding:7px 8px;font-size:13.5px;border:1.5px solid ${it.prodSrc==="order"?"var(--warn)":"var(--line)"};border-radius:8px;font-family:'Kanit',sans-serif;font-weight:600">
+        <span style="font-size:11px;color:${it.prodSrc==="order"?"var(--warn)":"var(--muted)"}">${it.prodSrc==="track"?"✓ ตรงเลขพัสดุ":it.prodSrc==="order"?"⚠ เดาตามลำดับ":""}</span>
+      </span>
+    </div>`).join("");
+  $("batchSendBtn").style.display = "inline-flex";
+  $("batchPrintBtn").style.display = "inline-flex";
+  $("matchBtn").style.display = "block";
+  $("batchHint").style.display = "block";
+  updateBatchCount();
+}
+function updateBatchCount(){
+  const n = batchItems.filter(i=>i.checked).length;
+  $("batchSendBtn").textContent = "📨 ส่งเข้า Discord ทั้งหมด ("+n+" รายการ)";
+  $("batchSendBtn").disabled = !n;
+}
+async function batchSendAll(){
+  if(!DB.webhook){ toast("ยังไม่ได้ตั้งค่า Webhook — ไปที่แท็บ ⚙️ ตั้งค่า ก่อน"); showTab("set"); return; }
+  const sel = batchItems.map((it,i)=>({it,i})).filter(x=>x.it.checked && x.it.status!=="sent");
+  if(!sel.length){ toast("ไม่มีรายการที่ต้องส่ง"); return; }
+  $("batchSendBtn").disabled = true; $("batchBtn").disabled = true;
+  const today = new Date().toISOString().slice(0,10);
+  let ok=0, fail=0;
+  for(let k=0; k<sel.length; k++){
+    const {it, i} = sel[k];
+    $("pdfHint").textContent = "📨 กำลังส่ง "+(k+1)+"/"+sel.length+" — "+(it.order||it.name);
+    $("bst"+i).textContent = "⏳";
+    try{
+      const cv = await renderPdfPage(it.page, 2000);
+      const c2 = it.part==="top" ? cropCanvas(cv,0,0,cv.width,Math.ceil(cv.height/2))
+               : it.part==="bottom" ? cropCanvas(cv,0,Math.floor(cv.height/2),cv.width,Math.ceil(cv.height/2))
+               : cv;
+      const blob = await new Promise(r=>c2.toBlob(r,"image/jpeg",.9));
+      if(!blob) throw new Error("no-blob");
+      const res = await postRecord({
+        plat: it.plat||"SHOPEE", cod: it.cod||"no", order: it.order, track: it.track,
+        name: it.name, addr: it.addr, prod: it.prod, qty: it.qty, prodNo: it.prodNo||"",
+        date: today, by: DB.sender||"", note: ""
+      }, blob);
+      if(res.ok){ ok++; it.status="sent"; $("bst"+i).textContent = "✅"; }
+      else{ fail++; it.status="fail"; $("bst"+i).textContent = "❌"; }
+    }catch(e){ fail++; it.status="fail"; $("bst"+i).textContent = "❌"; }
+    if(k < sel.length-1) await new Promise(r=>setTimeout(r,1500)); // เว้นจังหวะ กัน Discord จำกัดความถี่
+  }
+  $("batchSendBtn").disabled = false; $("batchBtn").disabled = false;
+  updateBatchCount();
+  $("pdfHint").textContent = "เสร็จแล้ว — ส่งสำเร็จ "+ok+" รายการ" + (fail? " · ไม่สำเร็จ "+fail+" รายการ (กดส่งทั้งหมดซ้ำได้ จะส่งเฉพาะที่ค้าง)" : "");
+  toast(fail? "ส่งสำเร็จ "+ok+" / ไม่สำเร็จ "+fail : "✅ ส่งครบ "+ok+" รายการเข้า Discord แล้ว", 4000);
+}
+
+/* ---------- ดึงเลขผลิตจากฐานข้อมูล ERP (stock_orders) ----------
+   1 แถวใน stock_orders = 1 ชิ้น มี order_number + tracking_number + production_number
+   จับด้วยเลขพัสดุก่อน (รู้แน่ว่ากล่องไหน) → ที่เหลือจับด้วยเลขออเดอร์ แล้วกระจายกล่องละเลขตามลำดับ */
+const normKey = s => String(s||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+function prodNoSort(a,b){
+  const pa = String(a).split("/").map(Number), pb = String(b).split("/").map(Number);
+  return (pa[1]||0)-(pb[1]||0) || (pa[0]||0)-(pb[0]||0) || String(a).localeCompare(String(b));
+}
+async function fetchErpRows(orders, tracks){
+  const db = window.auth && window.auth.supabase;
+  if(!db) throw new Error("no-db");
+  const cols = "order_number,tracking_number,production_number,tracking_status";
+  const rows = [], seen = new Set();
+  const pull = async (col, vals) => {
+    for(let i=0;i<vals.length;i+=100){
+      const { data, error } = await db.from("stock_orders").select(cols).in(col, vals.slice(i,i+100));
+      if(error) throw error;
+      for(const r of (data||[])){
+        const k = r.order_number+"|"+r.tracking_number+"|"+r.production_number;
+        if(!seen.has(k)){ seen.add(k); rows.push(r); }
+      }
+    }
+  };
+  if(tracks.length) await pull("tracking_number", tracks);
+  if(orders.length) await pull("order_number", orders);
+  return rows.filter(r => r.production_number && !/ยกเลิก/.test(r.tracking_status||""));
+}
+async function erpMatch(){
+  if(!batchItems.length) return;
+  const out = $("erpResult");
+  out.textContent = "⏳ กำลังดึงเลขผลิตจาก ERP...";
+  const orders = [...new Set(batchItems.map(i=>i.order).filter(Boolean))];
+  const tracks = [...new Set(batchItems.map(i=>i.track).filter(Boolean))];
+  let rows;
+  try{ rows = await fetchErpRows(orders, tracks); }
+  catch(e){
+    out.textContent = "❌ ดึงข้อมูลจาก ERP ไม่สำเร็จ ("+(e.message||e)+") — กรอกเองหรือใช้ทางสำรองด้านล่าง";
+    return;
+  }
+  const byTrack = {}, byOrder = {};
+  for(const r of rows){
+    if(r.tracking_number) (byTrack[normKey(r.tracking_number)] = byTrack[normKey(r.tracking_number)]||[]).push(r.production_number);
+    (byOrder[normKey(r.order_number)] = byOrder[normKey(r.order_number)]||[]).push(r.production_number);
+  }
+  let nTrack=0, nOrder=0, nMiss=0;
+  const used = new Set();
+  // รอบ 1: เลขพัสดุตรงกล่อง
+  for(const it of batchItems){
+    it.prodSrc = "";
+    const nums = byTrack[normKey(it.track)];
+    if(nums && nums.length){
+      const u = [...new Set(nums)].sort(prodNoSort);
+      it.prodNo = u.join(", "); it.prodSrc = "track"; u.forEach(n=>used.add(n)); nTrack++;
+    }
+  }
+  // รอบ 2: กล่องที่ยังไม่ได้ — ใช้เลขออเดอร์ กระจายเลขที่ยังไม่ถูกใช้ กล่องละเลข
+  const groups = {};
+  for(const it of batchItems){ if(!it.prodSrc && it.order) (groups[normKey(it.order)] = groups[normKey(it.order)]||[]).push(it); }
+  for(const ord in groups){
+    const items = groups[ord];
+    const nums = [...new Set(byOrder[ord]||[])].filter(n=>!used.has(n)).sort(prodNoSort);
+    if(!nums.length) continue;
+    if(items.length === 1){ items[0].prodNo = nums.join(", "); items[0].prodSrc = "order"; nOrder++; continue; }
+    items.forEach((it, idx)=>{
+      if(idx >= nums.length) return;
+      it.prodNo = (idx === items.length-1) ? nums.slice(idx).join(", ") : nums[idx];
+      it.prodSrc = "order"; nOrder++;
+    });
+  }
+  nMiss = batchItems.filter(i=>!i.prodSrc).length;
+  renderBatch();
+  if(!rows.length){
+    out.textContent = "⚠️ ไม่พบออเดอร์เหล่านี้ใน ERP — อาจยังไม่ได้อัปโหลดไฟล์ออเดอร์เข้า ERP หรือบัญชีนี้ไม่มีสิทธิ์อ่านออเดอร์ (ต้องมีสิทธิ์หน้าแดชบอร์ดออเดอร์/บันทึกออเดอร์/ฝ่ายผลิต อย่างน้อย 1 หน้า)";
+    return;
+  }
+  out.textContent = "✅ เลขผลิตจาก ERP: ตรงกล่องด้วยเลขพัสดุ "+nTrack+" ใบ"
+    + (nOrder? " · จากเลขออเดอร์ (เรียงลำดับ) "+nOrder+" ใบ — ตรวจสอบก่อนพิมพ์" : "")
+    + (nMiss? " · ไม่พบ "+nMiss+" ใบ (ยังไม่ออกเลขผลิต — กรอกเองได้)" : "");
+}
+/* โหมดทีละใบ: เติมเลขผลิตจาก ERP ให้ฟอร์ม (ไม่ทับค่าที่ผู้ใช้พิมพ์) */
+async function erpLookupSingle(){
+  if($("fProdNo").value) return;
+  const order = $("fOrder").value.trim(), track = $("fTrack").value.trim();
+  if(!order && !track) return;
+  try{
+    const rows = await fetchErpRows(order?[order]:[], track?[track]:[]);
+    const t = track ? rows.filter(r=>normKey(r.tracking_number)===normKey(track)) : [];
+    const pick = (t.length ? t : rows.filter(r=>normKey(r.order_number)===normKey(order))).map(r=>r.production_number);
+    if(pick.length && !$("fProdNo").value) $("fProdNo").value = [...new Set(pick)].sort(prodNoSort).join(", ");
+  }catch(e){}
+}
+
+/* ---------- จับคู่เลขผลิตแบบวางข้อความ (ทางสำรอง) ---------- */
+function toggleMatch(){
+  const b = $("matchBox");
+  b.style.display = b.style.display==="none" ? "block" : "none";
+}
+/* ไล่ข้อความตามลำดับ: เจอเลขออเดอร์ → จำไว้, เจอเลขผลิต (เช่น 329/20) → ผูกกับออเดอร์ล่าสุด
+   เลขออเดอร์ Shopee = ขึ้นต้น 6 หลักวันที่ เช่น 2610192876NHQV · TikTok = ตัวเลขยาว 15-20 หลัก
+   (รหัสสินค้า SLWD... และเลขพัสดุ TH... ขึ้นต้นด้วยตัวอักษร จะไม่ถูกนับเป็นออเดอร์) */
+function parsePairs(text){
+  const map = {};  // order → [เลขผลิต, ...]
+  const tokens = String(text||"").toUpperCase().match(/[A-Z0-9]{10,20}|\d{1,4}\/\d{1,2}(?!\/|\d)/g) || [];
+  let cur = "";
+  for(const t of tokens){
+    if(/^\d{6}[A-Z0-9]{4,14}$/.test(t) || /^\d{15,20}$/.test(t)) cur = t;
+    else if(/^\d{1,4}\/\d{1,2}$/.test(t) && cur){ (map[cur] = map[cur]||[]).push(t); }
+  }
+  return map;
+}
+function runMatch(){
+  const map = parsePairs($("matchText").value);
+  const nPairs = Object.keys(map).length;
+  if(!nPairs){ $("matchResult").textContent = "❌ ไม่พบคู่ เลขออเดอร์ ↔ เลขผลิต ในข้อความที่วาง — เช็คว่าก๊อปมาจากหน้ารายการผลิตที่เห็นทั้งสองเลข"; return; }
+  // จัดกลุ่มลาเบลตามออเดอร์ (เรียงตามหน้า) — ออเดอร์ที่มีหลายกล่อง กระจายเลขผลิตกล่องละเลข
+  const byOrder = {};
+  for(const it of batchItems){ if(it.order) (byOrder[it.order] = byOrder[it.order]||[]).push(it); }
+  let hit = 0, spread = false;
+  for(const ord in byOrder){
+    const nums = map[ord];
+    if(!nums || !nums.length) continue;
+    const items = byOrder[ord];
+    if(items.length === 1){ items[0].prodNo = nums.join(", "); hit++; }
+    else{
+      spread = true;
+      items.forEach((it, idx)=>{
+        if(idx >= nums.length) return;  // กล่องเกินจำนวนเลขผลิต → เว้นไว้กรอกมือ
+        // กล่องสุดท้ายรับเลขที่เหลือทั้งหมด (กรณีเลขผลิตมากกว่ากล่อง)
+        it.prodNo = (idx === items.length-1) ? nums.slice(idx).join(", ") : nums[idx];
+        hit++;
+      });
+    }
+  }
+  renderBatch();
+  $("matchBox").style.display = "block";
+  $("matchResult").textContent = hit
+    ? "✅ จับคู่ได้ "+hit+" จาก "+batchItems.length+" ลาเบล (เจอข้อมูล "+nPairs+" ออเดอร์ในที่วาง)"
+      + (spread ? " · ออเดอร์หลายกล่องกระจายให้กล่องละเลขตามลำดับ — ถ้ากล่องไหนสลับกัน แก้ในช่องได้เลย" : "")
+      + (hit<batchItems.length ? " · ที่เหลือกรอกมือได้" : "")
+    : "⚠️ เจอข้อมูล "+nPairs+" ออเดอร์ แต่เลขออเดอร์ไม่ตรงกับลาเบลใน PDF นี้เลย — เช็คว่าเป็นงานชุดเดียวกัน";
+}
+function matchFromFile(inp){
+  const f = inp.files && inp.files[0];
+  inp.value = "";
+  if(!f) return;
+  const rd = new FileReader();
+  rd.onload = e => { $("matchText").value = e.target.result; runMatch(); };
+  rd.readAsText(f);
+}
+
+/* พิมพ์ลาเบลที่ติ๊กไว้ โดยประทับแถบ "เลขที่การผลิต" ใต้ลาเบลแต่ละใบ (ไม่ทับบาร์โค้ด) */
+async function printLabels(){
+  const sel = batchItems.filter(i=>i.checked);
+  if(!sel.length){ toast("ติ๊กเลือกลาเบลที่จะพิมพ์ก่อน"); return; }
+  const noNo = sel.filter(i=>!i.prodNo).length;
+  if(noNo && !confirm("มี "+noNo+" ลาเบลที่ยังไม่ได้กรอกเลขที่การผลิต (จะพิมพ์เป็นช่องว่างให้เขียนมือ) — พิมพ์เลยไหม?")) return;
+  const btn = $("batchPrintBtn");
+  btn.disabled = true;
+  const area = $("printArea");
+  area.innerHTML = "";
+  try{
+    for(let k=0;k<sel.length;k++){
+      $("pdfHint").textContent = "🖨️ กำลังเตรียมพิมพ์ "+(k+1)+"/"+sel.length+"...";
+      const it = sel[k];
+      const cv = await renderPdfPage(it.page, 2000);
+      const c2 = it.part==="top" ? cropCanvas(cv,0,0,cv.width,Math.ceil(cv.height/2))
+               : it.part==="bottom" ? cropCanvas(cv,0,Math.floor(cv.height/2),cv.width,Math.ceil(cv.height/2))
+               : cv;
+      const img = document.createElement("img");
+      img.src = stampCanvas(c2, it.prodNo, it.order).toDataURL("image/jpeg",.92);
+      area.appendChild(img);
+    }
+    $("pdfHint").textContent = "พร้อมพิมพ์ "+sel.length+" ลาเบล — หน้าต่างพิมพ์กำลังเปิด";
+    setTimeout(()=>window.print(), 300);
+  }catch(e){
+    $("pdfHint").textContent = "❌ เตรียมพิมพ์ไม่สำเร็จ ลองใหม่อีกครั้ง";
+  }
+  btn.disabled = false;
+}
+function stampCanvas(cv, prodNo, order){
+  const strip = Math.max(70, Math.round(cv.width*0.085));
+  const out = document.createElement("canvas");
+  out.width = cv.width; out.height = cv.height + strip;
+  const ctx = out.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0,0,out.width,out.height);
+  ctx.drawImage(cv,0,0);
+  // แถบเลขที่การผลิตตัวใหญ่ ใส่กรอบหนาให้สะดุดตา
+  ctx.strokeStyle = "#000"; ctx.lineWidth = 5;
+  ctx.strokeRect(8, cv.height+6, out.width-16, strip-12);
+  ctx.fillStyle = "#000"; ctx.textBaseline = "middle";
+  const midY = cv.height + strip/2 + 1;
+  ctx.font = "bold "+Math.round(strip*0.46)+"px 'Kanit',sans-serif";
+  ctx.fillText("เลขที่การผลิต: " + (prodNo || "____________"), 26, midY);
+  if(order){
+    ctx.font = Math.round(strip*0.24)+"px 'Kanit',sans-serif";
+    const t = "ออเดอร์ "+order;
+    ctx.fillText(t, out.width - ctx.measureText(t).width - 26, midY);
+  }
+  return out;
+}
+
+function cropCanvas(src, x, y, w, h){
+  const cv = document.createElement("canvas");
+  cv.width = w; cv.height = h;
+  cv.getContext("2d").drawImage(src, x, y, w, h, 0, 0, w, h);
+  return cv;
+}
+function clearBatchUI(){
+  batchItems = [];
+  $("batchList").innerHTML = "";
+  $("batchSendBtn").style.display = "none";
+  $("batchPrintBtn").style.display = "none";
+  $("matchBtn").style.display = "none";
+  $("matchBox").style.display = "none";
+  $("matchResult").textContent = "";
+  $("erpResult").textContent = "";
+  $("batchHint").style.display = "none";
+  $("batchBtn").disabled = false;
+}
+function cancelPdf(){
+  $("pdfCard").style.display="none";
+  $("pdfGrid").innerHTML = "";
+  clearBatchUI();
+  if(curPdf){ try{ curPdf.destroy(); }catch(e){} curPdf = null; }
+  $("pickCard").style.display="block";
+}
+
+function resetPick(){
+  curImage = null;
+  pdfDirectText = null;
+  if(curPdf){ try{ curPdf.destroy(); }catch(e){} curPdf = null; }
+  $("pickCard").style.display="block";
+  $("pdfCard").style.display="none";
+  $("pdfGrid").innerHTML = "";
+  clearBatchUI();
+  $("imgCard").style.display="none";
+  $("formCard").style.display="none";
+  for(const id of ["fOrder","fTrack","fName","fAddr","fProd","fQty","fProdNo","fNote"]) $(id).value="";
+  $("fPlat").value = "SHOPEE"; $("fCod").value = "no";
+  $("sendHint").textContent="";
+}
+
+/* ---------- OCR ---------- */
+async function runOCR(){
+  if(!curImage) return;
+  const st = $("ocrStatus");
+  const prog = $("prog"), bar = $("progBar");
+  $("reOcrBtn").style.display="none";
+
+  // ทางลัดแม่นยำ: PDF มีตัวอักษรจริงอยู่แล้ว ไม่ต้องให้ OCR มองรูปเดา
+  if(pdfDirectText){
+    const got = autoFill(pdfDirectText);
+    st.textContent = "✅ อ่านตัวอักษรจาก PDF โดยตรง (แม่นยำ 100% ไม่ผ่าน OCR)" + (got? " — เติมให้ "+got+" ช่อง ตรวจอีกรอบก่อนส่ง" : "");
+    erpLookupSingle();
+    return;
+  }
+
+  prog.style.display="block"; bar.style.width="5%";
+  st.textContent = "⏳ กำลังอ่านข้อความจากรูป (ครั้งแรกจะช้าหน่อย กำลังโหลดตัวอ่านภาษาไทย)...";
+  try{
+    if(typeof Tesseract === "undefined") throw new Error("no-lib");
+    const res = await Tesseract.recognize(preprocessForOCR(curImage.dataUrl) || curImage.dataUrl, "tha+eng", {
+      logger: m => { if(m.status==="recognizing text") bar.style.width = Math.round(5+90*m.progress)+"%"; }
+    });
+    bar.style.width="100%";
+    const text = (res.data.text||"").replace(/[ \t]+/g," ").replace(/\n{3,}/g,"\n\n").trim();
+    const got = autoFill(text);
+    st.textContent = got ? "✅ อ่านเสร็จ — เติมให้ "+got+" ช่อง ตรวจความถูกต้องก่อนส่ง (OCR อาจอ่านผิดได้)" :
+      "⚠️ อ่านข้อความได้แต่จับรายละเอียดไม่เจอ — กรอกเองด้านล่างได้เลย";
+    erpLookupSingle();
+  }catch(err){
+    st.textContent = "⚠️ อ่านรูปไม่สำเร็จ (ต้องต่อเน็ตครั้งแรกเพื่อโหลดตัวอ่าน) — กรอกเองได้เลย หรือกดอ่านใหม่";
+    $("reOcrBtn").style.display="inline-flex";
+  }
+  setTimeout(()=>{ prog.style.display="none"; bar.style.width="0%"; }, 800);
+}
+
+/* ปรับภาพก่อนส่งเข้า OCR: ขาวดำ + ยืดคอนทราสต์ (ช่วยรูปถ่ายแสงไม่ดี) — ใช้เฉพาะตอนอ่าน ไม่กระทบรูปที่ส่ง Discord */
+function preprocessForOCR(dataUrl){
+  try{
+    const img = $("preview");               // รูปโหลดอยู่แล้วใน <img>
+    if(!img.naturalWidth) return null;
+    const cv = document.createElement("canvas");
+    cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+    const ctx = cv.getContext("2d");
+    ctx.drawImage(img,0,0);
+    const d = ctx.getImageData(0,0,cv.width,cv.height);
+    const px = d.data, n = px.length;
+    // แปลงเป็นเทา + หา percentile 5/95 เพื่อยืดคอนทราสต์
+    const hist = new Uint32Array(256);
+    for(let i=0;i<n;i+=4){
+      const g = (px[i]*299 + px[i+1]*587 + px[i+2]*114)/1000 | 0;
+      px[i]=g; hist[g]++;
+    }
+    const total = n/4; let acc=0, lo=0, hi=255;
+    for(let v=0;v<256;v++){ acc+=hist[v]; if(acc>=total*0.05){ lo=v; break; } }
+    acc=0;
+    for(let v=255;v>=0;v--){ acc+=hist[v]; if(acc>=total*0.05){ hi=v; break; } }
+    const range = Math.max(hi-lo, 1);
+    for(let i=0;i<n;i+=4){
+      const g = Math.max(0, Math.min(255, Math.round((px[i]-lo)*255/range)));
+      px[i]=px[i+1]=px[i+2]=g;
+    }
+    ctx.putImageData(d,0,0);
+    return cv.toDataURL("image/jpeg",.92);
+  }catch(e){ return null; }
+}
+
+/* อ่านรายละเอียดจากข้อความลาเบล (OCR หรือ text layer ของ PDF) — คืน object กลาง ใช้ได้ทั้งฟอร์มเดี่ยวและโหมดอ่านทั้งไฟล์ */
+function parseLabel(text){
+  const out = {plat:"", cod:"", order:"", track:"", name:"", addr:"", prod:"", qty:""};
+  if(!text) return out;
+
+  // หมายเลขคำสั่งซื้อ: "Shopee Order No. 260707338AUN38" หรือ "หมายเลขคำสั่งซื้อ 260922PCKBOUAR"
+  let m = text.match(/Order\s*No\.?\s*[:：]?\s*([A-Z0-9]{8,20})/i)
+        || text.match(/(?:หมายเลข)?คำสั่งซื้อ\s*[:：]?\s*\n?\s*([A-Z0-9]{8,20})/i);
+  if(m) out.order = m[1].toUpperCase();
+
+  // เลขพัสดุ: TH + ตัวเลข/ตัวอักษร ~12 ตัว
+  m = text.match(/\bTH[0-9O]{2,5}[0-9A-Z]{6,12}\b/i);
+  if(m) out.track = m[0].toUpperCase();
+
+  // แพลตฟอร์ม
+  if(/shopee/i.test(text)) out.plat = "SHOPEE";
+  else if(/lazada/i.test(text)) out.plat = "LAZADA";
+  else if(/tik\s*tok/i.test(text)) out.plat = "TIKTOK";
+
+  // เก็บเงินปลายทาง (ทนวรรณยุกต์หาย: "ไมตองเก็บเงิน")
+  if(/เก็บเงินปลายทาง|COD/i.test(text) && !/ไม่?\s*ต้?อ?ง\s*เก็บเงิน/.test(text)) out.cod = "cod";
+
+  // ผู้รับ: "ผู้รับ (TO) ชื่อ..." — OCR อาจอ่าน "(TO)" เพี้ยน / ฟอนต์ PDF ทำวรรณยุกต์หาย ("ผูรับ") — จับแบบทนความเพี้ยน
+  const lines = text.split("\n").map(s=>s.trim()).filter(Boolean);
+  for(let i=0;i<lines.length;i++){
+    const mm = lines[i].match(/ผู้?รับ\s*(?:\([^)]{0,8}\))?\s*[:：]?\s*(.*)/) || lines[i].match(/ที่?อยู่?ในการจัดส่ง\s*[:：]?\s*(.*)/);
+    if(mm){
+      // ตัดรหัสคัดแยกท้ายชื่อ เช่น "C 0 5" / "D25" ที่ลากติดมา
+      let name = mm[1].trim().replace(/(?:\s+[A-Za-z0-9๐]{1,2}){2,}\s*$/,"").replace(/\s+[A-Z]\d{1,3}\s*$/,"").trim();
+      const addr = [];
+      let j = i+1;
+      if(!name && j<lines.length){ name = lines[j]; j++; }
+      for(; j<lines.length && addr.join(" ").length<220; j++){
+        if(/PICKUP|SHIP\s*BY|Order\s*No|NOTE|BULKY|เก็บเงิน|ผู้?ส่?ง|FROM|ตัวเลือกสินค้า/i.test(lines[j])) break;
+        if(/^\d{2,4}\s*[xX×]\s*\d{2,4}/.test(lines[j])) break; // บรรทัดสินค้า เช่น 160x200...
+        if(/^[A-Z]{1,4}\d{0,3}$/.test(lines[j])) continue;     // รหัสคัดแยก เช่น C05, SK2 — ข้าม ไม่ใช่ที่อยู่
+        addr.push(lines[j]);
+        if(/\b\d{5}\b\s*$/.test(lines[j])) { j++; break; } // จบที่รหัสไปรษณีย์
+      }
+      out.name = name;
+      out.addr = addr.join(" ");
+      break;
+    }
+  }
+
+  // สินค้า: บรรทัดหลัง "ตัวเลือกสินค้า:" หรือบรรทัดที่มีขนาด กว้างxสูง
+  m = text.match(/ตัวเลือกสินค้า\s*[:：]\s*(.+)/);
+  let optTxt = m ? m[1].trim() : "";
+  if(/^จำนวน/.test(optTxt)) optTxt = "";  // หัวตาราง "ตัวเลือกสินค้า จำนวน" ไม่ใช่ค่า
+  if(!optTxt){
+    // ลาเบลแบบตาราง: ค่าตัวเลือกคือ สี+กระจก+มุ้ง เชื่อมด้วย "+" (อาจมีช่องว่างรอบ + เช่น "ขาว + กะจกใสเขียว + มุ้ง")
+    const pm = text.match(/[ก-๙A-Za-z0-9]+(?:\s*\+\s*[ก-๙A-Za-z0-9]+)+/);
+    if(pm) optTxt = pm[0].replace(/\s*\+\s*/g,"+").trim();
+  }
+  const size = text.match(/\d{2,3}\s*[xX×]\s*\d{2,3}[^\n]*/);
+  let sizeLine = size ? size[0].trim() : "";
+  if(sizeLine && optTxt) sizeLine = sizeLine.replace(optTxt,"").trim(); // กันข้อความตัวเลือกซ้ำสองที่
+  sizeLine = sizeLine.replace(/\s+\d{1,3}$/,"").trim();                  // ตัดเลขจำนวนท้ายแถวตาราง
+  out.prod = [sizeLine, optTxt?("ตัวเลือก: "+optTxt):""].filter(Boolean).join(" · ");
+
+  // จำนวน: "จำนวนรวม" ท้ายตารางสินค้าเป็นหลัก (เลขอาจอยู่คนละบรรทัด/คนละช่องตาราง) → fallback รูปแบบอื่น
+  let qm = text.match(/จำนวนรวม\D{0,10}?(\d{1,4})/);
+  if(qm) out.qty = qm[1];
+  else{
+    qm = text.match(/จำนวน\s*[:：]?\s*(\d+)\s*(ชุด|ชิ้น|เซ็ต|SET|อัน|บาน|ใบ)?/i)
+      || text.match(/(\d+)\s*(ชุด|ชิ้น|เซ็ต|SET|อัน|บาน)/i);
+    if(qm) out.qty = qm[1] + (qm[2] ? " "+qm[2] : "");
+    else{
+      // "x2" — อย่าจับส่วนขนาด 140x100 (เลขนำหน้า x = ขนาด ไม่ใช่จำนวน)
+      qm = text.match(/(?<!\d)[xX×]\s*(\d{1,2})(?!\d)/);
+      if(qm) out.qty = qm[1];
+    }
+  }
+  return out;
+}
+
+/* เติมฟอร์มจากข้อความ (ไม่ทับค่าที่ผู้ใช้พิมพ์เอง) */
+function autoFill(text){
+  const o = parseLabel(text);
+  let got = 0;
+  const setIf = (id,v) => { if(v && !$(id).value){ $(id).value = v; got++; } };
+  setIf("fOrder", o.order); setIf("fTrack", o.track);
+  setIf("fName", o.name); setIf("fAddr", o.addr);
+  setIf("fProd", o.prod); setIf("fQty", o.qty);
+  if(o.plat) $("fPlat").value = o.plat;
+  if(o.cod === "cod"){ $("fCod").value = "cod"; got++; }
+  return got;
+}
+
+/* ---------- ส่งเข้า Discord ---------- */
+/* ส่ง 1 รายการ (ใช้ร่วมกันทั้งส่งเดี่ยวจากฟอร์ม และโหมดส่งทั้งชุด) + เก็บประวัติ */
+async function postRecord(data, blob){
+  const desc = [];
+  desc.push("**"+data.plat+"**");
+  if(data.prodNo) desc.push("🏭 **เลขที่การผลิต: " + data.prodNo + "**");
+  if(data.order) desc.push("**หมายเลขคำสั่งซื้อ**\n" + data.order);
+  if(data.track) desc.push("**เลขพัสดุ**\n" + data.track);
+  if(data.name || data.addr) desc.push("**ที่อยู่ในการจัดส่ง**\n" + [data.name, data.addr].filter(Boolean).join("\n"));
+  if(data.prod) desc.push("**สินค้า**\n" + data.prod + (data.qty? "\n**จำนวน:** "+data.qty : ""));
+  else if(data.qty) desc.push("**จำนวน:** " + data.qty);
+  if(data.note) desc.push("📝 " + data.note);
+
+  const embed = {
+    title: "📦 บันทึกส่งของ" + (data.order? " — "+data.order : data.name? " — "+data.name : ""),
+    color: data.cod==="cod" ? 14251782 : 2563306,  // ส้มถ้า COD, น้ำเงินปกติ
+    description: clip(desc.join("\n\n"), 3900),
+    fields: [
+      {name:"การเก็บเงิน", value: data.cod==="cod"?"💰 เก็บเงินปลายทาง":"ไม่ต้องเก็บเงิน", inline:true},
+      ...(data.date? [{name:"วันที่ส่งของ", value: thDate(data.date), inline:true}] : [])
+    ],
+    footer: {text: "บันทึกโดย " + (data.by||"ไม่ระบุชื่อ")},
+    timestamp: new Date().toISOString()
+  };
+  const fd = new FormData();
+  fd.append("payload_json", JSON.stringify({
+    username: data.by || undefined,   // ชื่อคนบันทึกขึ้นเป็นชื่อผู้โพสต์
+    embeds:[embed]
+  }));
+  fd.append("files[0]", blob, (data.order||data.track||"delivery") + ".jpg");
+
+  let okSend = false, errMsg = "";
+  try{
+    let r = await fetch(DB.webhook, {method:"POST", body:fd});
+    if(!r.ok && r.status===429){ // โดน rate limit — พัก 3 วิแล้วลองซ้ำหนึ่งครั้ง
+      await new Promise(rs=>setTimeout(rs,3000));
+      r = await fetch(DB.webhook, {method:"POST", body:fd});
+    }
+    if(r.ok) okSend = true;
+    else errMsg = "Discord ตอบกลับ " + r.status + (r.status===404?" — ลิงก์ Webhook อาจผิดหรือถูกลบ":"");
+  }catch(e){ errMsg = "ต่ออินเทอร์เน็ตไม่ได้ หรือลิงก์ผิดรูปแบบ"; }
+
+  // เก็บประวัติ (รูปย่อเล็กไว้ดู ไม่เก็บรูปเต็มกันเครื่องเต็ม)
+  const du = await new Promise(res=>{ const fr=new FileReader(); fr.onload=e=>res(e.target.result); fr.onerror=()=>res(""); fr.readAsDataURL(blob); });
+  DB.history.unshift({
+    id: Date.now()+Math.random(), plat:data.plat, order:data.order, track:data.track, name:data.name,
+    addr: clip(data.addr,300), prod: clip(data.prod,300), qty:data.qty, prodNo:data.prodNo||"",
+    cod:data.cod, date:data.date, by:data.by, note:data.note, status: okSend?"sent":"fail",
+    thumb: du? await thumb(du) : "", ts: new Date().toISOString()
+  });
+  if(DB.history.length>300) DB.history.length = 300;
+  save();
+  return {ok: okSend, errMsg};
+}
+
+async function sendDiscord(){
+  if(!curImage){ toast("ยังไม่ได้เลือกรูป"); return; }
+  if(!DB.webhook){ toast("ยังไม่ได้ตั้งค่า Webhook — ไปที่แท็บ ⚙️ ตั้งค่า ก่อน"); showTab("set"); return; }
+  const v = id => $(id).value.trim();
+  const data = {
+    plat: $("fPlat").value, cod: $("fCod").value,
+    order:v("fOrder"), track:v("fTrack"), name:v("fName"),
+    addr:v("fAddr"), prod:v("fProd"), qty:v("fQty"), prodNo:v("fProdNo"),
+    date:$("fDate").value, by:v("fBy"), note:v("fNote")
+  };
+  if(!data.order && !data.name){ toast("กรอกอย่างน้อย หมายเลขคำสั่งซื้อ หรือ ชื่อผู้รับ ก่อนส่ง"); return; }
+  if(data.by){ DB.sender = data.by; save(); }
+
+  const btn = $("sendBtn");
+  btn.disabled = true; btn.textContent = "⏳ กำลังส่ง...";
+  const res = await postRecord(data, curImage.blob);
+  btn.disabled = false; btn.textContent = "📨 ส่งเข้า Discord";
+  if(res.ok){
+    toast("✅ ส่งเข้า Discord เรียบร้อย");
+    resetPick();
+  }else{
+    $("sendHint").textContent = "❌ ส่งไม่สำเร็จ: " + res.errMsg + " — ข้อมูลถูกเก็บในประวัติแล้ว (สถานะไม่สำเร็จ) แก้แล้วกดส่งอีกครั้งได้";
+    toast("❌ ส่งไม่สำเร็จ — " + res.errMsg, 4000);
+  }
+}
+
+function thDate(iso){
+  const [y,m,d] = iso.split("-").map(Number);
+  const mo = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+  return `${d} ${mo[m-1]} ${y+543}`;
+}
+function clip(s,n){ s=String(s||""); return s.length>n ? s.slice(0,n-1)+"…" : s; }
+function thumb(dataUrl){
+  return new Promise(res=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const S=120, r=S/Math.max(img.width,img.height);
+      const cv=document.createElement("canvas");
+      cv.width=Math.max(1,Math.round(img.width*r)); cv.height=Math.max(1,Math.round(img.height*r));
+      cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);
+      res(cv.toDataURL("image/jpeg",.6));
+    };
+    img.onerror = ()=>res("");
+    img.src = dataUrl;
+  });
+}
+
+/* ---------- ประวัติ ---------- */
+function esc(s){ return String(s||"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function renderHist(){
+  const el = $("histList");
+  if(!DB.history.length){ el.innerHTML = '<div class="empty">ยังไม่มีประวัติการส่ง<br>ส่งใบจัดส่งแรกได้ที่แท็บ 📷</div>'; return; }
+  el.innerHTML = DB.history.map(h=>`
+    <div class="hist-item">
+      ${h.thumb?`<img src="${h.thumb}" alt="">`:""}
+      <div style="flex:1;min-width:0">
+        <div class="t">${h.prodNo?"🏭 "+esc(h.prodNo)+" · ":""}${esc(h.order)||esc(h.track)||"(ไม่มีเลขที่)"}
+          <span class="chip ${h.status==="sent"?"sent":"fail"}">${h.status==="sent"?"ส่งแล้ว":"ไม่สำเร็จ"}</span>
+          ${h.cod==="cod"?'<span class="chip cod">COD</span>':""}
+        </div>
+        <div class="s">${esc(h.plat)} · ${esc(h.name)||"-"} · ${h.date?thDate(h.date):"-"} · โดย ${esc(h.by)||"-"}${h.prod?"<br>🛒 "+esc(h.prod):""}${h.qty?" · ✕ "+esc(h.qty):""}${h.note?"<br>📝 "+esc(h.note):""}</div>
+      </div>
+    </div>`).join("");
+}
+function exportCSV(){
+  if(!DB.history.length){ toast("ยังไม่มีข้อมูลให้ออกรายงาน"); return; }
+  const head = ["แพลตฟอร์ม","เลขที่การผลิต","หมายเลขคำสั่งซื้อ","เลขพัสดุ","ชื่อผู้รับ","ที่อยู่จัดส่ง","สินค้า","จำนวน","เก็บเงินปลายทาง","วันที่ส่งของ","ผู้บันทึก","หมายเหตุ","สถานะ","เวลาบันทึก"];
+  const q = v => '"' + String(v==null?"":v).replace(/"/g,'""') + '"';
+  const rows = DB.history.map(h=>[h.plat,h.prodNo,h.order,h.track,h.name,h.addr,h.prod,h.qty,
+    h.cod==="cod"?"ใช่":"ไม่",h.date,h.by,h.note,h.status==="sent"?"ส่งแล้ว":"ไม่สำเร็จ",h.ts].map(q).join(","));
+  const csv = "﻿" + head.map(q).join(",") + "\n" + rows.join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+  a.download = "รายงานส่งของ_" + new Date().toISOString().slice(0,10) + ".csv";
+  a.click(); URL.revokeObjectURL(a.href);
+}
+function clearHist(){
+  if(!confirm("ลบประวัติทั้งหมดในเครื่องนี้? (ข้อมูลที่ส่งเข้า Discord แล้วจะยังอยู่ใน Discord)")) return;
+  DB.history = []; save(); renderHist(); toast("ลบประวัติแล้ว");
+}
+
+/* ---------- ตั้งค่า ---------- */
+function saveHook(){
+  const v = $("setHook").value.trim();
+  if(v && !/^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\/\d+\/\S+$/.test(v)){
+    toast("ลิงก์ไม่ใช่รูปแบบ Webhook ของ Discord — เช็คว่าก๊อปมาครบทั้งลิงก์"); return;
+  }
+  DB.webhook = v; save();
+  const ok = $("hookOk");
+  ok.textContent = v ? "✅ บันทึกแล้ว — กด \"ทดสอบส่ง\" เพื่อเช็คว่าเข้าห้องจริง" : "ลบลิงก์ออกแล้ว";
+  ok.style.display = "block";
+}
+async function testHook(){
+  const v = $("setHook").value.trim() || DB.webhook;
+  if(!v){ toast("วางลิงก์ Webhook ก่อน"); return; }
+  const ok = $("hookOk");
+  ok.style.display="block"; ok.textContent = "⏳ กำลังทดสอบ...";
+  try{
+    const r = await fetch(v, {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({content:"🧪 ทดสอบจากแอป \"อ่านใบจัดส่ง\" — ถ้าเห็นข้อความนี้แปลว่าเชื่อมสำเร็จ ✅"})});
+    if(r.ok){ ok.textContent = "✅ ส่งทดสอบสำเร็จ! ไปดูข้อความในห้อง Discord ได้เลย"; DB.webhook = v; save(); }
+    else ok.textContent = "❌ Discord ตอบกลับ " + r.status + " — เช็คว่าลิงก์ถูกและ Webhook ยังไม่ถูกลบ";
+  }catch(e){ ok.textContent = "❌ ต่อไม่ได้ — เช็คอินเทอร์เน็ตหรือลิงก์อีกครั้ง"; }
+}
+function saveName(){ DB.sender = $("setName").value.trim(); save(); toast("บันทึกชื่อแล้ว"); }
+</script>
+</body>
+</html>

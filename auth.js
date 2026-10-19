@@ -39,6 +39,7 @@ const PERMISSION_PAGE_CATALOG = [
     ['production.html', 'ฝ่ายผลิต', '🏭'],
     ['production_history.html', 'ประวัติการผลิต', '🕘'],
     ['material_prep.html', 'จัดเตรียมวัสดุ', '📋'],
+    ['shipping_labels.html', 'ลาเบลส่งของ', '🚚'],
     ['stock_management.html', 'จัดการสต็อก', '📦'],
     ['stock_count.html', 'ตรวจนับสต็อก', '📋'],
     ['backup_stock.html', 'สต็อกสำรอง', '🗄️'],
