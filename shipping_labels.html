@@ -303,6 +303,7 @@ function showTab(name){
 
 /* ---------- pick file (รูป หรือ PDF) ---------- */
 let pdfDirectText = null;  // ตัวอักษรจริงจาก PDF (แม่นกว่า OCR) — ถ้ามี จะใช้แทนการ OCR
+let pdfCodHint = "";       // ลาเบล TikTok: เก็บเงินปลายทางไหม ดูจากกล่อง COD สีดำบนลาเบล ("cod" / "no")
 function onPick(inp){
   const f = inp.files && inp.files[0];
   inp.value = "";
@@ -310,6 +311,7 @@ function onPick(inp){
   if(f.type === "application/pdf" || /\.pdf$/i.test(f.name)){ handlePDF(f); return; }
   if(!/^image\//.test(f.type)){ toast("รองรับเฉพาะรูปภาพหรือไฟล์ PDF"); return; }
   pdfDirectText = null;
+  pdfCodHint = "";
   const rd = new FileReader();
   rd.onload = e => useImage(e.target.result);
   rd.readAsDataURL(f);
@@ -400,9 +402,11 @@ async function pickFromPdf(p, part, el){
   try{
     // ดึงตัวอักษรจริงจาก PDF ก่อน — แม่น 100% ไม่ต้องพึ่ง OCR (ถ้าไฟล์เป็น PDF สแกนไม่มีตัวอักษร จะ fallback ไป OCR)
     pdfDirectText = null;
+    pdfCodHint = "";
     try{
       const txt = await extractPdfText(p, part);
       if(txt && txt.replace(/\s/g,"").length > 30) pdfDirectText = txt;
+      if(/tik\s*tok/i.test(txt||"")) pdfCodHint = await detectTikTokCod(p);
     }catch(e){}
     const cv = await renderPdfPage(p, 2000);  // คมชัดเฉพาะอันที่เลือก
     const c2 = part==="top" ? cropCanvas(cv,0,0,cv.width,Math.ceil(cv.height/2))
@@ -473,6 +477,7 @@ async function batchScan(){
           if(o.order || o.name) batchItems.push({page:p, part, checked:true, ...o});
         }
       }else if(of.order || of.name){
+        if(of.plat === "TIKTOK") of.cod = await detectTikTokCod(p);
         batchItems.push({page:p, part:"full", checked:true, ...of});
       }
     }
@@ -496,7 +501,7 @@ function renderBatch(){
       <span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
         <input type="text" placeholder="เลขผลิต" value="${esc(it.prodNo||"")}" oninput="batchItems[${i}].prodNo=this.value.trim();batchItems[${i}].prodSrc='manual';batchItems[${i}].prodWarn=''"
           style="width:104px;padding:7px 8px;font-size:13.5px;border:1.5px solid ${it.prodWarn?"#dc2626":it.prodSrc==="order"?"var(--warn)":"var(--line)"};border-radius:8px;font-family:'Kanit',sans-serif;font-weight:600">
-        <span style="font-size:11px;color:${it.prodWarn?"#dc2626":it.prodSrc==="order"?"var(--warn)":"var(--muted)"}">${it.prodWarn?esc(it.prodWarn):it.prodSrc==="track"?"✓ ตรงเลขพัสดุ":it.prodSrc==="size"?"✓ ตรงขนาดสินค้า":it.prodSrc==="order"?"⚠ เดาตามลำดับ":""}</span>
+        <span style="font-size:11px;color:${it.prodWarn?"#dc2626":it.prodSrc==="order"?"var(--warn)":"var(--muted)"}">${it.prodWarn?esc(it.prodWarn):it.prodSrc==="track"?"✓ ตรงเลขพัสดุ":it.prodSrc==="size"?"✓ ตรงขนาดสินค้า":it.prodSrc==="order1"?"✓ ตรงเลขออเดอร์":it.prodSrc==="order"?"⚠ เดาตามลำดับ":""}</span>
       </span>
     </div>`).join("");
   $("batchSendBtn").style.display = "inline-flex";
@@ -567,7 +572,7 @@ function prodNoSort(a,b){
 async function fetchErpRows(orders, tracks){
   const db = window.auth && window.auth.supabase;
   if(!db) throw new Error("no-db");
-  const cols = "id,order_number,tracking_number,production_number,tracking_status,product_name";
+  const cols = "id,order_number,tracking_number,production_number,tracking_status,product_name,quantity";
   const rows = [], seen = new Set();
   const pull = async (col, vals) => {
     for(let i=0;i<vals.length;i+=100){
@@ -613,9 +618,11 @@ function assignRows(items, rows){
       if(r){ res.set(it, {rows:[r], src:"size"}); free = free.filter(x=>x !== r); }
     }
     its = its.filter(it=>!res.has(it));
+    // ออเดอร์ที่มีลาเบลเดียว = ทุกชิ้นของออเดอร์อยู่กล่องนี้ ไม่ต้องเดา (TikTok ส่วนใหญ่ 1 ออเดอร์ 1 กล่อง)
+    const sure = its.length === 1;
     its.forEach((it, idx)=>{
       if(idx >= free.length) return;
-      res.set(it, {rows: (idx === its.length-1) ? free.slice(idx) : [free[idx]], src: "order"});
+      res.set(it, {rows: (idx === its.length-1) ? free.slice(idx) : [free[idx]], src: sure ? "order1" : "order"});
     });
   }
   return res;
@@ -693,7 +700,14 @@ async function erpMatch(){
     it.prodNo = [...new Set(a.rows.map(r=>r.production_number))].sort(prodNoSort).join(", ");
     it.prodSrc = a.src;
     it.prodWarn = "";
-    if(a.src === "track" || a.src === "size") nTrack++; else nOrder++;
+    // ลาเบลที่ไม่มีชื่อสินค้า (TikTok) — ใช้ชื่อสินค้า/จำนวนจาก ERP แทน
+    if(!it.prod){
+      it.prod = [...new Set(a.rows.map(r=>r.product_name).filter(Boolean))].join(" | ");
+      const q = a.rows.reduce((s,r)=>s+(Number(r.quantity)||0), 0);
+      if(!it.qty && q) it.qty = String(q);
+      it.prodFromErp = true;
+    }
+    if(a.src === "track" || a.src === "size" || a.src === "order1") nTrack++; else nOrder++;
   }
   nMiss = batchItems.filter(i=>!i.prodSrc).length;
   renderBatch();
@@ -701,7 +715,7 @@ async function erpMatch(){
     out.textContent = "⚠️ ไม่พบออเดอร์เหล่านี้ใน ERP — อาจยังไม่ได้อัปโหลดไฟล์ออเดอร์เข้า ERP หรือบัญชีนี้ไม่มีสิทธิ์อ่านออเดอร์ (ต้องมีสิทธิ์หน้าแดชบอร์ดออเดอร์/บันทึกออเดอร์/ฝ่ายผลิต อย่างน้อย 1 หน้า)";
     return;
   }
-  out.textContent = "✅ เลขผลิตจาก ERP: ตรงกล่อง (เลขพัสดุ/ขนาดสินค้า) "+nTrack+" ใบ"
+  out.textContent = "✅ เลขผลิตจาก ERP: ตรงกล่อง (เลขพัสดุ/ขนาดสินค้า/ออเดอร์กล่องเดียว) "+nTrack+" ใบ"
     + (nOrder? " · จากเลขออเดอร์ (เรียงลำดับ) "+nOrder+" ใบ — ตรวจสอบก่อนพิมพ์" : "")
     + (nMiss? " · ไม่พบ "+nMiss+" ใบ (ยังไม่ออกเลขผลิต — กรอกเองได้)" : "");
 }
@@ -714,6 +728,9 @@ async function erpLookupSingle(){
     const t = track ? rows.filter(r=>normKey(r.tracking_number)===normKey(track)) : [];
     const pick = t.length ? t : rows.filter(r=>normKey(r.order_number)===normKey(order));
     if(pick.length && !$("fProdNo").value) $("fProdNo").value = [...new Set(pick.map(r=>r.production_number))].sort(prodNoSort).join(", ");
+    // ลาเบลที่ไม่มีชื่อสินค้า (TikTok) — เติมจาก ERP
+    if(pick.length && !$("fProd").value) $("fProd").value = [...new Set(pick.map(r=>r.product_name).filter(Boolean))].join(" | ");
+    if(pick.length && !$("fQty").value){ const q = pick.reduce((s,r)=>s+(Number(r.quantity)||0), 0); if(q) $("fQty").value = String(q); }
   }catch(e){}
 }
 /* ใช้ตอนกดส่งโหมดทีละใบ: หาแถวของกล่องนี้ — ตรงเลขพัสดุเท่านั้น หรือออเดอร์ที่มีชิ้นเดียว
@@ -924,6 +941,7 @@ function cancelPdf(){
 function resetPick(){
   curImage = null;
   pdfDirectText = null;
+  pdfCodHint = "";
   if(curPdf){ try{ curPdf.destroy(); }catch(e){} curPdf = null; }
   $("pickCard").style.display="block";
   $("pdfCard").style.display="none";
@@ -1009,17 +1027,21 @@ function parseLabel(text){
 
   // หมายเลขคำสั่งซื้อ: "Shopee Order No. 260707338AUN38" หรือ "หมายเลขคำสั่งซื้อ 260922PCKBOUAR"
   let m = text.match(/Order\s*No\.?\s*[:：]?\s*([A-Z0-9]{8,20})/i)
-        || text.match(/(?:หมายเลข)?คำสั่งซื้อ\s*[:：]?\s*\n?\s*([A-Z0-9]{8,20})/i);
+        || text.match(/(?:หมายเลข)?คำสั่งซื้อ\s*[:：]?\s*\n?\s*([A-Z0-9]{8,20})/i)
+        || text.match(/Order\s*ID[\s\S]{0,80}?(\d{15,20})/i);   // TikTok: "Order ID" เลข 18 หลัก (อาจอยู่คนละบรรทัด)
   if(m) out.order = m[1].toUpperCase();
 
-  // เลขพัสดุ: TH + ตัวเลข/ตัวอักษร ~12 ตัว
-  m = text.match(/\bTH[0-9O]{2,5}[0-9A-Z]{6,12}\b/i);
+  // เลขพัสดุ: TH + ตัวเลข/ตัวอักษร ~12 ตัว · Flash ของ TikTok ขึ้นต้น THT เช่น THT65015GEA9T0Z
+  m = text.match(/\bTHT?[0-9O]{2,5}[0-9A-Z]{6,12}\b/i);
   if(m) out.track = m[0].toUpperCase();
 
   // แพลตฟอร์ม
   if(/shopee/i.test(text)) out.plat = "SHOPEE";
   else if(/lazada/i.test(text)) out.plat = "LAZADA";
   else if(/tik\s*tok/i.test(text)) out.plat = "TIKTOK";
+
+  // ลาเบล TikTok หน้าตาต่างจาก Shopee — แยกอ่านเอง (ไม่แตะวิธีอ่าน Shopee)
+  if(out.plat === "TIKTOK") return parseTikTokLabel(text, out);
 
   // เก็บเงินปลายทาง (ทนวรรณยุกต์หาย: "ไมตองเก็บเงิน")
   if(/เก็บเงินปลายทาง|COD/i.test(text) && !/ไม่?\s*ต้?อ?ง\s*เก็บเงิน/.test(text)) out.cod = "cod";
@@ -1078,6 +1100,60 @@ function parseLabel(text){
   return out;
 }
 
+/* ---------- ลาเบล TikTok Shop (ขนส่ง Flash) ----------
+   บนลาเบลมี: เลขพัสดุ THT..., Order ID (18 หลัก), "ถึง ชื่อผู้รับ (+66)..." + ที่อยู่, กล่อง COD
+   ไม่มีชื่อสินค้า/จำนวน → เติมจาก ERP ตอนจับคู่เลขผลิต
+   ตัวอักษรใน PDF บางบรรทัดวางทีละตัว ("น ค ร พ น ม") → ต่อกลับเป็นคำ
+   ข้อความ "COD" มีในไฟล์ทุกใบ → ตัดสินเก็บเงินปลายทางจากกล่องสีดำบนลาเบล (detectTikTokCod) */
+function isLetterSpaced(s){
+  const tokens = String(s||"").trim().split(/\s+/).filter(Boolean);
+  return tokens.length > 2 && tokens.filter(t=>t.length===1).length / tokens.length >= 0.5;
+}
+function despaceLine(s){
+  const tokens = String(s||"").trim().split(/\s+/).filter(Boolean);
+  if(!isLetterSpaced(s)) return tokens.join(" ");
+  return tokens.join("").replace(/,(?=\S)/g, ", ");
+}
+function parseTikTokLabel(text, out){
+  const trackRe = /\bTHT?[0-9O]{2,5}[0-9A-Z]{6,12}\b/gi;
+  const lines = text.split("\n").map(s=>s.replace(trackRe,"").trim()).filter(Boolean);
+  for(let i=0;i<lines.length;i++){
+    const mm = lines[i].match(/^ถึง\s+(.+)$/);
+    if(!mm) continue;
+    out.name = mm[1].replace(/\(\+?\d[\d*\s]*\)?[\d*]*/g,"").trim();
+    let addr = "", prevSpaced = false;
+    for(let j=i+1; j<lines.length && addr.length<220; j++){
+      if(/Signature|^COD|Order\s*ID|Shipping|Estimated|DROP|ผู้ซื้อไม่ต้อง|ชำระเงินกับ/i.test(lines[j])) break;
+      const spaced = isLetterSpaced(lines[j]);
+      // บรรทัดที่วางทีละตัวต่อกันโดยไม่เว้นวรรค — คำที่ถูกตัดขึ้นบรรทัดใหม่ ("เมืองก" + "ระบี่") จะต่อกลับถูก
+      addr += (addr && !(spaced && prevSpaced) ? " " : "") + despaceLine(lines[j]);
+      prevSpaced = spaced;
+      if(/\d{5}\s*$/.test(addr)) break;   // จบที่รหัสไปรษณีย์
+    }
+    out.addr = addr.replace(/,(?=\S)/g, ", ").replace(/\s+/g," ").trim();
+    break;
+  }
+  out.cod = "";   // ตัดสินจากกล่อง COD บนลาเบล (ดู detectTikTokCod)
+  return out;
+}
+async function detectTikTokCod(p){
+  try{
+    const page = await curPdf.getPage(p);
+    const vp1 = page.getViewport({scale:1});
+    const tc = await page.getTextContent();
+    const cod = tc.items.find(i => String(i.str).trim().toUpperCase() === "COD");
+    if(!cod) return "no";
+    const s = 2, vp = page.getViewport({scale:s});
+    const cv = document.createElement("canvas"); cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+    await page.render({canvasContext: cv.getContext("2d"), viewport: vp, intent: "print"}).promise;
+    const ctx = cv.getContext("2d");
+    const lum = (x, y) => { const d = ctx.getImageData(Math.round(x*s), Math.round((vp1.height-y)*s), 1, 1).data; return 0.3*d[0]+0.59*d[1]+0.11*d[2]; };
+    const y = cod.transform[5] + cod.height*0.4;
+    const dark = (lum(cod.transform[4]-3, y) + lum(cod.transform[4]+cod.width+3, y))/2 < 90;
+    return dark ? "cod" : "no";
+  }catch(e){ return ""; }
+}
+
 /* เติมฟอร์มจากข้อความ (ไม่ทับค่าที่ผู้ใช้พิมพ์เอง) */
 function autoFill(text){
   const o = parseLabel(text);
@@ -1088,6 +1164,7 @@ function autoFill(text){
   setIf("fProd", o.prod); setIf("fQty", o.qty);
   if(o.plat) $("fPlat").value = o.plat;
   if(o.cod === "cod"){ $("fCod").value = "cod"; got++; }
+  if(o.plat === "TIKTOK" && pdfCodHint) $("fCod").value = pdfCodHint;
   return got;
 }
 
