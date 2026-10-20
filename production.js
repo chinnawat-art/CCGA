@@ -984,6 +984,49 @@ async function rpcDeductSelectedComponentsForOrder(order, selectedComponents = [
     }
 }
 
+// ─── ย้อนกลับพิเศษ (คืนวัสดุ) สำหรับใบที่จ่ายวัสดุแล้ว ─────────────────
+// ใช้ตอนจ่ายวัสดุผิด เช่น ใช้ชุดสำรองไปแล้วแต่ยังกดจ่ายวัสดุซ้ำ
+// คืนวัสดุทั้งหมดตามยอดที่ตัดไปจริง แล้วใบกลับเป็น "รอผลิต" (เลขที่ผลิตเดิม)
+// งานจริงทำในฐานข้อมูล rpc_force_revert_dispatched_order (ตรวจสิทธิ์ซ้ำอีกชั้น)
+function canForceRevertDispatched() {
+    return window.auth?.role === 'Ceo' || window.auth?.hasPermission?.('action_force_revert_dispatched') === true;
+}
+
+async function forceRevertDispatched(order) {
+    const id = order.id;
+    const { data: logs, error } = await db
+        .from('stock_movement_log')
+        .select('item_name, old_qty, new_qty, dispatched, dispatched_by')
+        .like('reason', 'ตัดสต็อกอัตโนมัติ (เริ่มผลิต%')
+        .like('reason', `%ID ออเดอร์: ${id}%`)
+        .order('id');
+    if (error) { alert('❌ ดึงรายการวัสดุไม่สำเร็จ: ' + error.message); return; }
+    const items = (logs || []).map(l => `  • ${l.item_name || '-'}  ${Math.max(0, (l.old_qty || 0) - (l.new_qty || 0))} ชิ้น${l.dispatched ? '  (จ่ายแล้ว' + (l.dispatched_by ? ' โดย ' + l.dispatched_by : '') + ')' : ''}`);
+    const shown = items.slice(0, 15).join('\n') + (items.length > 15 ? `\n  • ... และอีก ${items.length - 15} รายการ` : '');
+
+    const ok = confirm(
+        `⚠️ ใบนี้จ่ายวัสดุไปแล้ว (#${order.order_number || id})\n\n` +
+        `ต้องการ "ย้อนกลับพิเศษ (คืนวัสดุ)" ไหม?\n` +
+        `ระบบจะคืนวัสดุ ${items.length} รายการนี้เข้าสต็อกทั้งหมด แล้วย้ายใบกลับเป็น "รอผลิต" (เลขที่ผลิตเดิม):\n\n` +
+        `${shown || '  (ไม่พบรายการวัสดุที่ตัดไว้)'}\n\n` +
+        `❗ ต้องนำวัสดุเหล่านี้กลับเข้าคลังจริงด้วย ไม่งั้นสต็อกในระบบจะเกินของจริง`
+    );
+    if (!ok) return;
+
+    const reason = (prompt('เหตุผลที่ย้อนกลับพิเศษ (จำเป็น) เช่น "ใช้ชุดสำรองแทน จ่ายวัสดุซ้ำ"') || '').trim();
+    if (reason.length < 3) { alert('❌ ต้องใส่เหตุผลอย่างน้อย 3 ตัวอักษร — ยังไม่ได้ย้อนกลับ'); return; }
+
+    const { data, error: rpcError } = await db.rpc('rpc_force_revert_dispatched_order', { p_order_id: id, p_reason: reason });
+    if (rpcError) {
+        log(`❌ ย้อนกลับพิเศษไม่สำเร็จ: ${rpcError.message}`, 'error');
+        alert('❌ ย้อนกลับพิเศษไม่สำเร็จ: ' + rpcError.message);
+        return;
+    }
+    log(`↩️ ย้อนกลับพิเศษ [${order.order_number || id}] คืนวัสดุ ${data?.returned ?? 0} รายการ — ${reason}`, 'success');
+    alert(`✅ ย้อนกลับพิเศษเรียบร้อย\nคืนวัสดุเข้าสต็อก ${data?.returned ?? 0} รายการ · ใบกลับเป็น "รอผลิต" แล้ว`);
+    await loadData();
+}
+
 async function rpcReturnComponentsForOrder(order) {
     try {
         const { data, error } = await db.rpc('rpc_return_components_for_order', { p_order_id: order.id });
@@ -1752,9 +1795,15 @@ async function updateStatus(id, newStatus, btnEl) {
                 console.error('Check dispatch error:', checkError);
             } else if (dispatchedLogs && dispatchedLogs.length > 0) {
                 log(`❌ ไม่สามารถย้อนกลับได้ เนื่องจากวัสดุถูกจ่ายให้ฝ่ายผลิตแล้ว`, 'error');
-                alert(`❌ ไม่สามารถย้อนกลับสถานะเป็น "รอผลิต" ได้\nเนื่องจากวัสดุสำหรับออเดอร์นี้ (#${order?.order_number || id}) ได้ถูกจ่ายให้ฝ่ายผลิตแล้ว`);
                 if (card) card.style.opacity = '1';
                 if (btnEl) btnEl.disabled = false;
+                pendingStatusUpdates.delete(id);
+                // ผู้มีสิทธิ์ "ย้อนกลับพิเศษ" เลือกคืนวัสดุแล้วย้อนได้ · คนอื่นเห็นข้อความเดิม
+                if (canForceRevertDispatched()) {
+                    await forceRevertDispatched(order || { id });
+                } else {
+                    alert(`❌ ไม่สามารถย้อนกลับสถานะเป็น "รอผลิต" ได้\nเนื่องจากวัสดุสำหรับออเดอร์นี้ (#${order?.order_number || id}) ได้ถูกจ่ายให้ฝ่ายผลิตแล้ว\n\nถ้าจ่ายผิด ให้ผู้มีสิทธิ์ "ย้อนกลับพิเศษ (คืนวัสดุ)" เป็นคนกดย้อนกลับ`);
+                }
                 return;
             }
         }
