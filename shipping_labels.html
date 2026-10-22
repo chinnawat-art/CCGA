@@ -87,11 +87,11 @@ textarea{resize:vertical}
 #printArea{display:none}
 @media print{
   #permission-page-navigation{display:none !important}
-  @page{margin:6mm}
+  /* สติ๊กเกอร์ 100x150 มม. (เจ้าของเลือก 22/10/2569) — 1 ลาเบลต่อ 1 แผ่น */
+  @page{size:100mm 150mm;margin:0}
   body > *:not(#printArea){display:none !important}
   #printArea{display:block !important}
-  /* ย่อให้พอดี 1 หน้าเสมอ — กันแถบเลขผลิตโดนตัดข้ามหน้า */
-  #printArea img{display:block;width:auto;height:auto;max-width:100%;max-height:96vh;margin:0 auto;
+  #printArea img{display:block;width:100mm;height:150mm;margin:0;
     page-break-after:always;break-after:page;page-break-inside:avoid;break-inside:avoid}
   #printArea img:last-child{page-break-after:auto;break-after:auto}
 }
@@ -880,7 +880,7 @@ async function printLabels(){
                : it.part==="bottom" ? cropCanvas(cv,0,Math.floor(cv.height/2),cv.width,Math.ceil(cv.height/2))
                : cv;
       const img = document.createElement("img");
-      img.src = stampCanvas(c2, it.prodNo, it.order).toDataURL("image/jpeg",.92);
+      img.src = composeLabel100x150(trimWhitespace(c2), it.prodNo, it.order).toDataURL("image/jpeg",.92);
       area.appendChild(img);
     }
     $("pdfHint").textContent = "พร้อมพิมพ์ "+sel.length+" ลาเบล — หน้าต่างพิมพ์กำลังเปิด";
@@ -889,6 +889,52 @@ async function printLabels(){
     $("pdfHint").textContent = "❌ เตรียมพิมพ์ไม่สำเร็จ ลองใหม่อีกครั้ง";
   }
   btn.disabled = false;
+}
+/* ตัดขอบขาวรอบลาเบลออก (ไฟล์ลาเบลเป็นหน้า A4 มีที่ว่างเยอะ) */
+function trimWhitespace(cv){
+  const w = cv.width, h = cv.height;
+  const d = cv.getContext("2d").getImageData(0,0,w,h).data;
+  let top = h, left = w, right = -1, bottom = -1;
+  for(let y=0; y<h; y+=2){
+    for(let x=0; x<w; x+=2){
+      const i = (y*w + x)*4;
+      if(d[i] < 235 || d[i+1] < 235 || d[i+2] < 235){
+        if(y < top) top = y; if(y > bottom) bottom = y;
+        if(x < left) left = x; if(x > right) right = x;
+      }
+    }
+  }
+  if(right < 0) return cv;   // หน้าว่างทั้งหน้า
+  const m = Math.round(w*0.01);
+  left = Math.max(0, left-m); top = Math.max(0, top-m);
+  right = Math.min(w-1, right+m); bottom = Math.min(h-1, bottom+m);
+  return cropCanvas(cv, left, top, right-left+1, bottom-top+1);
+}
+/* วางลาเบลลงสติ๊กเกอร์ 100x150 มม. (สัดส่วน 2:3) + แถบ "เลขที่การผลิต" ตัวใหญ่ติดใต้ลาเบล */
+function composeLabel100x150(cv, prodNo, order){
+  const W = 1200, H = 1800, pad = 14, strip = 230;
+  const out = document.createElement("canvas");
+  out.width = W; out.height = H;
+  const ctx = out.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0,0,W,H);
+  const areaW = W - pad*2, areaH = H - strip - pad*3;
+  const sc = Math.min(areaW/cv.width, areaH/cv.height);
+  const dw = Math.round(cv.width*sc), dh = Math.round(cv.height*sc);
+  ctx.drawImage(cv, Math.round((W-dw)/2), pad, dw, dh);
+  // แถบเลขผลิต: วางชิดใต้ลาเบล (ไม่ไปอยู่ท้ายแผ่น)
+  const sy = pad + dh + pad;
+  ctx.strokeStyle = "#000"; ctx.lineWidth = 6;
+  ctx.strokeRect(pad, sy, W - pad*2, strip);
+  ctx.fillStyle = "#000"; ctx.textBaseline = "middle";
+  const text = "เลขที่การผลิต: " + (prodNo || "____________");
+  let fs = 92;
+  do{ ctx.font = "bold "+fs+"px 'Kanit',sans-serif"; fs -= 4; }while(ctx.measureText(text).width > W - pad*2 - 40 && fs > 30);
+  ctx.fillText(text, pad + 22, sy + strip*0.40);
+  if(order){
+    ctx.font = "36px 'Kanit',sans-serif";
+    ctx.fillText("ออเดอร์ " + order, pad + 24, sy + strip*0.80);
+  }
+  return out;
 }
 function stampCanvas(cv, prodNo, order){
   const strip = Math.max(70, Math.round(cv.width*0.085));
