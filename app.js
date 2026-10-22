@@ -323,6 +323,17 @@ function restoreLongNumbers(data, sheetName, worksheet) {
     return result;
 }
 
+// บรรทัดคำอธิบายคอลัมน์ = ช่องส่วนใหญ่เป็นประโยคภาษาอังกฤษหลายคำ เช่น "Current order status."
+// แถวออเดอร์จริงมีแต่เลข รหัส ชื่อสินค้า/ที่อยู่ภาษาไทย — ไม่เข้าเงื่อนไขนี้
+function isColumnDescriptionRow(row) {
+    const vals = Object.values(row || {})
+        .map(v => (v === null || v === undefined) ? '' : String(v).trim())
+        .filter(Boolean);
+    if (vals.length < 5) return false;
+    const sentences = vals.filter(v => /^[A-Za-z]/.test(v) && !/[ก-๙]/.test(v) && v.split(/\s+/).length >= 3);
+    return sentences.length >= 5 && sentences.length / vals.length >= 0.5;
+}
+
 async function findExistingDuplicates(rows) {
     if (!rows || !rows.length) return [];
     const wanted = new Map();          // 'เลขออเดอร์|รหัสสินค้า' -> แถวในไฟล์
@@ -1252,6 +1263,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const vals = Object.values(row);
             return vals.length > 0 && vals.some(v => v !== "" && v !== null && v !== undefined);
         });
+
+        // ไฟล์ TikTok มีบรรทัดที่ 2 เป็น "คำอธิบายคอลัมน์" (เช่น "Platform unique order ID.")
+        // ไม่ใช่ออเดอร์ — ตัดทิ้งก่อน ไม่งั้นกลายเป็นออเดอร์ปลอม (พบ 22/10/2569)
+        const descriptionRows = cleanData.filter(isColumnDescriptionRow);
+        if (descriptionRows.length) {
+            cleanData = cleanData.filter(row => !descriptionRows.includes(row));
+            log(`ข้ามบรรทัดคำอธิบายคอลัมน์ ${descriptionRows.length} บรรทัด (ไม่ใช่ออเดอร์)`, 'warn');
+        }
         
         if (cleanData.length === 0) {
             log("ไม่พบแถวข้อมูลที่ใช้งานได้ในไฟล์นี้", "error");
