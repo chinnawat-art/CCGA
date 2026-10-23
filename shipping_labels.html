@@ -236,14 +236,6 @@ textarea{resize:vertical}
     <div class="ok-note" id="hookOk"></div>
   </div>
   <div class="card">
-    <h2>อัปเดตสถานะออเดอร์ใน ERP</h2>
-    <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-size:14.5px;color:var(--ink)">
-      <input type="checkbox" id="setAutoShip" onchange="saveAutoShip()" style="margin-top:3px;width:20px;height:20px;accent-color:var(--accent)">
-      <span>หลังกด "ส่งเข้า Discord ทั้งหมด" สำเร็จ ให้เปลี่ยนสถานะเป็น <b>"กำลังจัดส่ง"</b> อัตโนมัติ</span>
-    </label>
-    <div class="hint">เปลี่ยนเฉพาะชิ้นที่ผ่าน QC แล้ว (ตรวจเสร็จรอจัดส่ง) และเฉพาะชิ้นในกล่องนั้นตามเลขพัสดุ · ชิ้นที่ยังไม่ผ่าน QC จะไม่ถูกแตะ · บันทึกประวัติว่าใครส่งไว้ในประวัติการผลิต · บัญชีต้องมีสิทธิ์หน้าบันทึกออเดอร์/แดชบอร์ด/ฝ่ายผลิต</div>
-  </div>
-  <div class="card">
     <h2>ชื่อผู้บันทึกประจำเครื่องนี้</h2>
     <label>ชื่อที่จะขึ้นเป็นคนส่งข้อความใน Discord</label>
     <input type="text" id="setName" placeholder="เช่น มายด์ สิรินทร์" onchange="saveName()">
@@ -298,7 +290,7 @@ function showTab(name){
   $("page"+k).style.display = "block";
   $("tab"+k).classList.add("active");
   if(k==="Hist") renderHist();
-  if(k==="Set"){ $("setHook").value = DB.webhook||""; $("setName").value = DB.sender||""; $("setAutoShip").checked = autoShipOn(); }
+  if(k==="Set"){ $("setHook").value = DB.webhook||""; $("setName").value = DB.sender||""; }
 }
 
 /* ---------- pick file (รูป หรือ PDF) ---------- */
@@ -497,7 +489,7 @@ function renderBatch(){
       <input type="checkbox" ${it.checked?"checked":""} onchange="batchItems[${i}].checked=this.checked;updateBatchCount()" style="margin-top:3px;width:18px;height:18px;accent-color:var(--accent)">
       <span style="flex:1;min-width:0"><b>${esc(it.order)||"(ไม่มีเลขออเดอร์)"}</b>
         ${it.cod==="cod"?'<span class="chip cod">COD</span>':""} <span id="bst${i}" style="font-weight:600"></span><br>
-        <span style="color:var(--muted)">${esc(it.name)||"-"}${it.qty?" · จำนวน "+esc(it.qty):""} · หน้า ${it.page}${it.part==="top"?" บน":it.part==="bottom"?" ล่าง":""}</span>${erpStatusLine(it)}</span>
+        <span style="color:var(--muted)">${esc(it.name)||"-"}${it.qty?" · จำนวน "+esc(it.qty):""} · หน้า ${it.page}${it.part==="top"?" บน":it.part==="bottom"?" ล่าง":""}</span></span>
       <span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
         <input type="text" placeholder="เลขผลิต" value="${esc(it.prodNo||"")}" oninput="batchItems[${i}].prodNo=this.value.trim();batchItems[${i}].prodSrc='manual';batchItems[${i}].prodWarn=''"
           style="width:104px;padding:7px 8px;font-size:13.5px;border:1.5px solid ${it.prodWarn?"#dc2626":it.prodSrc==="order"?"var(--warn)":"var(--line)"};border-radius:8px;font-family:'Kanit',sans-serif;font-weight:600">
@@ -522,7 +514,7 @@ async function batchSendAll(){
   if(!(await guardProdNos(sel.map(x=>x.it)))) return;
   $("batchSendBtn").disabled = true; $("batchBtn").disabled = true;
   const today = new Date().toISOString().slice(0,10);
-  let ok=0, fail=0, shipped=0, notReady=0, shipErr="";
+  let ok=0, fail=0;
   for(let k=0; k<sel.length; k++){
     const {it, i} = sel[k];
     $("pdfHint").textContent = "📨 กำลังส่ง "+(k+1)+"/"+sel.length+" — "+(it.order||it.name);
@@ -539,25 +531,14 @@ async function batchSendAll(){
         name: it.name, addr: it.addr, prod: it.prod, qty: it.qty, prodNo: it.prodNo||"",
         date: today, by: DB.sender||"", note: ""
       }, blob);
-      if(res.ok){
-        ok++; it.status="sent"; $("bst"+i).textContent = "✅";
-        if(autoShipOn() && it.erpRows && it.erpRows.length){
-          const sr = await markShipped(it.erpRows, it.track);
-          shipped += sr.updated; if(sr.notReady.length) notReady++; if(sr.denied || sr.error) shipErr = shipText(sr);
-          it.shipNote = shipText(sr);
-          if(DB.history[0]) { DB.history[0].erp = it.shipNote; save(); }
-        }
-      }
+      if(res.ok){ ok++; it.status="sent"; $("bst"+i).textContent = "✅"; }
       else{ fail++; it.status="fail"; $("bst"+i).textContent = "❌"; }
     }catch(e){ fail++; it.status="fail"; $("bst"+i).textContent = "❌"; }
     if(k < sel.length-1) await new Promise(r=>setTimeout(r,1500)); // เว้นจังหวะ กัน Discord จำกัดความถี่
   }
   $("batchSendBtn").disabled = false; $("batchBtn").disabled = false;
-  renderBatch();
-  sel.forEach(({it, i})=>{ $("bst"+i).textContent = it.status==="sent" ? "✅" : "❌"; });
-  $("pdfHint").textContent = "เสร็จแล้ว — ส่งสำเร็จ "+ok+" รายการ" + (fail? " · ไม่สำเร็จ "+fail+" รายการ (กดส่งทั้งหมดซ้ำได้ จะส่งเฉพาะที่ค้าง)" : "")
-    + (autoShipOn() ? " · ERP เปลี่ยนเป็นกำลังจัดส่ง "+shipped+" ชิ้น" + (notReady? " · "+notReady+" ลาเบลมีชิ้นที่ยังไม่ผ่าน QC (ไม่ได้อัปเดต)" : "") : "")
-    + (shipErr ? " · "+shipErr : "");
+  updateBatchCount();
+  $("pdfHint").textContent = "เสร็จแล้ว — ส่งสำเร็จ "+ok+" รายการ" + (fail? " · ไม่สำเร็จ "+fail+" รายการ (กดส่งทั้งหมดซ้ำได้ จะส่งเฉพาะที่ค้าง)" : "");
   toast(fail? "ส่งสำเร็จ "+ok+" / ไม่สำเร็จ "+fail : "✅ ส่งครบ "+ok+" รายการเข้า Discord แล้ว", 4000);
 }
 
@@ -678,7 +659,6 @@ async function guardProdNos(items){
     + "\n\nแก้เลขผลิตในช่องให้ถูก แล้วกดใหม่อีกครั้ง (ยังไม่มีอะไรถูกส่งหรือพิมพ์)");
   return false;
 }
-const SHIPPED_STATUSES = ["กำลังจัดส่ง","ระหว่างการขนส่ง","จัดส่งสำเร็จ"];
 async function erpMatch(){
   if(!batchItems.length) return;
   const out = $("erpResult");
@@ -733,75 +713,6 @@ async function erpLookupSingle(){
     if(pick.length && !$("fQty").value){ const q = pick.reduce((s,r)=>s+(Number(r.quantity)||0), 0); if(q) $("fQty").value = String(q); }
   }catch(e){}
 }
-/* ใช้ตอนกดส่งโหมดทีละใบ: หาแถวของกล่องนี้ — ตรงเลขพัสดุเท่านั้น หรือออเดอร์ที่มีชิ้นเดียว
-   (ออเดอร์หลายชิ้นที่ไม่รู้ว่ากล่องไหน จะไม่แตะสถานะ กันกล่องอื่นกลายเป็นส่งแล้วไปด้วย) */
-async function rowsForSingle(order, track){
-  const rows = await fetchErpRows(order?[order]:[], track?[track]:[]);
-  const t = track ? rows.filter(r=>normKey(r.tracking_number)===normKey(track)) : [];
-  if(t.length) return t;
-  const o = rows.filter(r=>normKey(r.order_number)===normKey(order));
-  return o.length === 1 ? o : [];
-}
-
-/* ---------- อัปเดตสถานะใน ERP เป็น "กำลังจัดส่ง" หลังส่งของ ----------
-   แก้เฉพาะแถวที่ผ่าน QC แล้ว ("ตรวจเสร็จรอจัดส่ง") — เงื่อนไขอยู่ในคำสั่ง update เอง
-   ถ้ามีคนเปลี่ยนสถานะไปก่อน แถวนั้นจะไม่ถูกแก้ · บันทึกประวัติลง production_logs */
-const READY_STATUS = "ตรวจเสร็จรอจัดส่ง", SHIP_STATUS = "กำลังจัดส่ง";
-function autoShipOn(){ return DB.autoShip !== false; }
-async function markShipped(rows, track){
-  const r = {updated:0, already:0, notReady:[], denied:false, error:""};
-  if(!rows || !rows.length) return r;
-  const db = window.auth && window.auth.supabase;
-  if(!db){ r.error = "no-db"; return r; }
-  const ready = rows.filter(x=>x.tracking_status === READY_STATUS);
-  r.already = rows.filter(x=>SHIPPED_STATUSES.includes(x.tracking_status)).length;
-  r.notReady = rows.filter(x=>x.tracking_status !== READY_STATUS && !SHIPPED_STATUSES.includes(x.tracking_status))
-                   .map(x=>x.production_number+" ("+x.tracking_status+")");
-  if(!ready.length) return r;
-  const { data, error } = await db.from("stock_orders")
-    .update({ tracking_status: SHIP_STATUS })
-    .in("id", ready.map(x=>x.id))
-    .eq("tracking_status", READY_STATUS)
-    .select("id,order_number,production_number");
-  if(error){ r.error = error.message || String(error); return r; }
-  const done = data || [];
-  r.updated = done.length;
-  if(!done.length){ r.denied = true; return r; }  // RLS กรองทิ้งเงียบ ๆ = บัญชีไม่มีสิทธิ์แก้ออเดอร์
-  done.forEach(d=>{ const x = rows.find(y=>y.id===d.id); if(x) x.tracking_status = SHIP_STATUS; });
-  try{
-    const { data: { user } } = await db.auth.getUser();
-    const email = (user && user.email) || DB.sender || "-";
-    await db.from("production_logs").insert(done.map(d=>({
-      order_id: d.id, order_number: d.order_number || "-",
-      action: "🚚 ส่งของออก (กำลังจัดส่ง) จากหน้าลาเบลส่งของ โดย " + email,
-      performed_by: user ? user.id : null, user_id: user ? user.id : null,
-      meta: { shipping: "sent", tracking: track || null, production_number: d.production_number, by: email }
-    })));
-  }catch(e){}  // บันทึกประวัติไม่สำเร็จไม่ถือว่าส่งล้มเหลว — สถานะอัปเดตไปแล้ว
-  return r;
-}
-/* บรรทัดสถานะ ERP ใต้แต่ละลาเบล — เตือนถ้ายังไม่ผ่าน QC (จะไม่ถูกเปลี่ยนเป็นกำลังจัดส่ง) */
-function erpStatusLine(it){
-  if(it.shipNote) return `<br><span style="font-size:12px;color:var(--muted)">${esc(it.shipNote)}</span>`;
-  const rs = it.erpRows || [];
-  if(!rs.length) return "";
-  const st = [...new Set(rs.map(r=>r.tracking_status||"-"))];
-  const allReady = rs.every(r=>r.tracking_status === READY_STATUS);
-  const allShipped = rs.every(r=>SHIPPED_STATUSES.includes(r.tracking_status));
-  const color = allReady ? "var(--ok)" : allShipped ? "var(--muted)" : "var(--warn)";
-  const tag = allReady ? "✓ " : allShipped ? "" : "⚠ ยังไม่ผ่าน QC · ";
-  return `<br><span style="font-size:12px;color:${color}">${tag}ERP: ${esc(st.join(", "))}</span>`;
-}
-function shipText(r){
-  if(r.error) return "⚠️ ERP: อัปเดตสถานะไม่สำเร็จ ("+r.error+")";
-  if(r.denied) return "⚠️ ERP: บัญชีนี้ไม่มีสิทธิ์แก้สถานะออเดอร์";
-  const parts = [];
-  if(r.updated) parts.push("ERP → กำลังจัดส่ง "+r.updated+" ชิ้น");
-  if(r.already) parts.push("ส่งไปแล้วก่อนหน้า "+r.already+" ชิ้น");
-  if(r.notReady.length) parts.push("ไม่อัปเดต (ยังไม่ผ่าน QC): "+r.notReady.join(", "));
-  return parts.join(" · ");
-}
-
 /* ---------- จับคู่เลขผลิตแบบวางข้อความ (ทางสำรอง) ---------- */
 function toggleMatch(){
   const b = $("matchBox");
