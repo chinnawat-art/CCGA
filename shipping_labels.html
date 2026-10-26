@@ -791,7 +791,9 @@ async function printLabels(){
                : it.part==="bottom" ? cropCanvas(cv,0,Math.floor(cv.height/2),cv.width,Math.ceil(cv.height/2))
                : cv;
       const img = document.createElement("img");
-      img.src = composeLabel100x150(trimWhitespace(c2), it.prodNo, it.order).toDataURL("image/jpeg",.92);
+      // Lazada: พิมพ์เฉพาะส่วนคนขับ ตัวหนังสือใหญ่ขึ้น ~1.6 เท่า (เจ้าของเลือก 26/10/2569)
+      const base = it.plat === "LAZADA" ? cropLazadaDriverCopy(c2) : c2;
+      img.src = composeLabel100x150(trimWhitespace(base), it.prodNo, it.order).toDataURL("image/jpeg",.92);
       area.appendChild(img);
     }
     $("pdfHint").textContent = "พร้อมพิมพ์ "+sel.length+" ลาเบล — หน้าต่างพิมพ์กำลังเปิด";
@@ -800,6 +802,28 @@ async function printLabels(){
     $("pdfHint").textContent = "❌ เตรียมพิมพ์ไม่สำเร็จ ลองใหม่อีกครั้ง";
   }
   btn.disabled = false;
+}
+/* ลาเบล Lazada = ส่วนคนขับ (ซีกซ้ายบน แคบ) + ส่วนลูกค้า (ตารางสินค้า กว้างเต็มหน้า)
+   ตัดเอาเฉพาะส่วนคนขับ: ไล่จากบนลงล่าง เจอแถวที่ตัวอักษร/เส้นกินเกิน 62% ของหน้าต่อเนื่อง
+   = ถึงเส้นตัด (กรรไกร) / ส่วนลูกค้าแล้ว → ตัดเหนือจุดนั้น · หาไม่เจอ = ใช้ทั้งหน้าเหมือนเดิม */
+function cropLazadaDriverCopy(cv){
+  const w = cv.width, h = cv.height;
+  const d = cv.getContext("2d").getImageData(0,0,w,h).data;
+  const right = new Array(h).fill(-1);   // ตำแหน่งจุดดำขวาสุดของแต่ละแถว
+  for(let y=0; y<h; y++){
+    for(let x=w-1; x>=0; x-=2){
+      const i = (y*w + x)*4;
+      if(d[i] < 150 && d[i+1] < 150 && d[i+2] < 150){ right[y] = x; break; }
+    }
+  }
+  const first = right.findIndex(r => r >= 0);
+  for(let y=Math.max(first, Math.round(h*0.1)); y<h-40; y++){
+    if(right[y] <= w*0.62) continue;
+    let wide = 0;
+    for(let k=y; k<y+40; k++) if(right[k] > w*0.62) wide++;
+    if(wide >= 3) return y > h*0.2 ? cropCanvas(cv, 0, 0, w, y-6) : cv;
+  }
+  return cv;
 }
 /* ตัดขอบขาวรอบลาเบลออก (ไฟล์ลาเบลเป็นหน้า A4 มีที่ว่างเยอะ) */
 function trimWhitespace(cv){
