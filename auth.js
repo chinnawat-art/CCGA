@@ -175,6 +175,8 @@ function initUI(user, role, pagePermissions = []) {
     console.log(`UI Initialized for ${user.email} as ${role}`);
 }
 
+const GLASS_ORDER_URL = 'https://glass-order.pages.dev/glass/app.html';
+
 function initPermissionNavigation(role, pagePermissions = []) {
     document.getElementById('permission-page-navigation')?.remove();
 
@@ -186,7 +188,11 @@ function initPermissionNavigation(role, pagePermissions = []) {
     const allowedPages = PERMISSION_PAGE_CATALOG.filter(([pageKey]) =>
         role === 'Ceo' || grantedPages.has(pageKey)
     );
-    if (!allowedPages.length) return;
+    // ลิงก์ไปแอป Glass Order (แยกแอป เชื่อมยอดกระจกกับ ERP — 26/10/2569)
+    // เห็นเฉพาะคนที่ดูสต็อกได้ หรือมีสิทธิ์รับกระจก
+    const showGlassOrder = role === 'Ceo' || grantedPages.has('stock_management.html')
+        || pagePermissions.some(item => item.page_key === 'action_receive_glass' && item.can_access === true);
+    if (!allowedPages.length && !showGlassOrder) return;
 
     if (!document.getElementById('permission-navigation-styles')) {
         const style = document.createElement('style');
@@ -216,7 +222,7 @@ function initPermissionNavigation(role, pagePermissions = []) {
     toggle.type = 'button';
     toggle.className = 'permission-nav-toggle';
     toggle.setAttribute('aria-expanded', 'false');
-    toggle.innerHTML = `<span>☰ หน้าที่เข้าถึง</span><span class="permission-nav-count">${allowedPages.length}</span>`;
+    toggle.innerHTML = `<span>☰ หน้าที่เข้าถึง</span><span class="permission-nav-count">${allowedPages.length + (showGlassOrder ? 1 : 0)}</span>`;
 
     const panel = document.createElement('div');
     panel.className = 'permission-nav-panel';
@@ -239,6 +245,22 @@ function initPermissionNavigation(role, pagePermissions = []) {
         link.append(iconElement, labelElement);
         panel.appendChild(link);
     });
+
+    if (showGlassOrder) {
+        const link = document.createElement('a');
+        link.href = GLASS_ORDER_URL;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.className = 'permission-nav-link';
+        link.title = 'แอปสั่งกระจกตามแพทเทิร์น (เปิดแท็บใหม่ · ล็อกอินแยก)';
+        const iconElement = document.createElement('span');
+        iconElement.className = 'permission-nav-icon';
+        iconElement.textContent = '🪟';
+        const labelElement = document.createElement('span');
+        labelElement.textContent = 'สั่งกระจก (Glass Order) ↗';
+        link.append(iconElement, labelElement);
+        panel.appendChild(link);
+    }
 
     const closePanel = () => {
         panel.hidden = true;
