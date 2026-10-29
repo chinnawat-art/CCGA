@@ -1012,6 +1012,7 @@
             line-height: 1.6;
         }
         .location-route b { display: inline-block; padding: 0 6px; margin: 1px 2px; border-radius: 5px; background: #0f766e; color: #fff; }
+        .location-route .route-rack { white-space: nowrap; }
         .dark-theme .location-route { color: #5eead4; }
 
         .material-qty {
@@ -1798,7 +1799,7 @@
         let orderQuantitiesMap = {}; // mapping of orderId -> quantity
         let materialCodesMap = {}; // mapping of stock_items.id -> product_code
         let materialCategoryMap = {}; // mapping of stock_items.id -> category
-        let materialLocationMap = {}; // mapping of stock_items.id -> storage_location (ช่องเก็บ เช่น A-03)
+        let materialLocationMap = {}; // mapping of stock_items.id -> storage_location (ช่องเก็บ เช่น A01 = ชั้น A ช่องย่อย 01)
         let orderIsTestMap = {}; // mapping of orderId -> is_test (ใบทดลอง)
         let orderNotesMap = {}; // mapping of orderId -> note (หมายเหตุลูกค้า)
         let realtimeChannel = null;
@@ -2420,22 +2421,42 @@
         }
 
         // รายชื่อช่องที่ต้องไปหยิบของออเดอร์นี้ (ไม่ซ้ำ) + จำนวนรายการที่ยังไม่ระบุช่อง
+        // ช่องเก็บ 1 วัสดุอาจมีหลายช่อง คั่นด้วย , เช่น "A01, A02"
+        function splitLocations(loc) {
+            return String(loc || '').split(',').map(s => s.trim()).filter(Boolean);
+        }
+
+        // ชั้นใหญ่ = ตัวอักษรนำหน้า (A01 → ชั้น A) · ชื่อที่ไม่ใช่รูปแบบนี้ใช้ทั้งชื่อเป็นชั้น
+        function rackOf(code) {
+            const m = String(code).match(/^[A-Z]+(?=\d)/);
+            return m ? m[0] : code;
+        }
+
+        // ช่องที่ต้องไปหยิบของออเดอร์นี้ จัดกลุ่มตามชั้นใหญ่ เรียงตามชั้นแล้วตามช่อง = ลำดับเดินในคลัง (ไม่สนหมวด)
         function getPickRoute(group) {
-            const seen = new Set(), route = [];
+            const seen = new Set(), codes = [];
             let missing = 0;
-            sortItemsForPicking(group.items).forEach(({ loc }) => {
-                if (!loc) { missing++; return; }
-                if (!seen.has(loc)) { seen.add(loc); route.push(loc); }
+            group.items.forEach(log => {
+                const locs = splitLocations(materialLocationMap[log.item_id]);
+                if (locs.length === 0) { missing++; return; }
+                locs.forEach(code => { if (!seen.has(code)) { seen.add(code); codes.push(code); } });
             });
-            // เรียงตามช่องจริง (ไม่สนหมวด) = ลำดับเดินในคลัง
-            route.sort((x, y) => x.localeCompare(y, 'th', { numeric: true, sensitivity: 'base' }));
-            return { route, missing };
+            codes.sort((x, y) => x.localeCompare(y, 'th', { numeric: true, sensitivity: 'base' }));
+            const racks = [];
+            codes.forEach(code => {
+                const rack = rackOf(code);
+                const last = racks[racks.length - 1];
+                if (last && last.rack === rack) last.codes.push(code);
+                else racks.push({ rack, codes: [code] });
+            });
+            return { racks, slotCount: codes.length, missing };
         }
 
         function renderPickRoute(group) {
-            const { route, missing } = getPickRoute(group);
-            if (route.length === 0) return '';
-            return `<div class="location-route">📍 ช่องที่ต้องไปหยิบ (${route.length} ช่อง): ${route.map(l => `<b>${escHtml(l)}</b>`).join('→')}${missing ? ` <span style="font-weight:600;opacity:.8">· อีก ${missing} รายการยังไม่ระบุช่อง</span>` : ''}</div>`;
+            const { racks, slotCount, missing } = getPickRoute(group);
+            if (slotCount === 0) return '';
+            const parts = racks.map(r => `<span class="route-rack"><b>ชั้น ${escHtml(r.rack)}</b> ${r.codes.map(escHtml).join(', ')}</span>`);
+            return `<div class="location-route">📍 ต้องไปหยิบ ${racks.length} ชั้น ${slotCount} ช่อง: ${parts.join(' → ')}${missing ? ` <span style="font-weight:600;opacity:.8">· อีก ${missing} รายการยังไม่ระบุช่อง</span>` : ''}</div>`;
         }
 
         function pickStoreKey(groupKey) { return 'matprep_pick_' + groupKey; }
@@ -2516,7 +2537,7 @@
                         <td>รหัสสินค้า</td><td><strong>${escHtml(group.orderSku || '-')}</strong></td></tr>
                     <tr><td>สินค้า</td><td colspan="3">${escHtml(group.productName || '-')}</td></tr>
                     ${group.note ? `<tr><td>📢 หมายเหตุ</td><td colspan="3" style="font-weight:800; font-size:13pt; border:2px solid #000;">${escHtml(group.note)}</td></tr>` : ''}
-                    ${(r => r.route.length ? `<tr><td>📍 ช่องที่ต้องไป</td><td colspan="3" style="font-weight:800; font-size:12pt;">${r.route.map(escHtml).join(' → ')}${r.missing ? ` (อีก ${r.missing} รายการยังไม่ระบุช่อง)` : ''}</td></tr>` : '')(getPickRoute(group))}
+                    ${(r => r.slotCount ? `<tr><td>📍 ช่องที่ต้องไป</td><td colspan="3" style="font-weight:800; font-size:12pt;">${r.racks.map(k => `ชั้น ${escHtml(k.rack)}: ${k.codes.map(escHtml).join(', ')}`).join(' → ')}${r.missing ? ` (อีก ${r.missing} รายการยังไม่ระบุช่อง)` : ''}</td></tr>` : '')(getPickRoute(group))}
                     <tr><td>จำนวนออเดอร์</td><td>${qtyText} ชิ้น</td>
                         <td>รายการวัสดุ</td><td>${group.items.length} รายการ</td></tr>
                 </table>

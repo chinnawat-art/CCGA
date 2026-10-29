@@ -279,7 +279,7 @@ function buildRow(stock) {
                 <span class="location-symbol">📍</span>
                 <input type="text" maxlength="60" value="${escAttr(stock.storage_location || '')}"
                     data-original-value="${escAttr(stock.storage_location || '')}"
-                    placeholder="เช่น A-03"
+                    placeholder="เช่น A01"
                     aria-label="ช่องเก็บของ ${escAttr(stock.product_name)}"
                     oninput="markLocationDirty(this)"
                     onkeydown="handleLocationKeyDown(event, '${stock.id}', this)">
@@ -469,9 +469,22 @@ function escAttr(value) {
     return String(value ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// ตัดช่องว่างหัวท้าย · ช่องว่างซ้อนเหลืออันเดียว · ตัวอักษรอังกฤษเป็นตัวใหญ่ (a-03 → A-03)
+// รูปแบบช่องเก็บ = ชั้นใหญ่ (ตัวอักษร) + ชั้นย่อย (เลข 2 หลัก) เช่น A01 = ชั้น A ชั้นย่อย 01
+// พิมพ์แบบไหนก็ได้ ระบบจัดให้: a1 / A-1 / a 01 → A01 · หลายช่องคั่นด้วย , → "A01, A02"
+// ชื่อที่ไม่ตรงรูปแบบ (เช่น ชั้นกระจก) เก็บตามที่พิมพ์ แค่ทำตัวอังกฤษเป็นตัวใหญ่
 function normalizeLocation(value) {
-    return String(value || '').replace(/\s+/g, ' ').trim().toUpperCase();
+    return String(value || '').split(/[,，]/).map(part => {
+        const p = part.replace(/\s+/g, ' ').trim().toUpperCase();
+        const m = p.match(/^([A-Z]+)\s*-?\s*0*(\d{1,3})$/);
+        return m ? m[1] + m[2].padStart(2, '0') : p;
+    }).filter(Boolean).join(', ');
+}
+
+function describeLocation(value) {
+    return value.split(', ').map(code => {
+        const m = code.match(/^([A-Z]+)(\d+)$/);
+        return m ? `ชั้น ${m[1]} ช่อง ${code}` : code;
+    }).join(' และ ');
 }
 
 function handleLocationKeyDown(event, id, input) {
@@ -510,7 +523,7 @@ async function saveLocation(id, input, button) {
         const tr = document.querySelector(`tr[data-id="${id}"]`);
         if (tr) tr.outerHTML = buildRow(stock);
         showToast(value
-            ? `📍 ${stock.product_name} เก็บที่ช่อง ${value}`
+            ? `📍 ${stock.product_name} เก็บที่${describeLocation(value)}`
             : `📍 ล้างช่องเก็บของ ${stock.product_name} แล้ว`, 'success');
     } catch (err) {
         button.disabled = false;
