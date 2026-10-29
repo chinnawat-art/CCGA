@@ -979,6 +979,41 @@
         }
         .dark-theme .material-code { color: #a5b4fc; }
 
+        /* 📍 ช่องเก็บวัสดุ — ให้เห็นชัดตอนเดินหยิบ */
+        .material-location {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            margin: 2px 0 1px;
+            padding: 2px 9px;
+            border-radius: 7px;
+            background: #0f766e;
+            color: #fff;
+            font-size: 0.95rem;
+            font-weight: 800;
+            letter-spacing: 0.3px;
+        }
+        .material-location.is-missing {
+            background: transparent;
+            color: #94a3b8;
+            border: 1px dashed #cbd5e1;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+        .location-route {
+            margin: 8px 0 0;
+            padding: 7px 10px;
+            border-radius: 9px;
+            background: rgba(15, 118, 110, 0.09);
+            border: 1px solid rgba(15, 118, 110, 0.25);
+            color: #0f766e;
+            font-size: 0.88rem;
+            font-weight: 700;
+            line-height: 1.6;
+        }
+        .location-route b { display: inline-block; padding: 0 6px; margin: 1px 2px; border-radius: 5px; background: #0f766e; color: #fff; }
+        .dark-theme .location-route { color: #5eead4; }
+
         .material-qty {
             display: flex;
             align-items: center;
@@ -1525,6 +1560,7 @@
             .pl-items .c { text-align: center; }
             .pl-items .qty { font-weight: 800; font-size: 14pt; }
             .pl-items .code { font-size: 8.5pt; color: #333; }
+            .pl-items .loc { font-size: 13pt; font-weight: 800; white-space: nowrap; }
             .pl-items .box { width: 64px; }
             .pl-items .box::after { content: ''; display: block; width: 19px; height: 19px;
                                     border: 2px solid #000; margin: 0 auto; }
@@ -1762,6 +1798,7 @@
         let orderQuantitiesMap = {}; // mapping of orderId -> quantity
         let materialCodesMap = {}; // mapping of stock_items.id -> product_code
         let materialCategoryMap = {}; // mapping of stock_items.id -> category
+        let materialLocationMap = {}; // mapping of stock_items.id -> storage_location (ช่องเก็บ เช่น A-03)
         let orderIsTestMap = {}; // mapping of orderId -> is_test (ใบทดลอง)
         let orderNotesMap = {}; // mapping of orderId -> note (หมายเหตุลูกค้า)
         let realtimeChannel = null;
@@ -1951,14 +1988,22 @@
         async function fetchMaterialCodes() {
             materialCodesMap = {};
             materialCategoryMap = {};
+            materialLocationMap = {};
             const itemIds = [...new Set(allLogs.map(log => log.item_id).filter(Boolean))];
             if (itemIds.length === 0) return;
 
             try {
-                const { data, error } = await db
+                let { data, error } = await db
                     .from('stock_items')
-                    .select('id, product_code, category')
+                    .select('id, product_code, category, storage_location')
                     .in('id', itemIds);
+                if (error) {
+                    // ฐานข้อมูลยังไม่มีคอลัมน์ช่องเก็บ → โหลดแบบเดิม หน้ายังใช้ได้ แค่ไม่มีช่องเก็บ
+                    ({ data, error } = await db
+                        .from('stock_items')
+                        .select('id, product_code, category')
+                        .in('id', itemIds));
+                }
                 if (error) {
                     console.error('Error fetching material codes:', error);
                     return;
@@ -1966,6 +2011,7 @@
                 (data || []).forEach(item => {
                     if (item.product_code) materialCodesMap[item.id] = item.product_code;
                     if (item.category) materialCategoryMap[item.id] = item.category;
+                    if (item.storage_location) materialLocationMap[item.id] = item.storage_location;
                 });
             } catch (err) {
                 console.error('fetchMaterialCodes exception:', err);
@@ -2358,13 +2404,38 @@
             return 'general';
         }
 
+        // เรียงตามหมวด → ช่องเก็บ (A-2 ก่อน A-10 · ยังไม่ระบุช่องไว้ท้ายหมวด) → ชื่อ = เดินหยิบตามลำดับช่องได้
         function sortItemsForPicking(items) {
             return items
-                .map((log, idx) => ({ log, uid: materialUid(log, idx), cat: getMaterialCategory(log) }))
+                .map((log, idx) => ({ log, uid: materialUid(log, idx), cat: getMaterialCategory(log), loc: materialLocationMap[log.item_id] || '' }))
                 .sort((a, b) => {
                     const d = CATEGORY_ORDER.indexOf(a.cat) - CATEGORY_ORDER.indexOf(b.cat);
-                    return d !== 0 ? d : String(a.log.item_name || '').localeCompare(String(b.log.item_name || ''), 'th');
+                    if (d !== 0) return d;
+                    if (a.loc !== b.loc) {
+                        if (!a.loc || !b.loc) return (!a.loc) - (!b.loc);
+                        return a.loc.localeCompare(b.loc, 'th', { numeric: true, sensitivity: 'base' });
+                    }
+                    return String(a.log.item_name || '').localeCompare(String(b.log.item_name || ''), 'th');
                 });
+        }
+
+        // รายชื่อช่องที่ต้องไปหยิบของออเดอร์นี้ (ไม่ซ้ำ) + จำนวนรายการที่ยังไม่ระบุช่อง
+        function getPickRoute(group) {
+            const seen = new Set(), route = [];
+            let missing = 0;
+            sortItemsForPicking(group.items).forEach(({ loc }) => {
+                if (!loc) { missing++; return; }
+                if (!seen.has(loc)) { seen.add(loc); route.push(loc); }
+            });
+            // เรียงตามช่องจริง (ไม่สนหมวด) = ลำดับเดินในคลัง
+            route.sort((x, y) => x.localeCompare(y, 'th', { numeric: true, sensitivity: 'base' }));
+            return { route, missing };
+        }
+
+        function renderPickRoute(group) {
+            const { route, missing } = getPickRoute(group);
+            if (route.length === 0) return '';
+            return `<div class="location-route">📍 ช่องที่ต้องไปหยิบ (${route.length} ช่อง): ${route.map(l => `<b>${escHtml(l)}</b>`).join('→')}${missing ? ` <span style="font-weight:600;opacity:.8">· อีก ${missing} รายการยังไม่ระบุช่อง</span>` : ''}</div>`;
         }
 
         function pickStoreKey(groupKey) { return 'matprep_pick_' + groupKey; }
@@ -2417,7 +2488,7 @@
             sortItemsForPicking(group.items).forEach(({ log, cat }) => {
                 if (cat !== lastCat) {
                     lastCat = cat;
-                    rows += `<tr class="cat"><td colspan="5">${escHtml(CATEGORY_LABELS[cat] || 'อื่น ๆ')}</td></tr>`;
+                    rows += `<tr class="cat"><td colspan="6">${escHtml(CATEGORY_LABELS[cat] || 'อื่น ๆ')}</td></tr>`;
                 }
                 no++;
                 const qty = Math.abs(log.delta != null ? log.delta : (log.old_qty - log.new_qty)) || '?';
@@ -2425,6 +2496,7 @@
                 rows += `<tr>
                     <td class="c">${no}</td>
                     <td class="box"></td>
+                    <td class="loc">${escHtml(materialLocationMap[log.item_id] || '-')}</td>
                     <td>${escHtml(log.item_name || '-')}</td>
                     <td class="code">${escHtml(code)}</td>
                     <td class="c qty">${qty}</td>
@@ -2444,12 +2516,13 @@
                         <td>รหัสสินค้า</td><td><strong>${escHtml(group.orderSku || '-')}</strong></td></tr>
                     <tr><td>สินค้า</td><td colspan="3">${escHtml(group.productName || '-')}</td></tr>
                     ${group.note ? `<tr><td>📢 หมายเหตุ</td><td colspan="3" style="font-weight:800; font-size:13pt; border:2px solid #000;">${escHtml(group.note)}</td></tr>` : ''}
+                    ${(r => r.route.length ? `<tr><td>📍 ช่องที่ต้องไป</td><td colspan="3" style="font-weight:800; font-size:12pt;">${r.route.map(escHtml).join(' → ')}${r.missing ? ` (อีก ${r.missing} รายการยังไม่ระบุช่อง)` : ''}</td></tr>` : '')(getPickRoute(group))}
                     <tr><td>จำนวนออเดอร์</td><td>${qtyText} ชิ้น</td>
                         <td>รายการวัสดุ</td><td>${group.items.length} รายการ</td></tr>
                 </table>
                 <table class="pl-items">
                     <thead><tr>
-                        <th class="c">#</th><th class="c">เก็บแล้ว</th>
+                        <th class="c">#</th><th class="c">เก็บแล้ว</th><th>ช่องเก็บ</th>
                         <th>รายการวัสดุ</th><th>รหัส</th><th class="c">จำนวน</th>
                     </tr></thead>
                     <tbody>${rows}</tbody>
@@ -2491,6 +2564,7 @@
                </button>`;
 
             const picked = isDone || !canAct ? new Set() : loadPicked(group.key);
+            const groupHasLoc = group.items.some(log => materialLocationMap[log.item_id]); // ยังไม่มีใครตั้งช่อง = ไม่ต้องขึ้นป้าย "ยังไม่ระบุช่อง" ทุกแถว
             let lastCat = null;
             const itemsHtml = sortItemsForPicking(group.items).map(({ log, uid, cat }) => {
                 const qty = Math.abs(log.delta != null ? log.delta : (log.old_qty - log.new_qty)) || '?';
@@ -2511,6 +2585,9 @@
                             ${checkBtn}
                             <div class="material-icon">${icons}</div>
                             <div>
+                                ${materialLocationMap[log.item_id]
+                                    ? `<div class="material-location" title="ช่องเก็บวัสดุ">📍 ${escHtml(materialLocationMap[log.item_id])}</div>`
+                                    : (isDone || !groupHasLoc ? '' : `<div class="material-location is-missing" title="ตั้งช่องเก็บได้ที่หน้าจัดการสต็อก คอลัมน์ 📍 ช่องเก็บ">📍 ยังไม่ระบุช่อง</div>`)}
                                 <div class="material-name">${escHtml(log.item_name || '-')}</div>
                                 ${materialCodesMap[log.item_id] ? `<div class="material-code">รหัส: ${escHtml(materialCodesMap[log.item_id])}</div>` : ''}
                                 <div class="material-time">${log.created_at ? new Date(log.created_at).toLocaleString('th-TH', { hour12: false }) : '-'}</div>
@@ -2548,6 +2625,7 @@
                                 ${group.productName ? `<div class="order-product-name">📦 ${escHtml(group.productName)}</div>` : ''}
                                 <div class="order-time">🕐 เริ่มผลิต: ${dateStr} • ${group.items.length} รายการวัสดุ</div>
                                 ${!isDone && canAct ? `<div><span class="pick-progress" data-group="${escHtml(group.key)}">☑️ เตรียมแล้ว ${loadPicked(group.key).size}/${group.items.length} รายการ</span></div>` : ''}
+                                ${isDone ? '' : renderPickRoute(group)}
                             </div>
                         </div>
                         ${group.note ? `<div class="order-note-box"><div class="order-note-label">📢 หมายเหตุ — อ่านก่อนจัดของ</div><div>${escHtml(group.note)}</div></div>` : ''}

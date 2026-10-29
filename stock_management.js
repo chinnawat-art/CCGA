@@ -201,6 +201,16 @@ function sortBy(field) {
 
 // ─── RENDER TABLE ─────────────────────────────────────────────────────────
 function getSorted(stocks) {
+    if (sortField === 'storage_location') {
+        // ช่องเก็บ: เรียงแบบนับเลข (A-2 ก่อน A-10) · ยังไม่ระบุไว้ท้ายเสมอ
+        return [...stocks].sort((a, b) => {
+            const va = a.storage_location || '';
+            const vb = b.storage_location || '';
+            if (!va || !vb) return (!va) - (!vb);
+            const d = va.localeCompare(vb, 'th', { numeric: true, sensitivity: 'base' });
+            return sortAsc ? d : -d;
+        });
+    }
     return [...stocks].sort((a, b) => {
         let va = a[sortField] ?? '';
         let vb = b[sortField] ?? '';
@@ -229,7 +239,8 @@ function getFiltered() {
     const term = (document.getElementById('searchInput')?.value || '').toLowerCase();
     return allStocks.filter(s => {
         const matchName = s.product_name?.toLowerCase().includes(term) ||
-                          (s.product_code || '').toLowerCase().includes(term);
+                          (s.product_code || '').toLowerCase().includes(term) ||
+                          (s.storage_location || '').toLowerCase().includes(term);
         
         const matchCat = !selectedCategory || (selectedCategory === 'general'
             ? s.category === 'general' || s.category === 'tools'
@@ -262,6 +273,20 @@ function buildRow(stock) {
         <td>
             <div class="product-name">${stock.product_name}</div>
             ${stock.product_code ? `<div class="product-code">${stock.product_code}</div>` : ''}
+        </td>
+        <td>
+            <div class="location-editor">
+                <span class="location-symbol">📍</span>
+                <input type="text" maxlength="60" value="${escAttr(stock.storage_location || '')}"
+                    data-original-value="${escAttr(stock.storage_location || '')}"
+                    placeholder="เช่น A-03"
+                    aria-label="ช่องเก็บของ ${escAttr(stock.product_name)}"
+                    oninput="markLocationDirty(this)"
+                    onkeydown="handleLocationKeyDown(event, '${stock.id}', this)">
+                <button type="button" disabled
+                    onclick="saveLocation('${stock.id}', this.parentElement.querySelector('input'), this)"
+                    title="แก้ช่องเก็บก่อนจึงจะบันทึกได้">✓</button>
+            </div>
         </td>
         <td style="text-align: right; padding-right: 2rem;">
             <span class="qty-value ${qtyClass}">${stock.quantity}</span>
@@ -436,6 +461,61 @@ async function saveReorderPoint(id, input, button) {
         button.disabled = false;
         button.textContent = originalText;
         showToast('❌ บันทึกระดับแจ้งเตือนไม่สำเร็จ: ' + err.message, 'error');
+    }
+}
+
+// ─── ช่องเก็บวัสดุ (storage_location) — บอกพนักงานเตรียมวัสดุว่าต้องไปหยิบช่องไหน ──
+function escAttr(value) {
+    return String(value ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ตัดช่องว่างหัวท้าย · ช่องว่างซ้อนเหลืออันเดียว · ตัวอักษรอังกฤษเป็นตัวใหญ่ (a-03 → A-03)
+function normalizeLocation(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+function handleLocationKeyDown(event, id, input) {
+    if (event.key === 'Enter' && input.value !== input.dataset.originalValue) {
+        event.preventDefault();
+        saveLocation(id, input, input.parentElement.querySelector('button'));
+    }
+}
+
+function markLocationDirty(input) {
+    const editor = input.closest('.location-editor');
+    const button = editor.querySelector('button');
+    const isDirty = input.value !== input.dataset.originalValue;
+    editor.classList.toggle('is-dirty', isDirty);
+    button.disabled = !isDirty;
+    button.title = isDirty ? 'บันทึกช่องเก็บใหม่' : 'ยังไม่มีการเปลี่ยนแปลง';
+}
+
+async function saveLocation(id, input, button) {
+    const stock = allStocks.find(item => item.id === id);
+    if (!stock) return;
+
+    const value = normalizeLocation(input.value) || null;
+    button.disabled = true;
+    const originalText = button.textContent;
+    button.textContent = '…';
+
+    try {
+        const { error } = await dbSupabase
+            .from(STOCK_TABLE_NAME)
+            .update({ storage_location: value, updated_at: new Date().toISOString() })
+            .eq('id', id);
+        if (error) throw error;
+
+        stock.storage_location = value;
+        const tr = document.querySelector(`tr[data-id="${id}"]`);
+        if (tr) tr.outerHTML = buildRow(stock);
+        showToast(value
+            ? `📍 ${stock.product_name} เก็บที่ช่อง ${value}`
+            : `📍 ล้างช่องเก็บของ ${stock.product_name} แล้ว`, 'success');
+    } catch (err) {
+        button.disabled = false;
+        button.textContent = originalText;
+        showToast('❌ บันทึกช่องเก็บไม่สำเร็จ: ' + err.message, 'error');
     }
 }
 

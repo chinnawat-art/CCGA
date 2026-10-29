@@ -546,6 +546,55 @@
             background: rgba(245, 158, 11, 0.08);
         }
 
+        /* ช่องเก็บวัสดุ */
+        .location-editor {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            min-height: 36px;
+            padding: 0.2rem 0.25rem 0.2rem 0.45rem;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--bg-card);
+            white-space: nowrap;
+            transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+        }
+        .location-editor.is-dirty {
+            border-color: var(--primary);
+            background: var(--primary-glow);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+        .location-editor input {
+            width: 88px;
+            padding: 0.32rem 0.2rem;
+            border: 0;
+            border-bottom: 1px solid var(--border);
+            border-radius: 0;
+            background: transparent;
+            color: var(--text);
+            font: inherit;
+            font-weight: 700;
+            outline: none;
+        }
+        .location-editor input:focus { border-bottom-color: var(--primary); }
+        .location-editor button {
+            width: 30px;
+            height: 30px;
+            border: 0;
+            border-radius: 7px;
+            background: var(--primary);
+            color: white;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 800;
+        }
+        .location-editor button:disabled {
+            background: transparent;
+            color: var(--muted);
+            cursor: default;
+            opacity: 0.35;
+        }
+
         .near-stock-point-editor input {
             width: 52px;
         }
@@ -1091,6 +1140,9 @@
                                     <th data-sort="product_name" onclick="sortBy('product_name')">
                                         ชื่อสินค้า <span class="sort-icon">↕</span>
                                     </th>
+                                    <th data-sort="storage_location" onclick="sortBy('storage_location')" title="ช่องที่เก็บวัสดุนี้ เช่น A-03 · พิมพ์แล้วกด ✓ หรือ Enter · หน้าเตรียมวัสดุจะบอกพนักงานว่าต้องไปหยิบช่องไหน">
+                                        📍 ช่องเก็บ <span class="sort-icon">↕</span>
+                                    </th>
                                     <th data-sort="quantity" onclick="sortBy('quantity')" style="text-align: right; padding-right: 2rem;">
                                         จำนวนคงเหลือ <span class="sort-icon">↕</span>
                                     </th>
@@ -1104,7 +1156,7 @@
                             </thead>
                             <tbody id="stockTableBody">
                                 <tr>
-                                    <td colspan="10" style="text-align:center; padding:2.5rem; color:#64748b;">
+                                    <td colspan="11" style="text-align:center; padding:2.5rem; color:#64748b;">
                                         ⏳ กำลังโหลดข้อมูล...
                                     </td>
                                 </tr>
@@ -1307,7 +1359,7 @@
     <!-- Toast Notification -->
     <div id="toast"></div>
 
-    <script src="stock_management.js?v=20260824-1"></script>
+    <script src="stock_management.js?v=20261029-1"></script>
 </body>
 
 </html>
