@@ -27,7 +27,7 @@
         h1 { font-size:1.35rem; margin:10px 0 2px; }
         h2 { font-size:1.05rem; margin:0 0 10px; }
         .sub { color: var(--muted-strong,#64748b); font-size:.88rem; margin:0 0 14px; }
-        .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; margin-bottom:14px; }
+        .kpis { display:grid; grid-template-columns:repeat(5,1fr); gap:9px; margin-bottom:14px; }
         .kpi { background: var(--surface,#fff); border:1px solid var(--border-strong,#e2e8f0);
                border-radius:14px; padding:11px 8px; text-align:center; }
         .kpi b { display:block; font-size:1.4rem; line-height:1.25; }
@@ -108,7 +108,7 @@
                  border-radius:14px; padding:12px; }
         .modal-box img { max-width:100%; display:block; margin:0 auto 10px; border-radius:10px; }
         @media (max-width:640px) {
-            .kpis { grid-template-columns:repeat(2,1fr); }
+            .kpis { grid-template-columns:repeat(3,1fr); }
             .search { flex-direction:column; }
             .btn-submit { width:100%; padding:15px; }
         }
@@ -126,6 +126,7 @@
             <div class="kpi"><b id="kTotal">-</b><span>ตีกลับเดือนนี้</span></div>
             <div class="kpi"><b id="kBackup" style="color:#16a34a">-</b><span>เข้าสต็อกสำรอง</span></div>
             <div class="kpi"><b id="kRepair" style="color:#0f766e">-</b><span>ส่งซ่อม</span></div>
+            <div class="kpi"><b id="kSalvage" style="color:#b45309">-</b><span>แยกชิ้นส่วน</span></div>
             <div class="kpi"><b id="kDamaged" style="color:#dc2626">-</b><span>ทิ้ง/ซ่อมไม่ได้</span></div>
         </div>
 
@@ -170,11 +171,12 @@
                 <div class="choices" data-group="handling">
                     <label class="choice" id="optBackup"><input type="radio" name="handling" value="backup_stock"><div>📦 เข้าสต็อกสำรอง<small>ของสภาพดี · บวกยอดสินค้าสำเร็จรูป รุ่นเดียวกันหยิบไปส่งได้</small></div></label>
                     <label class="choice"><input type="radio" name="handling" value="repair"><div>🔧 ซ่อม<small>ของเสียหาย · เลือกวัสดุที่เสียจากสูตร (BOM) เบิกเฉพาะตัวนั้น · ซ่อมเสร็จเข้าสต็อกสำรอง</small></div></label>
+                    <label class="choice"><input type="radio" name="handling" value="salvage"><div>♻️ แยกชิ้นส่วนที่ดีเข้าสต็อก<small>เสียหายหนัก (เกิน ~60%) ซ่อมไม่คุ้ม · ติ๊กชิ้นส่วนที่ยังใช้ได้จากสูตร (BOM) เก็บเข้าสต็อกวัสดุ</small></div></label>
                     <label class="choice"><input type="radio" name="handling" value="damaged"><div>🗑️ ทิ้ง / ซ่อมไม่ได้<small>ของเสียหาย · ไม่แตะสต็อก</small></div></label>
                 </div>
                 <div id="repairBox">
-                    <div style="font-weight:700;margin-bottom:4px;">🔧 ติ๊กวัสดุที่เสีย แล้วใส่จำนวนที่ต้องเบิก</div>
-                    <div class="hint" style="margin-top:0">รายการมาจากสูตรวัสดุ (BOM) ของสินค้านี้ · กดบันทึกแล้ววัสดุจะขึ้นในหน้าเตรียมวัสดุ (ป้าย 🔧 ซ่อมของตีกลับ) ให้คลังจ่าย</div>
+                    <div style="font-weight:700;margin-bottom:4px;" id="partsTitle">🔧 ติ๊กวัสดุที่เสีย แล้วใส่จำนวนที่ต้องเบิก</div>
+                    <div class="hint" style="margin-top:0" id="partsHint">รายการมาจากสูตรวัสดุ (BOM) ของสินค้านี้ · กดบันทึกแล้ววัสดุจะขึ้นในหน้าเตรียมวัสดุ (ป้าย 🔧 ซ่อมของตีกลับ) ให้คลังจ่าย</div>
                     <div id="repairList"><div class="empty">กำลังโหลดสูตรวัสดุ...</div></div>
                 </div>
             </div>
@@ -215,10 +217,11 @@
     const BUCKET = 'order-returns';
     const MAX_PHOTOS = 5;
     const RETURNABLE = ['ตรวจเสร็จรอจัดส่ง', 'จัดส่งสำเร็จ', 'ระหว่างการขนส่ง', 'กำลังจัดส่ง'];
-    const HANDLING_LABEL = { backup_stock: '📦 เข้าสต็อกสำรอง', repair: '🔧 ซ่อม', damaged: '🗑️ ทิ้ง/ซ่อมไม่ได้' };
-    const HANDLING_CLS = { backup_stock: 'ok', repair: 'blue', damaged: 'bad' };
+    const HANDLING_LABEL = { backup_stock: '📦 เข้าสต็อกสำรอง', repair: '🔧 ซ่อม', salvage: '♻️ แยกชิ้นส่วนเข้าสต็อก', damaged: '🗑️ ทิ้ง/ซ่อมไม่ได้' };
+    const HANDLING_CLS = { backup_stock: 'ok', repair: 'blue', salvage: 'warn', damaged: 'bad' };
     let bomRows = [];        // สูตรวัสดุของสินค้าที่กำลังบันทึก [{code, name, bomQty, stock, loc}]
     let bomFor = null;       // product_code ที่โหลด bomRows ไว้
+    let partsMode = null;    // repair | salvage ที่แสดงรายการอยู่
     let db = null;
     let foundOrders = [];
     let current = null;      // ออเดอร์ที่กำลังบันทึก
@@ -303,7 +306,7 @@
         document.getElementById('reason').value = '';
         document.getElementById('reasonNote').value = '';
         document.querySelectorAll('input[name=condition], input[name=handling]').forEach(r => { r.checked = false; });
-        bomRows = []; bomFor = null;
+        bomRows = []; bomFor = null; partsMode = null;
         document.getElementById('repairList').innerHTML = '<div class="empty">กำลังโหลดสูตรวัสดุ...</div>';
         photoBlobs.forEach(p => URL.revokeObjectURL(p.url));
         photoBlobs = [];
@@ -329,9 +332,23 @@
         });
         if (cond === 'good') document.querySelector('input[name=handling][value=backup_stock]').checked = true;
         document.querySelectorAll('.choice').forEach(c => c.classList.toggle('on', c.querySelector('input').checked));
-        const isRepair = document.querySelector('input[name=handling]:checked')?.value === 'repair';
-        document.getElementById('repairBox').style.display = isRepair ? 'block' : 'none';
-        if (isRepair && current && bomFor !== current.product_code) loadBom();
+        // ซ่อม และ แยกชิ้นส่วน ใช้รายการจากสูตรวัสดุชุดเดียวกัน ต่างกันแค่ความหมายของการติ๊ก
+        const mode = document.querySelector('input[name=handling]:checked')?.value;
+        const usesParts = mode === 'repair' || mode === 'salvage';
+        document.getElementById('repairBox').style.display = usesParts ? 'block' : 'none';
+        document.getElementById('partsTitle').textContent = mode === 'salvage'
+            ? '♻️ ติ๊กชิ้นส่วนที่ยังใช้ได้ แล้วใส่จำนวนที่เก็บเข้าสต็อก'
+            : '🔧 ติ๊กวัสดุที่เสีย แล้วใส่จำนวนที่ต้องเบิก';
+        document.getElementById('partsHint').textContent = mode === 'salvage'
+            ? 'รายการมาจากสูตรวัสดุ (BOM) ของสินค้านี้ · กดบันทึกแล้วชิ้นที่ติ๊กจะบวกเข้าสต็อกวัสดุทันที (ดูได้ในประวัติรับเข้าของหน้าสต็อก)'
+            : 'รายการมาจากสูตรวัสดุ (BOM) ของสินค้านี้ · กดบันทึกแล้ววัสดุจะขึ้นในหน้าเตรียมวัสดุ (ป้าย 🔧 ซ่อมของตีกลับ) ให้คลังจ่าย';
+        // สลับ ซ่อม ↔ แยกชิ้นส่วน = ติ๊กคนละความหมาย ล้างที่ติ๊กไว้ก่อน
+        if (usesParts && partsMode && partsMode !== mode && bomRows.length) {
+            document.querySelectorAll('#repairList input[data-rp]').forEach(cb => { cb.checked = false; });
+            renderBom();
+        }
+        partsMode = usesParts ? mode : partsMode;
+        if (usesParts && current && bomFor !== current.product_code) loadBom();
     }
 
     // ── ซ่อม: สูตรวัสดุของ SKU ที่ตีกลับ ────────────────────────────
@@ -441,7 +458,13 @@
         if (!handling) { toast('กรุณาเลือกว่าจะจัดการของยังไง'); return; }
         if (!Number.isInteger(qty) || qty < 1 || qty > maxQty) { toast('จำนวนต้องอยู่ระหว่าง 1 ถึง ' + maxQty); qtyEl.focus(); return; }
 
-        const repairItems = handling === 'repair' ? getRepairItems() : [];
+        const repairItems = (handling === 'repair' || handling === 'salvage') ? getRepairItems() : [];
+        if (handling === 'salvage') {
+            if (!bomRows.length) { toast('สินค้านี้ยังไม่มีสูตรวัสดุ แยกชิ้นส่วนไม่ได้'); return; }
+            if (!repairItems.length) { toast('ติ๊กชิ้นส่วนที่ยังใช้ได้อย่างน้อย 1 รายการ (ถ้าไม่มีเลย ให้เลือก "ทิ้ง")'); return; }
+            const badQty = repairItems.find(it => !Number.isInteger(it.qty) || it.qty < 1 || it.qty > it.max);
+            if (badQty) { toast('จำนวน "' + badQty.name + '" ต้องอยู่ระหว่าง 1 ถึง ' + badQty.max); return; }
+        }
         if (handling === 'repair') {
             if (!bomRows.length) { toast('สินค้านี้ยังไม่มีสูตรวัสดุ เลือกซ่อมไม่ได้'); return; }
             const badQty = repairItems.find(it => !Number.isInteger(it.qty) || it.qty < 1 || it.qty > it.max);
@@ -459,6 +482,10 @@
                       + repairItems.map(it => '• ' + it.name + ' × ' + it.qty).join('\n')
                     : '\n\nไม่เบิกวัสดุ')
                   + '\nซ่อมเสร็จกด ✅ ซ่อมเสร็จ → เข้าสต็อกสำรอง'
+                : '')
+            + (handling === 'salvage'
+                ? '\n\nเก็บชิ้นส่วนเข้าสต็อกวัสดุ ' + repairItems.length + ' รายการ:\n'
+                  + repairItems.map(it => '• ' + it.name + ' + ' + it.qty).join('\n')
                 : '');
         if (!confirm('ยืนยันบันทึกของตีกลับ\n\nเลขที่ผลิต: ' + (current.production_number || '-') + '\nสาเหตุ: ' + reason + (note ? ' — ' + note : '')
             + '\nสภาพ: ' + (condition === 'good' ? 'ดี' : 'เสียหาย') + '\nจัดการ: ' + HANDLING_LABEL[handling].replace(/^\S+ /, '')
@@ -484,7 +511,8 @@
             if (error) throw error;
             toast('✅ บันทึกของตีกลับแล้ว' + (handling === 'backup_stock' && data && data.backup_qty_after != null
                 ? ' · สต็อกสำรองตอนนี้ ' + data.backup_qty_after + ' ชิ้น'
-                : (handling === 'repair' && repairItems.length ? ' · วัสดุซ่อมขึ้นในหน้าเตรียมวัสดุแล้ว' : '')), 4500);
+                : (handling === 'repair' && repairItems.length ? ' · วัสดุซ่อมขึ้นในหน้าเตรียมวัสดุแล้ว'
+                : (handling === 'salvage' ? ' · เก็บชิ้นส่วนเข้าสต็อกแล้ว ' + repairItems.length + ' รายการ' : ''))), 4500);
             resetForm(true);
             searchOrders();
             loadHistory();
@@ -503,7 +531,7 @@
     async function loadHistory() {
         const box = document.getElementById('hist');
         const { data, error } = await db.from('order_returns')
-            .select('id,production_number,order_number,product_name,product_code,quantity,reason,reason_note,condition,action,photo_paths,received_by,received_at,repair_items,repair_status,repair_done_at,repair_done_by')
+            .select('id,production_number,order_number,product_name,product_code,quantity,reason,reason_note,condition,action,photo_paths,received_by,received_at,repair_items,repair_status,repair_done_at,repair_done_by,salvage_items')
             .order('received_at', { ascending: false })
             .limit(50);
         if (error) { box.innerHTML = '<div class="empty">โหลดประวัติไม่สำเร็จ: ' + esc(error.message) + '</div>'; return; }
@@ -528,6 +556,10 @@
 
     function repairItemsText(r) {
         const items = Array.isArray(r.repair_items) ? r.repair_items : [];
+        if (r.action === 'salvage') {
+            const parts = Array.isArray(r.salvage_items) ? r.salvage_items : [];
+            return '<br>♻️ เก็บเข้าสต็อก: ' + parts.map(it => esc(it.name || it.code) + ' +' + it.qty).join(', ');
+        }
         if (r.action !== 'repair') return '';
         return '<br>🔧 ' + (items.length ? 'เบิก: ' + items.map(it => esc(it.name || it.code) + ' ×' + it.qty).join(', ') : 'ไม่เบิกวัสดุ');
     }
@@ -582,6 +614,7 @@
         document.getElementById('kTotal').textContent = rows.length;
         document.getElementById('kBackup').textContent = n('backup_stock');
         document.getElementById('kRepair').textContent = n('repair');
+        document.getElementById('kSalvage').textContent = n('salvage');
         document.getElementById('kDamaged').textContent = n('damaged');
     }
 
