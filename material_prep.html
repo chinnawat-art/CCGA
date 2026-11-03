@@ -1578,6 +1578,11 @@
             border: 1px solid rgba(245, 158, 11, .45);
         }
         .dark-theme .order-test-badge { color: #fbbf24; }
+        .order-repair-badge {
+            display: inline-block; margin-left: 6px; padding: 3px 11px;
+            border-radius: 99px; font-size: .8rem; font-weight: 800;
+            background: #0f766e; color: #fff;
+        }
     </style>
 </head>
 
@@ -2091,6 +2096,8 @@
                 }
 
                 target[groupKey].items.push(log);
+                // เบิกวัสดุซ่อมของตีกลับ (หน้า returns.html) — ขึ้นต้นแบบงานผลิต แต่มีคำนี้ในเหตุผล
+                if (String(log.reason || '').includes('ซ่อมของตีกลับ')) target[groupKey].isRepair = true;
                 // Update dispatch info if available
                 if (log.dispatched_by) {
                     target[groupKey].dispatchedBy = log.dispatched_by;
@@ -2529,7 +2536,7 @@
 
             document.getElementById('printArea').innerHTML = `
                 <div class="pl-head">
-                    <div class="pl-title">ใบเบิกวัสดุ</div>
+                    <div class="pl-title">ใบเบิกวัสดุ${group.isRepair ? ' (ซ่อมของตีกลับ)' : ''}</div>
                     <div class="pl-prod">เลขที่การผลิต<strong>${escHtml(group.productionNumber || 'ยังไม่กำหนด')}</strong></div>
                 </div>
                 <table class="pl-meta">
@@ -2638,6 +2645,7 @@
                                 <div class="order-title-text">${titleText}</div>
                                 <span class="order-sku-badge"># ${escHtml(group.orderSku)}</span>
                                 ${group.isTest ? `<span class="order-test-badge">🧪 ใบทดลอง</span>` : ''}
+                                ${group.isRepair ? `<span class="order-repair-badge" title="วัสดุที่เบิกไปซ่อมของตีกลับ — จ่ายเฉพาะรายการในการ์ดนี้">🔧 ซ่อมของตีกลับ</span>` : ''}
                                 <span class="order-quantity-badge" title="จำนวนสินค้าสำเร็จรูปในเลขที่ออเดอร์นี้">📦 จำนวนออเดอร์: ${orderQuantityText} ชิ้น</span>
                                 <div class="production-number-highlight">
                                     <span>🧾 เลขที่การผลิต:</span>
