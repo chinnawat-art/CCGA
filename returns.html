@@ -27,7 +27,7 @@
         h1 { font-size:1.35rem; margin:10px 0 2px; }
         h2 { font-size:1.05rem; margin:0 0 10px; }
         .sub { color: var(--muted-strong,#64748b); font-size:.88rem; margin:0 0 14px; }
-        .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; margin-bottom:14px; }
+        .kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin-bottom:14px; }
         .kpi { background: var(--surface,#fff); border:1px solid var(--border-strong,#e2e8f0);
                border-radius:14px; padding:11px 8px; text-align:center; }
         .kpi b { display:block; font-size:1.4rem; line-height:1.25; }
@@ -93,7 +93,7 @@
                  border-radius:14px; padding:12px; }
         .modal-box img { max-width:100%; display:block; margin:0 auto 10px; border-radius:10px; }
         @media (max-width:640px) {
-            .kpis { grid-template-columns:repeat(2,1fr); }
+            .kpi b { font-size:1.2rem; }
             .search { flex-direction:column; }
             .btn-submit { width:100%; padding:15px; }
         }
@@ -110,7 +110,6 @@
         <div class="kpis">
             <div class="kpi"><b id="kTotal">-</b><span>ตีกลับเดือนนี้</span></div>
             <div class="kpi"><b id="kBackup" style="color:#16a34a">-</b><span>เข้าสต็อกสำรอง</span></div>
-            <div class="kpi"><b id="kReship" style="color:#2563eb">-</b><span>ส่งใหม่</span></div>
             <div class="kpi"><b id="kDamaged" style="color:#dc2626">-</b><span>เสียหาย/รอซ่อม</span></div>
         </div>
 
@@ -154,7 +153,6 @@
                 <label class="t">จัดการของยังไง *</label>
                 <div class="choices" data-group="handling">
                     <label class="choice" id="optBackup"><input type="radio" name="handling" value="backup_stock"><div>📦 เข้าสต็อกสำรอง<small>บวกยอดสินค้าสำเร็จรูป รุ่นเดียวกันหยิบไปส่งได้</small></div></label>
-                    <label class="choice"><input type="radio" name="handling" value="reship"><div>🚚 ส่งใหม่ให้ลูกค้าเดิม<small>ออเดอร์กลับไป "ตรวจเสร็จรอจัดส่ง"</small></div></label>
                     <label class="choice"><input type="radio" name="handling" value="damaged"><div>🗑️ เสียหาย / รอซ่อม<small>ไม่แตะสต็อก</small></div></label>
                 </div>
             </div>
@@ -189,8 +187,8 @@
     const BUCKET = 'order-returns';
     const MAX_PHOTOS = 5;
     const RETURNABLE = ['ตรวจเสร็จรอจัดส่ง', 'จัดส่งสำเร็จ', 'ระหว่างการขนส่ง', 'กำลังจัดส่ง'];
-    const HANDLING_LABEL = { backup_stock: '📦 เข้าสต็อกสำรอง', reship: '🚚 ส่งใหม่', damaged: '🗑️ เสียหาย/รอซ่อม' };
-    const HANDLING_CLS = { backup_stock: 'ok', reship: 'blue', damaged: 'bad' };
+    const HANDLING_LABEL = { backup_stock: '📦 เข้าสต็อกสำรอง', damaged: '🗑️ เสียหาย/รอซ่อม' };
+    const HANDLING_CLS = { backup_stock: 'ok', damaged: 'bad' };
     let db = null;
     let foundOrders = [];
     let current = null;      // ออเดอร์ที่กำลังบันทึก
@@ -351,8 +349,8 @@
         if (!handling) { toast('กรุณาเลือกว่าจะจัดการของยังไง'); return; }
         if (!Number.isInteger(qty) || qty < 1 || qty > maxQty) { toast('จำนวนต้องอยู่ระหว่าง 1 ถึง ' + maxQty); qtyEl.focus(); return; }
 
-        const after = handling === 'reship' ? 'ออเดอร์จะกลับไป "ตรวจเสร็จรอจัดส่ง" เพื่อส่งใหม่'
-            : 'ออเดอร์จะเปลี่ยนเป็น "พัสดุตีกลับ"' + (handling === 'backup_stock' ? '\nและบวกสต็อกสำรอง ' + current.product_code + ' +' + qty + ' ชิ้น' : '');
+        const after = 'ออเดอร์จะเปลี่ยนเป็น "พัสดุตีกลับ"'
+            + (handling === 'backup_stock' ? '\nและบวกสต็อกสำรอง ' + current.product_code + ' +' + qty + ' ชิ้น' : '');
         if (!confirm('ยืนยันบันทึกของตีกลับ\n\nเลขที่ผลิต: ' + (current.production_number || '-') + '\nสาเหตุ: ' + reason + (note ? ' — ' + note : '')
             + '\nสภาพ: ' + (condition === 'good' ? 'ดี' : 'เสียหาย') + '\nจัดการ: ' + HANDLING_LABEL[handling].replace(/^\S+ /, '')
             + '\nรูป: ' + photoBlobs.length + ' รูป\n\n' + after)) return;
@@ -422,7 +420,6 @@
         const n = a => rows.filter(r => r.action === a).length;
         document.getElementById('kTotal').textContent = rows.length;
         document.getElementById('kBackup').textContent = n('backup_stock');
-        document.getElementById('kReship').textContent = n('reship');
         document.getElementById('kDamaged').textContent = n('damaged');
     }
 
