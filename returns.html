@@ -168,9 +168,9 @@
             <div class="field">
                 <label class="t">จัดการของยังไง *</label>
                 <div class="choices" data-group="handling">
-                    <label class="choice" id="optBackup"><input type="radio" name="handling" value="backup_stock"><div>📦 เข้าสต็อกสำรอง<small>บวกยอดสินค้าสำเร็จรูป รุ่นเดียวกันหยิบไปส่งได้</small></div></label>
-                    <label class="choice"><input type="radio" name="handling" value="repair"><div>🔧 ซ่อม<small>เลือกวัสดุที่เสียจากสูตร (BOM) เบิกเฉพาะตัวนั้น · ซ่อมเสร็จเข้าสต็อกสำรอง</small></div></label>
-                    <label class="choice"><input type="radio" name="handling" value="damaged"><div>🗑️ ทิ้ง / ซ่อมไม่ได้<small>ไม่แตะสต็อก</small></div></label>
+                    <label class="choice" id="optBackup"><input type="radio" name="handling" value="backup_stock"><div>📦 เข้าสต็อกสำรอง<small>ของสภาพดี · บวกยอดสินค้าสำเร็จรูป รุ่นเดียวกันหยิบไปส่งได้</small></div></label>
+                    <label class="choice"><input type="radio" name="handling" value="repair"><div>🔧 ซ่อม<small>ของเสียหาย · เลือกวัสดุที่เสียจากสูตร (BOM) เบิกเฉพาะตัวนั้น · ซ่อมเสร็จเข้าสต็อกสำรอง</small></div></label>
+                    <label class="choice"><input type="radio" name="handling" value="damaged"><div>🗑️ ทิ้ง / ซ่อมไม่ได้<small>ของเสียหาย · ไม่แตะสต็อก</small></div></label>
                 </div>
                 <div id="repairBox">
                     <div style="font-weight:700;margin-bottom:4px;">🔧 ติ๊กวัสดุที่เสีย แล้วใส่จำนวนที่ต้องเบิก</div>
@@ -318,13 +318,16 @@
     }
 
     // ของเสียหายเข้าสต็อกสำรองไม่ได้
+    // สภาพดี = เข้าสต็อกสำรองเท่านั้น (เลือกให้เลย) · เสียหาย = ซ่อม หรือ ทิ้ง (เข้าสต็อกสำรองไม่ได้)
     function syncChoices() {
         const cond = document.querySelector('input[name=condition]:checked')?.value;
-        const backup = document.querySelector('input[name=handling][value=backup_stock]');
-        const damagedOnly = cond === 'damaged';
-        backup.disabled = damagedOnly;
-        document.getElementById('optBackup').classList.toggle('off', damagedOnly);
-        if (damagedOnly && backup.checked) backup.checked = false;
+        document.querySelectorAll('input[name=handling]').forEach(h => {
+            const allowed = !cond || (cond === 'good' ? h.value === 'backup_stock' : h.value !== 'backup_stock');
+            h.disabled = !allowed;
+            if (!allowed) h.checked = false;
+            h.closest('.choice').classList.toggle('off', !allowed);
+        });
+        if (cond === 'good') document.querySelector('input[name=handling][value=backup_stock]').checked = true;
         document.querySelectorAll('.choice').forEach(c => c.classList.toggle('on', c.querySelector('input').checked));
         const isRepair = document.querySelector('input[name=handling]:checked')?.value === 'repair';
         document.getElementById('repairBox').style.display = isRepair ? 'block' : 'none';
