@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#6366f1">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-180.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Alu ERP">
+    <script src="pwa.js?v=20260918-2" defer></script>
+    <title>ของตีกลับ | Returns</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="auth.js?v=20261103-1"></script>
+    <link rel="stylesheet" href="theme.css">
+    <script src="theme.js" defer></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin:0; font-family:'Kanit',sans-serif;
+               background: var(--bg-body,#f1f5f9); color: var(--text-main,#0f172a); }
+        .shell { max-width:900px; margin:0 auto; padding:16px 14px 90px; }
+        .back { color: var(--muted-strong,#64748b); text-decoration:none; font-size:.92rem; }
+        h1 { font-size:1.35rem; margin:10px 0 2px; }
+        h2 { font-size:1.05rem; margin:0 0 10px; }
+        .sub { color: var(--muted-strong,#64748b); font-size:.88rem; margin:0 0 14px; }
+        .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; margin-bottom:14px; }
+        .kpi { background: var(--surface,#fff); border:1px solid var(--border-strong,#e2e8f0);
+               border-radius:14px; padding:11px 8px; text-align:center; }
+        .kpi b { display:block; font-size:1.4rem; line-height:1.25; }
+        .kpi span { font-size:.74rem; color: var(--muted-strong,#64748b); }
+        .card { background: var(--surface,#fff); border:1px solid var(--border-strong,#e2e8f0);
+                border-radius:15px; padding:14px; margin-bottom:12px; }
+        .search { display:flex; gap:8px; }
+        .search input { flex:1; min-width:0; font-family:inherit; font-size:1.05rem; padding:12px 14px;
+               border:2px solid var(--border-strong,#cbd5e1); border-radius:12px;
+               background: var(--surface,#fff); color: var(--text-main,#0f172a); }
+        .search input:focus { outline:none; border-color:#6366f1; }
+        .btn { padding:12px 18px; border:0; border-radius:12px; cursor:pointer;
+               font:600 .95rem 'Kanit',sans-serif; white-space:nowrap; }
+        .btn-main { background: linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; }
+        .btn-red { background: linear-gradient(135deg,#f97316,#dc2626); color:#fff; }
+        .btn-ghost { background:transparent; border:1px solid var(--border-strong,#cbd5e1); color: var(--text-main,#0f172a); }
+        .btn:disabled { opacity:.5; cursor:default; }
+        .hint { font-size:.8rem; color: var(--muted-strong,#64748b); margin-top:7px; }
+        .order { border:1px solid var(--border-strong,#e2e8f0); border-radius:13px; padding:12px; margin-top:10px; }
+        .order.pick { border-color:#6366f1; box-shadow:0 0 0 2px rgba(99,102,241,.25); }
+        .prod { font-size:1.25rem; font-weight:700; }
+        .meta { font-size:.84rem; color: var(--muted-strong,#64748b); line-height:1.55; }
+        .pill { display:inline-block; padding:2px 10px; border-radius:99px; font-size:.78rem; font-weight:700;
+                background: rgba(148,163,184,.18); margin:3px 4px 0 0; }
+        .pill.ok { background: rgba(22,163,74,.15); color:#16a34a; }
+        .pill.warn { background: rgba(217,119,6,.15); color:#d97706; }
+        .pill.bad { background: rgba(220,38,38,.14); color:#dc2626; }
+        .pill.blue { background: rgba(37,99,235,.14); color:#2563eb; }
+        .row-actions { margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+        .no { font-size:.84rem; color:#d97706; font-weight:600; }
+        #formCard { display:none; border:2px solid #6366f1; }
+        .field { margin-top:13px; }
+        .field > label.t { display:block; font-weight:600; margin-bottom:6px; }
+        .field select, .field input[type=text], .field input[type=number], .field textarea {
+               width:100%; font-family:inherit; font-size:1rem; padding:11px 12px;
+               border:1px solid var(--border-strong,#cbd5e1); border-radius:11px;
+               background: var(--surface,#fff); color: var(--text-main,#0f172a); }
+        .choices { display:flex; gap:8px; flex-wrap:wrap; }
+        .choice { flex:1 1 150px; display:flex; align-items:flex-start; gap:8px; cursor:pointer;
+                  border:1.5px solid var(--border-strong,#cbd5e1); border-radius:12px; padding:10px 12px; }
+        .choice input { margin-top:4px; width:18px; height:18px; accent-color:#6366f1; }
+        .choice small { display:block; color: var(--muted-strong,#64748b); font-size:.76rem; }
+        .choice.on { border-color:#6366f1; background: rgba(99,102,241,.08); }
+        .choice.off { opacity:.4; cursor:not-allowed; }
+        .thumbs { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+        .thumb { position:relative; width:84px; height:84px; border-radius:10px; overflow:hidden;
+                 border:1px solid var(--border-strong,#cbd5e1); }
+        .thumb img { width:100%; height:100%; object-fit:cover; }
+        .thumb button { position:absolute; top:3px; right:3px; border:0; border-radius:99px; width:24px; height:24px;
+                 background: rgba(15,23,42,.75); color:#fff; cursor:pointer; font-size:.8rem; }
+        .hist-row { display:flex; justify-content:space-between; gap:10px; align-items:flex-start;
+                border:1px solid var(--border-strong,#e2e8f0); border-radius:12px; padding:10px 12px;
+                margin-bottom:7px; font-size:.86rem; }
+        .empty { text-align:center; padding:26px 12px; color: var(--muted-strong,#64748b); }
+        .toast { position:fixed; left:50%; bottom:22px; transform:translateX(-50%);
+                background:#0f172a; color:#fff; padding:12px 20px; border-radius:13px;
+                font-size:.92rem; z-index:9999; box-shadow:0 12px 30px rgba(0,0,0,.3);
+                max-width:calc(100vw - 32px); text-align:center; }
+        .modal { position:fixed; inset:0; background: rgba(15,23,42,.8); z-index:9000; display:none;
+                 align-items:center; justify-content:center; padding:16px; }
+        .modal.show { display:flex; }
+        .modal-box { max-width:900px; max-height:90vh; overflow:auto; background: var(--surface,#fff);
+                 border-radius:14px; padding:12px; }
+        .modal-box img { max-width:100%; display:block; margin:0 auto 10px; border-radius:10px; }
+        @media (max-width:640px) {
+            .kpis { grid-template-columns:repeat(2,1fr); }
+            .search { flex-direction:column; }
+            .btn-submit { width:100%; padding:15px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="shell">
+        <a href="dashboard.html" class="back">← กลับหน้าแดชบอร์ดออเดอร์</a>
+        <h1>📦 ของตีกลับ</h1>
+        <p class="sub">ของที่ขนส่งตีกลับมาโรงงาน · ค้นหาออเดอร์ บันทึกสาเหตุ สภาพของ รูปถ่าย แล้วเลือกว่าจะจัดการของยังไง</p>
+
+        <div id="user-display-area"></div>
+
+        <div class="kpis">
+            <div class="kpi"><b id="kTotal">-</b><span>ตีกลับเดือนนี้</span></div>
+            <div class="kpi"><b id="kBackup" style="color:#16a34a">-</b><span>เข้าสต็อกสำรอง</span></div>
+            <div class="kpi"><b id="kReship" style="color:#2563eb">-</b><span>ส่งใหม่</span></div>
+            <div class="kpi"><b id="kDamaged" style="color:#dc2626">-</b><span>เสียหาย/รอซ่อม</span></div>
+        </div>
+
+        <div class="card">
+            <h2>1. หาออเดอร์ที่ตีกลับ</h2>
+            <div class="search">
+                <input id="q" type="text" placeholder="สแกน/พิมพ์ เลขพัสดุ · เลขที่ผลิต (เช่น 498/29) · เลขออเดอร์" autocomplete="off">
+                <button id="btnSearch" class="btn btn-main">🔍 ค้นหา</button>
+            </div>
+            <div class="hint">ใช้เครื่องสแกนบาร์โค้ดยิงที่ลาเบลหน้ากล่องได้เลย (เลขต้องตรงทั้งเลข)</div>
+            <div id="results"></div>
+        </div>
+
+        <div class="card" id="formCard">
+            <h2>2. บันทึกของตีกลับ</h2>
+            <div id="formOrder"></div>
+
+            <div class="field">
+                <label class="t" for="reason">สาเหตุที่ตีกลับ *</label>
+                <select id="reason">
+                    <option value="">— เลือกสาเหตุ —</option>
+                    <option>ลูกค้าไม่รับของ</option>
+                    <option>ติดต่อลูกค้าไม่ได้</option>
+                    <option>ที่อยู่ผิด/ไม่ครบ</option>
+                    <option>ลูกค้าขอคืน/ยกเลิก</option>
+                    <option>สินค้าเสียหายระหว่างขนส่ง</option>
+                    <option>อื่น ๆ</option>
+                </select>
+                <input id="reasonNote" type="text" maxlength="200" placeholder="รายละเอียดเพิ่มเติม (ถ้าเลือก อื่น ๆ ต้องกรอก)" style="margin-top:8px;">
+            </div>
+
+            <div class="field">
+                <label class="t">สภาพของ *</label>
+                <div class="choices" data-group="condition">
+                    <label class="choice"><input type="radio" name="condition" value="good"><div>✅ สภาพดี<small>ใช้ต่อ/ขายต่อได้</small></div></label>
+                    <label class="choice"><input type="radio" name="condition" value="damaged"><div>💥 เสียหาย<small>กระจกแตก อลูมิเนียมบุบ ฯลฯ</small></div></label>
+                </div>
+            </div>
+
+            <div class="field">
+                <label class="t">จัดการของยังไง *</label>
+                <div class="choices" data-group="handling">
+                    <label class="choice" id="optBackup"><input type="radio" name="handling" value="backup_stock"><div>📦 เข้าสต็อกสำรอง<small>บวกยอดสินค้าสำเร็จรูป รุ่นเดียวกันหยิบไปส่งได้</small></div></label>
+                    <label class="choice"><input type="radio" name="handling" value="reship"><div>🚚 ส่งใหม่ให้ลูกค้าเดิม<small>ออเดอร์กลับไป "ตรวจเสร็จรอจัดส่ง"</small></div></label>
+                    <label class="choice"><input type="radio" name="handling" value="damaged"><div>🗑️ เสียหาย / รอซ่อม<small>ไม่แตะสต็อก</small></div></label>
+                </div>
+            </div>
+
+            <div class="field" id="qtyField">
+                <label class="t" for="qty">จำนวนที่ตีกลับ (ชิ้น) *</label>
+                <input id="qty" type="number" min="1" step="1" inputmode="numeric" style="max-width:160px;">
+            </div>
+
+            <div class="field">
+                <label class="t">รูปถ่าย (ไม่บังคับ · สูงสุด 5 รูป)</label>
+                <input id="photos" type="file" accept="image/*" multiple>
+                <div class="hint">ถ่ายกล่อง/ลาเบล/จุดที่เสียหาย · ระบบย่อรูปให้เล็กลงก่อนส่งเอง</div>
+                <div class="thumbs" id="thumbs"></div>
+            </div>
+
+            <div class="row-actions" style="margin-top:16px;">
+                <button id="btnSubmit" class="btn btn-red btn-submit">💾 บันทึกของตีกลับ</button>
+                <button id="btnCancel" class="btn btn-ghost">ยกเลิก</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>🕘 ของตีกลับล่าสุด</h2>
+            <div id="hist"><div class="empty">กำลังโหลด...</div></div>
+        </div>
+    </div>
+
+    <div class="modal" id="photoModal"><div class="modal-box" id="photoBox"></div></div>
+
+<script>
+    const BUCKET = 'order-returns';
+    const MAX_PHOTOS = 5;
+    const RETURNABLE = ['ตรวจเสร็จรอจัดส่ง', 'จัดส่งสำเร็จ', 'ระหว่างการขนส่ง', 'กำลังจัดส่ง'];
+    const HANDLING_LABEL = { backup_stock: '📦 เข้าสต็อกสำรอง', reship: '🚚 ส่งใหม่', damaged: '🗑️ เสียหาย/รอซ่อม' };
+    const HANDLING_CLS = { backup_stock: 'ok', reship: 'blue', damaged: 'bad' };
+    let db = null;
+    let foundOrders = [];
+    let current = null;      // ออเดอร์ที่กำลังบันทึก
+    let photoBlobs = [];     // [{ blob, url }]
+
+    function esc(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+    }
+    function toast(msg, ms) {
+        const t = document.createElement('div');
+        t.className = 'toast'; t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), ms || 3000);
+    }
+    function fmtDate(v) {
+        return v ? new Date(v).toLocaleString('th-TH', { hour12:false, day:'2-digit', month:'short', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '-';
+    }
+    function statusPill(s) {
+        const cls = s === 'จัดส่งสำเร็จ' ? 'ok' : (s === 'พัสดุตีกลับ' ? 'bad' : (RETURNABLE.includes(s) ? 'blue' : 'warn'));
+        return '<span class="pill ' + cls + '">' + esc(s || '-') + '</span>';
+    }
+
+    // ── 1) ค้นหาออเดอร์ ─────────────────────────────────────────────
+    async function searchOrders() {
+        // ตัดอักขระที่ทำให้คำค้นใน .or() เพี้ยน (เลขพัสดุ/เลขผลิต/เลขออเดอร์ไม่มีอักขระพวกนี้)
+        const q = String(document.getElementById('q').value || '').replace(/[,()"'\\]/g, '').replace(/\s+/g, '').trim();
+        const box = document.getElementById('results');
+        if (!q) { box.innerHTML = ''; return; }
+        box.innerHTML = '<div class="empty">กำลังค้นหา...</div>';
+        const { data, error } = await db.from('stock_orders')
+            .select('id,order_number,production_number,tracking_number,product_code,product_name,quantity,platform,buyer_name,tracking_status,order_date,is_test')
+            .or(`tracking_number.eq.${q},order_number.eq.${q},production_number.eq.${q}`)
+            .order('order_date', { ascending: false })
+            .limit(20);
+        if (error) { box.innerHTML = '<div class="empty">❌ ค้นหาไม่สำเร็จ: ' + esc(error.message) + '</div>'; return; }
+        foundOrders = data || [];
+        if (!foundOrders.length) {
+            box.innerHTML = '<div class="empty">ไม่พบออเดอร์ "' + esc(q) + '"<br><small>ลองพิมพ์เลขที่ผลิต เช่น 498/29 หรือเลขออเดอร์เต็ม ๆ</small></div>';
+            return;
+        }
+        // เคยตีกลับกี่ครั้ง
+        const counts = {};
+        const { data: prev } = await db.from('order_returns').select('order_id').in('order_id', foundOrders.map(o => o.id));
+        (prev || []).forEach(r => { counts[r.order_id] = (counts[r.order_id] || 0) + 1; });
+
+        box.innerHTML = foundOrders.map(o => {
+            const ok = RETURNABLE.includes(o.tracking_status);
+            return '<div class="order" id="o_' + o.id + '">'
+                + '<div class="prod">🧾 ' + esc(o.production_number || 'ไม่มีเลขที่ผลิต') + (o.is_test ? ' <span class="pill warn">🧪 ใบทดลอง</span>' : '') + '</div>'
+                + '<div class="meta">' + esc(o.product_name || o.product_code || '-') + ' · x' + (Number(o.quantity) || 1) + ' ชิ้น<br>'
+                + 'วันที่ ' + esc(o.order_date || '-') + ' · ออเดอร์ ' + esc(o.order_number || '-') + ' · ' + esc(o.platform || '-') + ' · ' + esc(o.buyer_name || '-')
+                + (o.tracking_number ? '<br>เลขพัสดุ ' + esc(o.tracking_number) : '') + '</div>'
+                + statusPill(o.tracking_status)
+                + (counts[o.id] ? '<span class="pill warn">เคยตีกลับ ' + counts[o.id] + ' ครั้ง</span>' : '')
+                + '<div class="row-actions">'
+                + (ok ? '<button class="btn btn-red" data-pick="' + o.id + '">📦 บันทึกตีกลับใบนี้</button>'
+                      : '<span class="no">บันทึกตีกลับไม่ได้ — สถานะ "' + esc(o.tracking_status) + '" ยังไม่ได้ส่งออกไป หรือบันทึกไปแล้ว</span>')
+                + '</div></div>';
+        }).join('');
+        if (foundOrders.length === 1 && RETURNABLE.includes(foundOrders[0].tracking_status)) openForm(foundOrders[0].id);
+    }
+
+    // ── 2) ฟอร์มบันทึก ─────────────────────────────────────────────
+    function openForm(id) {
+        current = foundOrders.find(o => o.id === id);
+        if (!current) return;
+        document.querySelectorAll('.order').forEach(el => el.classList.toggle('pick', el.id === 'o_' + id));
+        resetForm(false);
+        document.getElementById('formOrder').innerHTML =
+            '<div class="order pick" style="margin-top:0"><div class="prod">🧾 ' + esc(current.production_number || '-') + '</div>'
+            + '<div class="meta">' + esc(current.product_name || current.product_code || '-') + '<br>ออเดอร์ ' + esc(current.order_number || '-') + ' · ' + esc(current.buyer_name || '-') + '</div></div>';
+        const qty = document.getElementById('qty');
+        qty.max = Math.max(1, Number(current.quantity) || 1);
+        qty.value = qty.max;
+        document.getElementById('qtyField').style.display = qty.max > 1 ? '' : 'none';
+        const card = document.getElementById('formCard');
+        card.style.display = 'block';
+        card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function resetForm(hide) {
+        document.getElementById('reason').value = '';
+        document.getElementById('reasonNote').value = '';
+        document.querySelectorAll('input[name=condition], input[name=handling]').forEach(r => { r.checked = false; });
+        photoBlobs.forEach(p => URL.revokeObjectURL(p.url));
+        photoBlobs = [];
+        document.getElementById('photos').value = '';
+        renderThumbs();
+        syncChoices();
+        if (hide) {
+            document.getElementById('formCard').style.display = 'none';
+            current = null;
+            document.querySelectorAll('.order').forEach(el => el.classList.remove('pick'));
+        }
+    }
+
+    // ของเสียหายเข้าสต็อกสำรองไม่ได้
+    function syncChoices() {
+        const cond = document.querySelector('input[name=condition]:checked')?.value;
+        const backup = document.querySelector('input[name=handling][value=backup_stock]');
+        const damagedOnly = cond === 'damaged';
+        backup.disabled = damagedOnly;
+        document.getElementById('optBackup').classList.toggle('off', damagedOnly);
+        if (damagedOnly && backup.checked) backup.checked = false;
+        document.querySelectorAll('.choice').forEach(c => c.classList.toggle('on', c.querySelector('input').checked));
+    }
+
+    // ย่อรูปเป็น JPEG ด้านยาวไม่เกิน 1600px (ประหยัดพื้นที่และโควต้าเน็ตของฐานข้อมูล)
+    function shrinkImage(file) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            const url = URL.createObjectURL(file);
+            img.onload = () => {
+                const scale = Math.min(1, 1600 / Math.max(img.width, img.height));
+                const c = document.createElement('canvas');
+                c.width = Math.round(img.width * scale);
+                c.height = Math.round(img.height * scale);
+                c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+                URL.revokeObjectURL(url);
+                c.toBlob(b => b ? resolve(b) : reject(new Error('ย่อรูปไม่สำเร็จ')), 'image/jpeg', 0.75);
+            };
+            img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('เปิดรูปไม่ได้: ' + file.name)); };
+            img.src = url;
+        });
+    }
+
+    async function addPhotos(files) {
+        for (const f of files) {
+            if (photoBlobs.length >= MAX_PHOTOS) { toast('แนบรูปได้ไม่เกิน ' + MAX_PHOTOS + ' รูป'); break; }
+            try {
+                const blob = await shrinkImage(f);
+                photoBlobs.push({ blob, url: URL.createObjectURL(blob) });
+            } catch (e) { toast('❌ ' + e.message); }
+        }
+        document.getElementById('photos').value = '';
+        renderThumbs();
+    }
+
+    function renderThumbs() {
+        document.getElementById('thumbs').innerHTML = photoBlobs.map((p, i) =>
+            '<div class="thumb"><img src="' + p.url + '" alt="รูปที่ ' + (i + 1) + '"><button type="button" data-rm="' + i + '" aria-label="ลบรูป">✕</button></div>'
+        ).join('');
+    }
+
+    async function submitReturn() {
+        if (!current) return;
+        const reason = document.getElementById('reason').value;
+        const note = document.getElementById('reasonNote').value.trim();
+        const condition = document.querySelector('input[name=condition]:checked')?.value;
+        const handling = document.querySelector('input[name=handling]:checked')?.value;
+        const qtyEl = document.getElementById('qty');
+        const qty = parseInt(qtyEl.value, 10);
+        const maxQty = Number(qtyEl.max) || 1;
+
+        if (!reason) { toast('กรุณาเลือกสาเหตุที่ตีกลับ'); return; }
+        if (reason === 'อื่น ๆ' && !note) { toast('สาเหตุ "อื่น ๆ" ต้องพิมพ์รายละเอียด'); document.getElementById('reasonNote').focus(); return; }
+        if (!condition) { toast('กรุณาเลือกสภาพของ'); return; }
+        if (!handling) { toast('กรุณาเลือกว่าจะจัดการของยังไง'); return; }
+        if (!Number.isInteger(qty) || qty < 1 || qty > maxQty) { toast('จำนวนต้องอยู่ระหว่าง 1 ถึง ' + maxQty); qtyEl.focus(); return; }
+
+        const after = handling === 'reship' ? 'ออเดอร์จะกลับไป "ตรวจเสร็จรอจัดส่ง" เพื่อส่งใหม่'
+            : 'ออเดอร์จะเปลี่ยนเป็น "พัสดุตีกลับ"' + (handling === 'backup_stock' ? '\nและบวกสต็อกสำรอง ' + current.product_code + ' +' + qty + ' ชิ้น' : '');
+        if (!confirm('ยืนยันบันทึกของตีกลับ\n\nเลขที่ผลิต: ' + (current.production_number || '-') + '\nสาเหตุ: ' + reason + (note ? ' — ' + note : '')
+            + '\nสภาพ: ' + (condition === 'good' ? 'ดี' : 'เสียหาย') + '\nจัดการ: ' + HANDLING_LABEL[handling].replace(/^\S+ /, '')
+            + '\nรูป: ' + photoBlobs.length + ' รูป\n\n' + after)) return;
+
+        const btn = document.getElementById('btnSubmit');
+        btn.disabled = true;
+        const uploaded = [];
+        try {
+            for (let i = 0; i < photoBlobs.length; i++) {
+                btn.textContent = '⏳ ส่งรูป ' + (i + 1) + '/' + photoBlobs.length + '...';
+                const path = current.id + '/' + Date.now() + '-' + (i + 1) + '.jpg';
+                const { error } = await db.storage.from(BUCKET).upload(path, photoBlobs[i].blob, { contentType: 'image/jpeg', upsert: false });
+                if (error) throw new Error('ส่งรูปไม่สำเร็จ: ' + error.message);
+                uploaded.push(path);
+            }
+            btn.textContent = '⏳ กำลังบันทึก...';
+            const { data, error } = await db.rpc('rpc_record_order_return', {
+                p_order_id: current.id, p_reason: reason, p_reason_note: note || null,
+                p_condition: condition, p_action: handling, p_quantity: qty, p_photo_paths: uploaded
+            });
+            if (error) throw error;
+            toast('✅ บันทึกของตีกลับแล้ว' + (handling === 'backup_stock' && data && data.backup_qty_after != null
+                ? ' · สต็อกสำรองตอนนี้ ' + data.backup_qty_after + ' ชิ้น' : ''), 4500);
+            resetForm(true);
+            searchOrders();
+            loadHistory();
+            loadKpis();
+        } catch (e) {
+            if (uploaded.length) await db.storage.from(BUCKET).remove(uploaded);   // เก็บกวาดรูปค้าง
+            toast('❌ ' + ((e && e.message) ? e.message : String(e)), 6000);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '💾 บันทึกของตีกลับ';
+        }
+    }
+
+    // ── 3) ประวัติ + สรุปเดือนนี้ ──────────────────────────────────
+    let histRows = [];
+    async function loadHistory() {
+        const box = document.getElementById('hist');
+        const { data, error } = await db.from('order_returns')
+            .select('id,production_number,order_number,product_name,product_code,quantity,reason,reason_note,condition,action,photo_paths,received_by,received_at')
+            .order('received_at', { ascending: false })
+            .limit(50);
+        if (error) { box.innerHTML = '<div class="empty">โหลดประวัติไม่สำเร็จ: ' + esc(error.message) + '</div>'; return; }
+        histRows = data || [];
+        if (!histRows.length) { box.innerHTML = '<div class="empty">ยังไม่มีของตีกลับ</div>'; return; }
+        box.innerHTML = histRows.map(r =>
+            '<div class="hist-row"><div>'
+            + '<div style="font-weight:700;">🧾 ' + esc(r.production_number || '-') + ' · ' + esc(r.product_name || r.product_code || '-') + (r.quantity > 1 ? ' · ' + r.quantity + ' ชิ้น' : '') + '</div>'
+            + '<div class="meta">' + esc(r.reason) + (r.reason_note ? ' — ' + esc(r.reason_note) : '')
+            + '<br>' + esc(r.received_by) + ' · ' + fmtDate(r.received_at) + '</div>'
+            + '<span class="pill ' + (r.condition === 'good' ? 'ok' : 'bad') + '">' + (r.condition === 'good' ? 'สภาพดี' : 'เสียหาย') + '</span>'
+            + '<span class="pill ' + HANDLING_CLS[r.action] + '">' + HANDLING_LABEL[r.action] + '</span>'
+            + '</div>'
+            + ((r.photo_paths || []).length ? '<button class="btn btn-ghost" style="padding:8px 12px;" data-photos="' + r.id + '">📷 ' + r.photo_paths.length + '</button>' : '')
+            + '</div>'
+        ).join('');
+    }
+
+    async function loadKpis() {
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+        const { data, error } = await db.from('order_returns').select('action').gte('received_at', monthStart);
+        if (error) return;
+        const rows = data || [];
+        const n = a => rows.filter(r => r.action === a).length;
+        document.getElementById('kTotal').textContent = rows.length;
+        document.getElementById('kBackup').textContent = n('backup_stock');
+        document.getElementById('kReship').textContent = n('reship');
+        document.getElementById('kDamaged').textContent = n('damaged');
+    }
+
+    // รูปเก็บแบบไม่สาธารณะ → ขอลิงก์ชั่วคราว 10 นาที โหลดเฉพาะตอนกดดู
+    async function showPhotos(id) {
+        const r = histRows.find(x => x.id === id);
+        if (!r) return;
+        const box = document.getElementById('photoBox');
+        box.innerHTML = '<div class="empty">กำลังโหลดรูป...</div>';
+        document.getElementById('photoModal').classList.add('show');
+        const { data, error } = await db.storage.from(BUCKET).createSignedUrls(r.photo_paths, 600);
+        if (error) { box.innerHTML = '<div class="empty">❌ โหลดรูปไม่ได้: ' + esc(error.message) + '</div>'; return; }
+        box.innerHTML = '<div style="font-weight:700;margin-bottom:8px;">🧾 ' + esc(r.production_number || '-') + ' · ' + esc(r.reason) + ' <span style="float:right;cursor:pointer;" data-close>✕ ปิด</span></div>'
+            + (data || []).filter(x => x.signedUrl).map(x => '<img src="' + esc(x.signedUrl) + '" alt="รูปของตีกลับ">').join('');
+    }
+
+    // ── เริ่มทำงาน ───────────────────────────────────────────────────
+    window.addEventListener('auth-ready', () => {
+        db = window.auth && window.auth.supabase;
+        if (!db) { document.getElementById('hist').innerHTML = '<div class="empty">❌ เชื่อมต่อฐานข้อมูลไม่ได้</div>'; return; }
+
+        loadKpis();
+        loadHistory();
+
+        const q = document.getElementById('q');
+        document.getElementById('btnSearch').addEventListener('click', searchOrders);
+        q.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); searchOrders(); } });
+        q.focus();
+
+        document.getElementById('results').addEventListener('click', e => {
+            const b = e.target.closest('[data-pick]');
+            if (b) openForm(b.dataset.pick);
+        });
+        document.getElementById('formCard').addEventListener('change', e => {
+            if (e.target.name === 'condition' || e.target.name === 'handling') syncChoices();
+        });
+        document.getElementById('photos').addEventListener('change', e => addPhotos([...e.target.files]));
+        document.getElementById('thumbs').addEventListener('click', e => {
+            const b = e.target.closest('[data-rm]');
+            if (!b) return;
+            const [p] = photoBlobs.splice(Number(b.dataset.rm), 1);
+            if (p) URL.revokeObjectURL(p.url);
+            renderThumbs();
+        });
+        document.getElementById('btnSubmit').addEventListener('click', submitReturn);
+        document.getElementById('btnCancel').addEventListener('click', () => resetForm(true));
+        document.getElementById('hist').addEventListener('click', e => {
+            const b = e.target.closest('[data-photos]');
+            if (b) showPhotos(b.dataset.photos);
+        });
+        document.getElementById('photoModal').addEventListener('click', e => {
+            if (e.target.id === 'photoModal' || e.target.closest('[data-close]')) e.currentTarget.classList.remove('show');
+        });
+    });
+</script>
+</body>
+</html>
