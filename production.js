@@ -211,7 +211,8 @@ async function loadData() {
             .from(TABLE)
             .select(selectColumns)
             .in('tracking_status', viewableStatuses)
-            .or('tracking_number.is.null,tracking_status.eq.' + STATUS_DONE)
+            // งานรอ QC / ตรวจเสร็จรอจัดส่ง ต้องเห็นครบแม้มีเลขพัสดุแล้ว (ไม่งั้นกด 🚚 ส่งแล้วไม่ได้)
+            .or(`tracking_number.is.null,tracking_status.eq.${STATUS_DONE},tracking_status.eq.${STATUS_QC_DONE}`)
             .order('order_date', { ascending: true })
             .order('id', { ascending: true }));
 
@@ -223,7 +224,7 @@ async function loadData() {
                     .from(TABLE)
                     .select(fallbackColumns)
                     .in('tracking_status', viewableStatuses)
-                    .or('tracking_number.is.null,tracking_status.eq.' + STATUS_DONE)
+                    .or(`tracking_number.is.null,tracking_status.eq.${STATUS_DONE},tracking_status.eq.${STATUS_QC_DONE}`)
                     .order('order_date', { ascending: true })
                     .order('id', { ascending: true }));
             }
@@ -1195,7 +1196,11 @@ function renderOrderCard(o) {
             })() : ''}`;  
     } else if (status === STATUS_QC_DONE) {
         badgeHtml = `<span class="badge badge-qcdone">✔️ ตรวจเสร็จรอจัดส่ง</span>`;
-        actionsHtml = '';
+        actionsHtml = canConfirmShipped()
+            ? `<label class="ship-pick${shipSelected.has(o.id) ? ' on' : ''}" title="ติ๊กใบที่ส่งออกไปแล้ว แล้วกดปุ่ม 🚚 ส่งแล้ว ด้านบน">
+                   <input type="checkbox" ${shipSelected.has(o.id) ? 'checked' : ''} onchange="toggleShipPick('${o.id}', this.checked, this)"> 🚚 เลือกส่ง
+               </label>`
+            : '';
     } else {
         badgeHtml = `<span class="badge badge-proddone">🔍 รอ QC ตรวจ</span>`;
         const targetRevertStatus = (o.stock_deducted === true) ? STATUS_PRODUCING : STATUS_PENDING;
@@ -1445,6 +1450,116 @@ async function qcReject(id, btn) {
 window.qcPass = qcPass;
 window.qcReject = qcReject;
 
+// ═══ ปุ่ม 🚚 ส่งแล้ว (แท็บตรวจเสร็จรอจัดส่ง · เจ้าของขอ 03/11/2569) ═══════════
+// ติ๊กหลายใบ → ตรวจเสร็จรอจัดส่ง เป็น จัดส่งสำเร็จ ผ่าน rpc_mark_orders_shipped
+// ฐานข้อมูลเช็คสิทธิ์ action_confirm_shipped + สถานะเอง · ย้อนกลับได้ด้วย rpc_unmark_orders_shipped
+const shipSelected = new Set();   // id ที่ติ๊กไว้ (เฉพาะที่ยังแสดงอยู่)
+let shipVisibleIds = [];          // id ที่แสดงในแท็บตอนนี้ (หลังกรอง/ค้นหา)
+let lastShippedIds = [];          // ชุดล่าสุดที่กดส่งแล้ว ไว้กดย้อนกลับ
+
+function canConfirmShipped() {
+    return window.auth?.role === 'Ceo' || window.auth?.hasPermission?.('action_confirm_shipped') === true;
+}
+
+function renderShipBar(visibleOrders) {
+    if (!canConfirmShipped()) return '';
+    shipVisibleIds = visibleOrders.map(o => o.id);
+    const visible = new Set(shipVisibleIds);
+    [...shipSelected].forEach(id => { if (!visible.has(id)) shipSelected.delete(id); });
+    const n = shipVisibleIds.length;
+    const k = shipSelected.size;
+    const undo = lastShippedIds.length
+        ? `<span class="ship-undo">✅ เพิ่งกดส่งแล้ว ${lastShippedIds.length} ใบ
+               <button type="button" class="btn btn-outline btn-sm" onclick="undoShipped(this)">↩ ย้อนกลับชุดนี้</button></span>`
+        : '';
+    return `
+        <div class="ship-bar" id="shipBar">
+            <label class="ship-all">
+                <input type="checkbox" id="shipAll" ${n && k === n ? 'checked' : ''} ${n ? '' : 'disabled'}
+                    onchange="toggleShipAll(this.checked)"> เลือกทั้งหมดที่แสดง (${n} ใบ)
+            </label>
+            <button type="button" class="btn btn-sm btn-ship" id="btnShip" ${k ? '' : 'disabled'} onclick="markShipped(this)">🚚 ส่งแล้ว (${k} ใบ)</button>
+            ${undo}
+            <div class="ship-hint">ติ๊กใบที่ขนส่งมารับไปแล้ว แล้วกด 🚚 ส่งแล้ว · เปลี่ยนวันที่เสร็จด้านบนเพื่อดูงานวันอื่น</div>
+        </div>`;
+}
+
+function refreshShipBar() {
+    const n = shipVisibleIds.length, k = shipSelected.size;
+    const btn = document.getElementById('btnShip');
+    if (btn) { btn.disabled = !k; btn.textContent = `🚚 ส่งแล้ว (${k} ใบ)`; }
+    const all = document.getElementById('shipAll');
+    if (all) all.checked = n > 0 && k === n;
+}
+
+function toggleShipPick(id, checked, input) {
+    if (checked) shipSelected.add(id); else shipSelected.delete(id);
+    const label = input && input.closest('.ship-pick');
+    if (label) label.classList.toggle('on', checked);
+    refreshShipBar();
+}
+
+function toggleShipAll(checked) {
+    shipSelected.clear();
+    if (checked) shipVisibleIds.forEach(id => shipSelected.add(id));
+    renderCards();
+}
+
+async function markShipped(btn) {
+    if (!canConfirmShipped()) { alert('❌ บัญชีนี้ไม่มีสิทธิ์ยืนยันส่งของ'); return; }
+    const ids = shipVisibleIds.filter(id => shipSelected.has(id));
+    if (!ids.length) return;
+    const picked = ids.map(id => allOrders.find(o => o.id === id)).filter(Boolean);
+    const sample = picked.slice(0, 8).map(o => '• ' + formatProductionNumberLabel(o) + '  ' + (o.order_number || '-')).join('\n');
+    const ok = confirm(
+        '🚚 ยืนยันส่งแล้ว ' + ids.length + ' ใบ\n' +
+        'สถานะจะเปลี่ยนเป็น "จัดส่งสำเร็จ"\n\n' +
+        sample + (picked.length > 8 ? '\n… และอีก ' + (picked.length - 8) + ' ใบ' : '') +
+        '\n\n(กดผิด ย้อนกลับได้จากปุ่มด้านบน)'
+    );
+    if (!ok) return;
+    const old = btn.textContent;
+    btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก...';
+    try {
+        const { data, error } = await db.rpc('rpc_mark_orders_shipped', { p_order_ids: ids });
+        if (error) throw error;
+        lastShippedIds = (data && Array.isArray(data.order_ids)) ? data.order_ids : ids;
+        shipSelected.clear();
+        const skipped = Number(data && data.skipped) || 0;
+        log('🚚 ส่งแล้ว ' + (data && data.updated) + ' ใบ' + (skipped ? ' · ข้าม ' + skipped + ' ใบ (สถานะเปลี่ยนไปแล้ว)' : ''), 'success');
+        if (skipped) alert('บันทึกส่งแล้ว ' + data.updated + ' ใบ\nข้าม ' + skipped + ' ใบ เพราะสถานะไม่ใช่ "ตรวจเสร็จรอจัดส่ง" แล้ว (อาจมีคนกดไปก่อน)');
+        await loadData();
+    } catch (e) {
+        const msg = (e && e.message) ? e.message : String(e);
+        log('ส่งแล้วไม่สำเร็จ: ' + msg, 'error');
+        alert('❌ ' + msg);
+        btn.disabled = false; btn.textContent = old;
+    }
+}
+
+async function undoShipped(btn) {
+    if (!lastShippedIds.length) return;
+    if (!confirm('↩ ย้อนกลับ ' + lastShippedIds.length + ' ใบ ให้เป็น "ตรวจเสร็จรอจัดส่ง" เหมือนเดิม?')) return;
+    btn.disabled = true; btn.textContent = '⏳';
+    try {
+        const { data, error } = await db.rpc('rpc_unmark_orders_shipped', { p_order_ids: lastShippedIds });
+        if (error) throw error;
+        log('↩ ย้อนส่งแล้ว ' + (data && data.reverted) + ' ใบ', 'success');
+        lastShippedIds = [];
+        await loadData();
+    } catch (e) {
+        const msg = (e && e.message) ? e.message : String(e);
+        log('ย้อนกลับไม่สำเร็จ: ' + msg, 'error');
+        alert('❌ ' + msg);
+        btn.disabled = false; btn.textContent = '↩ ย้อนกลับชุดนี้';
+    }
+}
+
+window.toggleShipPick = toggleShipPick;
+window.toggleShipAll = toggleShipAll;
+window.markShipped = markShipped;
+window.undoShipped = undoShipped;
+
 function renderCards() {
     const statusMap = {
         pending: STATUS_PENDING,
@@ -1478,12 +1593,14 @@ function renderCards() {
             });
         }
 
+        const shipBar = activeTab === 'qcdone' ? renderShipBar(filtered) : '';
+
         if (!filtered.length) {
-            container.innerHTML = `<div class="empty-state"><div class="emoji">✅</div><p>ไม่มีรายการ</p></div>`;
+            container.innerHTML = shipBar + `<div class="empty-state"><div class="emoji">✅</div><p>ไม่มีรายการ</p></div>`;
             return;
         }
 
-        container.innerHTML = filtered.map(renderOrderCard).join('');
+        container.innerHTML = shipBar + filtered.map(renderOrderCard).join('');
     } catch (err) {
         console.error('renderCards error:', err);
         container.innerHTML = `<div class="empty-state"><p style="color:#f87171;">เกิดข้อผิดพลาดในการแสดงผล</p></div>`;

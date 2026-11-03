@@ -1411,6 +1411,45 @@ body::before {
     border: 1px solid rgba(239, 68, 68, 0.35);
     margin-left: 6px;
 }
+/* ปุ่ม 🚚 ส่งแล้ว (แท็บตรวจเสร็จรอจัดส่ง) */
+.ship-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 14px;
+    margin: 0 0 14px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    background: rgba(59, 130, 246, 0.08);
+}
+.ship-all, .ship-pick {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    cursor: pointer;
+    user-select: none;
+}
+.ship-all input, .ship-pick input { width: 20px; height: 20px; cursor: pointer; accent-color: #2563eb; }
+.ship-pick {
+    padding: 5px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(59, 130, 246, 0.4);
+    color: #2563eb;
+    font-size: 0.85rem;
+}
+.ship-pick.on { background: #2563eb; color: #fff; border-color: #2563eb; }
+.btn.btn-ship {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: #fff;
+    border-color: #2563eb;
+    font-weight: 800;
+}
+.btn.btn-ship:disabled { opacity: 0.45; cursor: default; }
+.ship-undo { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: #059669; }
+.ship-hint { flex-basis: 100%; font-size: 0.8rem; opacity: 0.75; }
+
 .btn-qc-pass {
     background: linear-gradient(135deg, var(--green), #059669);
     color: #ffffff;
