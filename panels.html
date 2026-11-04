@@ -98,8 +98,7 @@
                 <div style="font-weight:700;">➕ เพิ่มบานเข้าสต๊อก <span class="meta">(เช่น บานเหลือจากงานผลิต · ของตีกลับให้บันทึกที่หน้าของตีกลับ)</span></div>
                 <div class="f"><label for="addSku">SKU อ้างอิง *</label><input id="addSku" type="text" placeholder="เช่น SLWD4P2011WGNL0" autocomplete="off" style="text-transform:uppercase"></div>
                 <div id="skuInfo" class="meta">พิมพ์ SKU แล้วกด Enter หรือคลิกช่องถัดไป ระบบจะเช็คกับทะเบียนสินค้า</div>
-                <div class="f"><label for="addType">ประเภทบาน *</label><select id="addType" disabled><option value="">— ใส่ SKU ก่อน —</option></select></div>
-                <div class="f"><label for="addQty">จำนวน *</label><input id="addQty" class="num" type="number" min="1" step="1" value="1" inputmode="numeric"></div>
+                <div id="addTypes"><div class="f"><label>จำนวนบาน *</label><span class="meta">— ใส่ SKU ก่อน —</span></div></div>
                 <div class="f"><label for="addLoc">ช่องเก็บ</label><input id="addLoc" type="text" maxlength="20" placeholder="P01 (ไม่บังคับ)" style="text-transform:uppercase"></div>
                 <div class="f"><label for="addReason">เหตุผล *</label><input id="addReason" type="text" maxlength="200" placeholder="เช่น บานเหลือจากงานผลิต / นับคลังเจอเพิ่ม"></div>
                 <div class="f" style="justify-content:flex-end;">
@@ -257,11 +256,11 @@
     // ── เพิ่มบานเข้าสต๊อก: ต้องอ้างอิง SKU ในทะเบียนสินค้า และเลือกได้เฉพาะประเภทบานที่ SKU นั้นมี ──
     let addSkuOk = null;   // product_code ที่ตรวจแล้ว
     async function checkAddSku() {
-        const el = document.getElementById('addSku'), info = document.getElementById('skuInfo'), sel = document.getElementById('addType');
+        const el = document.getElementById('addSku'), info = document.getElementById('skuInfo');
         const code = el.value.replace(/\s+/g, '').toUpperCase();
         el.value = code;
         addSkuOk = null;
-        sel.innerHTML = '<option value="">— ใส่ SKU ก่อน —</option>'; sel.disabled = true;
+        renderAddTypes(null);
         if (!code) { info.className = 'meta'; info.textContent = 'พิมพ์ SKU แล้วกด Enter'; return; }
         const layout = PANEL_LAYOUT[panelFamily(code)];
         if (!layout) { info.className = 'bad'; info.textContent = '❌ ' + code + ' ไม่ใช่สินค้าที่เก็บบานได้ (รองรับ SLWD/SLD 2-4 บาน)'; return; }
@@ -272,27 +271,49 @@
         names[code] = data.name || '';
         addSkuOk = code;
         info.className = 'ok'; info.textContent = '✅ ' + (data.name || code) + ' · 1 ชุดใช้: ' + Object.entries(layout).map(([t, n]) => PANEL_LABEL[t] + ' ' + n).join(' + ');
-        sel.innerHTML = '<option value="">— เลือกประเภทบาน —</option>' + PANEL_ORDER.filter(t => layout[t])
-            .map(t => '<option value="' + t + '">' + PANEL_LABEL[t] + '</option>').join('');
-        sel.disabled = false;
+        renderAddTypes(layout);
+    }
+
+    // ช่องจำนวนทุกประเภทบานที่ SKU นั้นมี (ใส่ได้หลายประเภทพร้อมกัน · ใส่ 0 = ข้าม)
+    function renderAddTypes(layout) {
+        const box = document.getElementById('addTypes');
+        if (!layout) { box.innerHTML = '<div class="f"><label>จำนวนบาน *</label><span class="meta">— ใส่ SKU ก่อน —</span></div>'; return; }
+        box.innerHTML = PANEL_ORDER.filter(t => layout[t]).map(t =>
+            '<div class="f"><label for="add_' + t + '">' + PANEL_LABEL[t] + '</label>'
+            + '<input id="add_' + t + '" class="num" type="number" min="0" step="1" value="0" inputmode="numeric" data-at="' + t + '">'
+            + '<span class="meta">บาน</span></div>').join('');
+        const first = box.querySelector('input');
+        if (first) first.focus();
     }
 
     async function saveAdd(btn) {
-        const code = addSkuOk, type = document.getElementById('addType').value;
-        const qty = parseInt(document.getElementById('addQty').value, 10);
+        const code = addSkuOk;
         const loc = normalizeLoc(document.getElementById('addLoc').value) || null;
         const reason = document.getElementById('addReason').value.trim();
         if (!code || code !== document.getElementById('addSku').value.trim().toUpperCase()) { toast('กรุณาใส่ SKU อ้างอิงที่มีในทะเบียนสินค้า'); return; }
-        if (!type) { toast('กรุณาเลือกประเภทบาน'); return; }
-        if (!Number.isInteger(qty) || qty < 1) { toast('จำนวนต้องเป็นเลข 1 ขึ้นไป'); return; }
+        const items = [...document.querySelectorAll('#addTypes input[data-at]')].map(i => ({ type: i.dataset.at, raw: i.value.trim(), qty: parseInt(i.value, 10) }));
+        const bad = items.find(it => it.raw !== '' && (!Number.isInteger(it.qty) || it.qty < 0 || String(it.qty) !== it.raw));
+        if (bad) { toast(PANEL_LABEL[bad.type] + ': จำนวนต้องเป็นเลข 0 ขึ้นไป'); return; }
+        const adds = items.filter(it => it.qty > 0);
+        if (!adds.length) { toast('ใส่จำนวนบานอย่างน้อย 1 ประเภท'); return; }
         if (reason.length < 3) { toast('กรุณาใส่เหตุผลอย่างน้อย 3 ตัวอักษร'); return; }
-        if (!confirm('เพิ่มบานเข้าสต๊อก\n\nSKU: ' + code + (names[code] ? '\n' + names[code] : '') + '\n' + PANEL_LABEL[type] + ' × ' + qty
+        if (!confirm('เพิ่มบานเข้าสต๊อก\n\nSKU: ' + code + (names[code] ? '\n' + names[code] : '') + '\n'
+            + adds.map(it => '• ' + PANEL_LABEL[it.type] + ' × ' + it.qty).join('\n')
             + (loc ? '\nช่องเก็บ ' + loc : '') + '\nเหตุผล: ' + reason)) return;
         btn.disabled = true;
-        const { error } = await db.rpc('rpc_adjust_panel_stock', { p_product_code: code, p_panel_type: type, p_delta: qty, p_reason: reason, p_location: loc });
+        const done = [];
+        for (const it of adds) {
+            const { error } = await db.rpc('rpc_adjust_panel_stock', { p_product_code: code, p_panel_type: it.type, p_delta: it.qty, p_reason: reason, p_location: loc });
+            if (error) {
+                btn.disabled = false;
+                toast('❌ ' + PANEL_LABEL[it.type] + ': ' + error.message + (done.length ? ' (บันทึกไปแล้ว: ' + done.join(', ') + ')' : ''), 7000);
+                loadStock(); loadLog();
+                return;
+            }
+            done.push(PANEL_LABEL[it.type] + ' ' + it.qty);
+        }
         btn.disabled = false;
-        if (error) { toast('❌ ' + error.message, 5000); return; }
-        toast('✅ เพิ่ม ' + PANEL_LABEL[type] + ' ' + qty + ' บานแล้ว');
+        toast('✅ เพิ่มแล้ว: ' + done.join(' · '), 4500);
         resetAdd(true);
         loadStock();
         loadLog();
@@ -300,10 +321,8 @@
 
     function resetAdd(hide) {
         ['addSku', 'addLoc', 'addReason'].forEach(id => { document.getElementById(id).value = ''; });
-        document.getElementById('addQty').value = '1';
         addSkuOk = null;
-        const sel = document.getElementById('addType');
-        sel.innerHTML = '<option value="">— ใส่ SKU ก่อน —</option>'; sel.disabled = true;
+        renderAddTypes(null);
         document.getElementById('skuInfo').className = 'meta';
         document.getElementById('skuInfo').textContent = 'พิมพ์ SKU แล้วกด Enter หรือคลิกช่องถัดไป ระบบจะเช็คกับทะเบียนสินค้า';
         if (hide) document.getElementById('addForm').style.display = 'none';
