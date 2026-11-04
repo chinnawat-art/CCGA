@@ -1411,6 +1411,21 @@ body::before {
     border: 1px solid rgba(239, 68, 68, 0.35);
     margin-left: 6px;
 }
+/* เตือนมีบานเก็บในสต๊อกบาน */
+.card-panels {
+    margin-top: 8px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: 2px solid #2563eb;
+    border-left-width: 8px;
+    background: rgba(37, 99, 235, 0.1);
+    font-size: 0.95rem;
+    line-height: 1.55;
+}
+.card-panels-label { font-weight: 800; color: #2563eb; margin-bottom: 2px; }
+.card-panels-warn { color: #d97706; font-weight: 700; }
+.card-panels-note { font-size: 0.78rem; opacity: 0.75; margin-top: 3px; }
+
 /* ปุ่ม 🚚 ส่งแล้ว (แท็บตรวจเสร็จรอจัดส่ง) */
 .ship-bar {
     display: flex;

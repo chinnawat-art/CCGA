@@ -238,6 +238,7 @@ async function loadData() {
             `อัปเดต: ${new Date().toLocaleString('th-TH')} | ${allOrders.length} รายการ`;
         await enrichOrdersWithDispatchStatus();
         await enrichOrdersWithDamageStatus();
+        await loadPanelStockForHints();
         applyFilters();
     } catch (err) {
         log(`โหลดล้มเหลว: ${err.message}`, 'error');
@@ -1343,6 +1344,7 @@ function renderOrderCard(o) {
                 <div class="card-details" style="margin-bottom:8px;">${details}</div>
                 ${timeDetails.join('')}
                 ${o.note ? `<div class="card-note"><div class="card-note-label">📢 หมายเหตุ — อ่านก่อนผลิต</div><div class="card-note-text">${esc(o.note)}</div></div>` : ''}
+                ${panelHintHtml(o)}
                 <div style="font-size:0.85rem;color:var(--muted);margin-top:auto;padding-top:8px;">👤 ${esc(o.buyer_name || '-')} &nbsp;|&nbsp; #${esc(o.order_number || '-')}</div>
             </div>
         </div>
@@ -1449,6 +1451,58 @@ async function qcReject(id, btn) {
 
 window.qcPass = qcPass;
 window.qcReject = qcReject;
+
+// ═══ เตือน "มีบานเก็บในสต๊อกบาน" (ขั้นที่ 2 · เจ้าของขอ 04/11/2569) ═══════════
+// งานรอผลิต/กำลังผลิตที่ SKU ตรงกับบานในสต๊อกบาน → บอกว่าใช้บานไหนได้ และต้องทำเพิ่มอะไร
+// (ขั้นนี้เตือนอย่างเดียว ยังไม่ลดการตัดวัสดุ)
+const PANEL_LAYOUT = {
+    SLWD2P: { slide: 2 }, SLD2P: { slide: 2 },
+    SLWD3P: { fixed: 1, slide: 2 },
+    SLWD4P: { fixed: 2, slide_handle: 1, slide_plain: 1 },
+    SLD4P: { fixed: 2, slide_handle: 1, slide_plain: 1 }
+};
+const PANEL_LABEL = { fixed: 'บานตาย', slide: 'บานเลื่อน', slide_handle: 'บานเลื่อนฝั่งมือจับ', slide_plain: 'บานเลื่อนฝั่งเรียบ' };
+const PANEL_ORDER = ['fixed', 'slide', 'slide_handle', 'slide_plain'];
+let panelStockBySku = {};   // product_code → { panel_type: { qty, loc } }
+
+async function loadPanelStockForHints() {
+    panelStockBySku = {};
+    try {
+        const { data, error } = await db.from('panel_stock')
+            .select('product_code, panel_type, quantity, storage_location')
+            .gt('quantity', 0).limit(1000);
+        if (error) return;   // ยังไม่มีตารางสต๊อกบาน = ไม่ต้องเตือน
+        (data || []).forEach(r => {
+            (panelStockBySku[r.product_code] = panelStockBySku[r.product_code] || {})[r.panel_type] = { qty: r.quantity, loc: r.storage_location };
+        });
+    } catch (e) { /* เตือนไม่ได้ก็ไม่เป็นไร หน้าผลิตใช้ต่อได้ */ }
+}
+
+function panelHintHtml(o) {
+    if (o.tracking_status !== STATUS_PENDING && o.tracking_status !== STATUS_PRODUCING) return '';
+    const stock = panelStockBySku[o.product_code];
+    const fam = (String(o.product_code || '').match(/^(SLWD|SLD)\dP/) || [])[0];
+    const layout = PANEL_LAYOUT[fam];
+    if (!stock || !layout) return '';
+    const sets = Math.max(1, parseInt(o.quantity, 10) || 1);
+    const use = [], make = [];
+    PANEL_ORDER.filter(t => layout[t]).forEach(t => {
+        const need = layout[t] * sets;
+        const have = Math.min(need, (stock[t] && stock[t].qty) || 0);
+        if (have) use.push(PANEL_LABEL[t] + ' ' + have + (stock[t].loc ? ' (📍' + esc(stock[t].loc) + ')' : ''));
+        if (need - have) make.push(PANEL_LABEL[t] + ' ' + (need - have));
+    });
+    if (!use.length) return '';
+    const sameSku = allOrders.filter(x => x.product_code === o.product_code
+        && (x.tracking_status === STATUS_PENDING || x.tracking_status === STATUS_PRODUCING)).length;
+    return `<div class="card-panels">
+        <div class="card-panels-label">🪟 มีบานเก็บในสต๊อกบาน ใช้กับงานนี้ได้</div>
+        <div>✅ ใช้ได้: <b>${use.join(' · ')}</b></div>
+        <div>🔨 ต้องทำ: <b>กรอบ${make.length ? ' + ' + make.join(' + ') : 'อย่างเดียว'}</b></div>
+        ${sameSku > 1 ? `<div class="card-panels-warn">⚠️ มีงาน SKU นี้รออยู่ ${sameSku} ใบ ใช้บานชุดเดียวกัน</div>` : ''}
+        <div class="card-panels-note">ตอนนี้ระบบยังตัดวัสดุเต็มชุด · ถ้าหยิบบานเก็บไปใช้ ให้ลดยอดในหน้าสต๊อกบานด้วย</div>
+    </div>`;
+}
 
 // ═══ ปุ่ม 🚚 ส่งแล้ว (แท็บตรวจเสร็จรอจัดส่ง · เจ้าของขอ 03/11/2569) ═══════════
 // ติ๊กหลายใบ → ตรวจเสร็จรอจัดส่ง เป็น จัดส่งสำเร็จ ผ่าน rpc_mark_orders_shipped
