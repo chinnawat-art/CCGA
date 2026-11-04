@@ -187,20 +187,20 @@
                 <div class="choices" data-group="handling">
                     <label class="choice" id="optBackup"><input type="radio" name="handling" value="backup_stock"><div>📦 เข้าสต็อกสำรอง<small>ของสภาพดี · บวกยอดสินค้าสำเร็จรูป รุ่นเดียวกันหยิบไปส่งได้</small></div></label>
                     <label class="choice"><input type="radio" name="handling" value="repair"><div>🔧 ซ่อม<small>ของเสียหาย · เลือกวัสดุที่เสียจากสูตร (BOM) เบิกเฉพาะตัวนั้น · ซ่อมเสร็จเข้าสต็อกสำรอง</small></div></label>
-                    <label class="choice" id="optPanels"><input type="radio" name="handling" value="keep_panels"><div>🪟 เก็บบานที่ดี<small>กรอบเสีย บานยังดี · เก็บบานเข้าคลังบานสำเร็จ ไว้ใช้กับงานใหม่ SKU เดียวกัน (SLWD/SLD 2-4 บาน)</small></div></label>
+                    <label class="choice" id="optPanels"><input type="radio" name="handling" value="keep_panels"><div>🪟 เก็บบานที่ดี<small>กรอบเสีย บานยังดี · เก็บบานเข้าสต๊อกบาน ไว้ใช้กับงานใหม่ SKU เดียวกัน (SLWD/SLD 2-4 บาน)</small></div></label>
                     <label class="choice"><input type="radio" name="handling" value="salvage"><div>♻️ แยกชิ้นส่วนที่ดีเข้าสต็อก<small>เสียหายหนัก (เกิน ~60%) ซ่อมไม่คุ้ม · ติ๊กชิ้นส่วนที่ยังใช้ได้จากสูตร (BOM) เก็บเข้าสต็อกวัสดุ</small></div></label>
                     <label class="choice"><input type="radio" name="handling" value="damaged"><div>🗑️ ทิ้ง / ซ่อมไม่ได้<small>ของเสียหาย · ไม่แตะสต็อก</small></div></label>
                 </div>
                 <div id="panelBox">
                     <div style="font-weight:700;margin-bottom:4px;">🪟 ใส่จำนวนบานที่ยังดี (ส่วนที่เสียใส่ 0)</div>
-                    <div class="hint" style="margin-top:0">บานที่ใส่จะเข้าคลังบานสำเร็จ · งานใหม่ SKU เดียวกันจะเห็นว่ามีบานเก็บไว้</div>
+                    <div class="hint" style="margin-top:0">บานที่ใส่จะเข้าสต๊อกบาน · งานใหม่ SKU เดียวกันจะเห็นว่ามีบานเก็บไว้</div>
                     <div id="panelInputs"></div>
                     <div class="pn-row" style="margin-top:4px;">
                         <span class="pn-name">📍 ช่องเก็บบาน<small>ไม่บังคับ เช่น P01</small></span>
                         <input id="panelLoc" type="text" maxlength="20" placeholder="P01">
                     </div>
                     <div style="font-weight:700;margin:12px 0 4px;">🔧 (ไม่บังคับ) ชิ้นส่วนบานที่ต้องเปลี่ยนก่อนเก็บ</div>
-                    <div class="hint" style="margin-top:0">ติ๊กแล้ววัสดุจะตัดสต็อกและขึ้นหน้าเตรียมวัสดุ (ป้าย 🔧) · บานจะรอใน "งานซ่อมค้าง" เปลี่ยนเสร็จกด ✅ ซ่อมเสร็จ แล้วจึงเข้าคลังบาน</div>
+                    <div class="hint" style="margin-top:0">ติ๊กแล้ววัสดุจะตัดสต็อกและขึ้นหน้าเตรียมวัสดุ (ป้าย 🔧) · บานจะรอใน "งานซ่อมค้าง" เปลี่ยนเสร็จกด ✅ ซ่อมเสร็จ แล้วจึงเข้าสต๊อกบาน</div>
                     <div id="replaceList"></div>
                 </div>
                 <div id="repairBox">
@@ -229,8 +229,8 @@
         </div>
 
         <div class="card" id="panelStockCard" style="border:2px solid #2563eb;">
-            <h2>🪟 คลังบานสำเร็จ <span id="panelStockCount"></span></h2>
-            <div class="hint" style="margin:-4px 0 10px">บานที่ยังดีจากของตีกลับ · ใช้กับงานใหม่ SKU เดียวกันได้ (ทำแค่กรอบ + บานที่ขาด) · <a href="panels.html" style="color:#2563eb">เปิดหน้าคลังบานสำเร็จ →</a></div>
+            <h2>🪟 สต๊อกบาน <span id="panelStockCount"></span></h2>
+            <div class="hint" style="margin:-4px 0 10px">บานที่ยังดีจากของตีกลับ · ใช้กับงานใหม่ SKU เดียวกันได้ (ทำแค่กรอบ + บานที่ขาด) · <a href="panels.html" style="color:#2563eb">เปิดหน้าสต๊อกบาน →</a></div>
             <input id="panelSearch" type="text" placeholder="🔍 ค้นหา SKU หรือช่องเก็บ" style="width:100%;font-family:inherit;font-size:.95rem;padding:10px 12px;border:1px solid var(--border-strong,#cbd5e1);border-radius:11px;background:var(--surface,#fff);color:var(--text-main,#0f172a);margin-bottom:10px;">
             <div id="panelStock"><div class="empty">กำลังโหลด...</div></div>
         </div>
@@ -619,12 +619,12 @@
                   + '\nซ่อมเสร็จกด ✅ ซ่อมเสร็จ → เข้าสต็อกสำรอง'
                 : '')
             + (handling === 'keep_panels'
-                ? '\n\nเก็บบานเข้าคลังบานสำเร็จ:\n' + panels.filter(p => p.qty > 0).map(p => '• ' + p.label + ' × ' + p.qty).join('\n')
+                ? '\n\nเก็บบานเข้าสต๊อกบาน:\n' + panels.filter(p => p.qty > 0).map(p => '• ' + p.label + ' × ' + p.qty).join('\n')
                   + (panelLoc ? '\nช่องเก็บ ' + panelLoc : '')
                   + (replaceItems.length
                       ? '\n\n🔧 เปลี่ยนชิ้นส่วนก่อนเก็บ (ตัดสต็อก ขึ้นหน้าเตรียมวัสดุ):\n' + replaceItems.map(it => '• ' + it.name + ' × ' + it.qty).join('\n')
-                        + '\nบานจะรอในงานซ่อมค้าง กด ✅ ซ่อมเสร็จ แล้วจึงเข้าคลังบาน'
-                      : '\nบานเข้าคลังทันที')
+                        + '\nบานจะรอในงานซ่อมค้าง กด ✅ ซ่อมเสร็จ แล้วจึงเข้าสต๊อกบาน'
+                      : '\nบานเข้าสต๊อกทันที')
                 : '')
             + ((handling === 'salvage' || (handling === 'keep_panels' && repairItems.length))
                 ? '\n\nเก็บชิ้นส่วนเข้าสต็อกวัสดุ ' + repairItems.length + ' รายการ:\n'
@@ -660,7 +660,7 @@
                 : (handling === 'repair' && repairItems.length ? ' · วัสดุซ่อมขึ้นในหน้าเตรียมวัสดุแล้ว'
                 : (handling === 'salvage' ? ' · เก็บชิ้นส่วนเข้าสต็อกแล้ว ' + repairItems.length + ' รายการ'
                 : (handling === 'keep_panels'
-                    ? (data && data.panels_waiting ? ' · บาน ' + data.panels + ' บาน รอเปลี่ยนชิ้นส่วนในงานซ่อมค้าง' : ' · เก็บบานเข้าคลังแล้ว ' + (data && data.panels) + ' บาน')
+                    ? (data && data.panels_waiting ? ' · บาน ' + data.panels + ' บาน รอเปลี่ยนชิ้นส่วนในงานซ่อมค้าง' : ' · เก็บบานเข้าสต๊อกแล้ว ' + (data && data.panels) + ' บาน')
                     : '')))), 4500);
             loadPanelStock();
             resetForm(true);
@@ -750,13 +750,13 @@
         const ps = Array.isArray(r.panels) ? r.panels : [];
         if (!confirm('✅ ' + (isPanels ? 'เปลี่ยนชิ้นส่วนบานเสร็จแล้ว?' : 'ซ่อมเสร็จแล้ว?') + '\n\nเลขที่ผลิต: ' + (r.production_number || '-') + '\nสินค้า: ' + (r.product_name || r.product_code)
             + (isPanels
-                ? '\n\nจะเก็บเข้าคลังบานสำเร็จ:\n' + ps.map(p => '• ' + (PANEL_LABEL[p.type] || p.type) + ' × ' + p.qty).join('\n')
+                ? '\n\nจะเก็บเข้าสต๊อกบาน:\n' + ps.map(p => '• ' + (PANEL_LABEL[p.type] || p.type) + ' × ' + p.qty).join('\n')
                 : '\n\nจะเข้าสต็อกสำรอง ' + r.product_code + ' +' + r.quantity + ' ชิ้น'))) return;
         btn.disabled = true; btn.textContent = '⏳';
         try {
             const { data, error } = await db.rpc('rpc_finish_return_repair', { p_return_id: id });
             if (error) throw error;
-            toast(isPanels ? '✅ เก็บบานเข้าคลังแล้ว ' + (data && data.panels) + ' บาน'
+            toast(isPanels ? '✅ เก็บบานเข้าสต๊อกแล้ว ' + (data && data.panels) + ' บาน'
                            : '✅ ซ่อมเสร็จ เข้าสต็อกสำรองแล้ว · ตอนนี้มี ' + (data && data.backup_qty_after) + ' ชิ้น', 4500);
             loadHistory();
             loadPanelStock();
@@ -766,14 +766,14 @@
         }
     }
 
-    // ── คลังบานสำเร็จ ───────────────────────────────────────────────
+    // ── สต๊อกบาน ───────────────────────────────────────────────
     let panelStockRows = [];
     async function loadPanelStock() {
         const box = document.getElementById('panelStock');
         const { data, error } = await db.from('panel_stock')
             .select('product_code, panel_type, quantity, storage_location, updated_at')
             .gt('quantity', 0).order('product_code').limit(1000);
-        if (error) { box.innerHTML = '<div class="empty">โหลดคลังบานไม่สำเร็จ: ' + esc(error.message) + '</div>'; return; }
+        if (error) { box.innerHTML = '<div class="empty">โหลดสต๊อกบานไม่สำเร็จ: ' + esc(error.message) + '</div>'; return; }
         panelStockRows = data || [];
         renderPanelStock();
     }
@@ -784,14 +784,14 @@
         const rows = panelStockRows.filter(r => !q || r.product_code.toUpperCase().includes(q) || String(r.storage_location || '').includes(q));
         const total = panelStockRows.reduce((s, r) => s + r.quantity, 0);
         document.getElementById('panelStockCount').textContent = total ? '(' + total + ' บาน)' : '';
-        if (!rows.length) { box.innerHTML = '<div class="empty">' + (panelStockRows.length ? 'ไม่พบตามที่ค้นหา' : 'ยังไม่มีบานในคลัง') + '</div>'; return; }
+        if (!rows.length) { box.innerHTML = '<div class="empty">' + (panelStockRows.length ? 'ไม่พบตามที่ค้นหา' : 'ยังไม่มีบานในสต๊อก') + '</div>'; return; }
         box.innerHTML = rows.sort((a, b) => a.product_code.localeCompare(b.product_code) || PANEL_ORDER.indexOf(a.panel_type) - PANEL_ORDER.indexOf(b.panel_type))
             .map(r => '<div class="ps-row"><div><div style="font-weight:700;">' + esc(r.product_code) + '</div>'
                 + '<div class="meta">' + (PANEL_LABEL[r.panel_type] || r.panel_type)
                 + (r.storage_location ? ' · <span class="rp-loc">📍 ' + esc(r.storage_location) + '</span>' : ' · ยังไม่ระบุช่อง') + '</div></div>'
                 + '<div style="display:flex;align-items:center;gap:10px;"><span class="ps-qty">' + r.quantity + '</span>'
                 + '<div class="ps-actions"><button class="btn btn-ghost" data-pmove="' + esc(r.product_code) + '|' + r.panel_type + '" title="ย้ายช่องเก็บ">📍</button>'
-                + '<button class="btn btn-ghost" data-pminus="' + esc(r.product_code) + '|' + r.panel_type + '" title="ลดยอด เช่น บานในคลังเสีย">−1</button></div></div></div>')
+                + '<button class="btn btn-ghost" data-pminus="' + esc(r.product_code) + '|' + r.panel_type + '" title="ลดยอด เช่น บานในสต๊อกเสีย">−1</button></div></div></div>')
             .join('');
     }
 
@@ -799,7 +799,7 @@
         const [code, type] = key.split('|');
         let reason = null, loc = null;
         if (delta) {
-            reason = prompt('ลด ' + (PANEL_LABEL[type] || type) + ' ของ ' + code + ' 1 บาน\nเหตุผล (เช่น บานในคลังมีรอย / นับแล้วไม่ตรง):', '');
+            reason = prompt('ลด ' + (PANEL_LABEL[type] || type) + ' ของ ' + code + ' 1 บาน\nเหตุผล (เช่น บานในสต๊อกมีรอย / นับแล้วไม่ตรง):', '');
             if (reason === null) return;
             if (reason.trim().length < 3) { toast('กรุณาใส่เหตุผลอย่างน้อย 3 ตัวอักษร'); return; }
         } else {
