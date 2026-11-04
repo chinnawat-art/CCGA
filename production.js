@@ -201,7 +201,7 @@ async function loadProductImage(sku) {
 // ─── LOAD DATA ────────────────────────────
 async function loadData() {
     log('กำลังโหลดข้อมูลจาก Supabase...');
-    const selectColumns = 'id,order_date,platform,order_number,production_number,tracking_number,product_code,product_name,product_size,slots,quantity,buyer_name,tracking_status,note,pattern,production_started_at,production_completed_at,payment_time,ship_by_date,aluminum_color,glass_color,screen_type,stock_deducted,qc_checked_at,qc_checked_by,qc_reject_count,qc_last_reject_reason,qc_last_rejected_at,qc_last_rejected_by';
+    const selectColumns = 'id,order_date,platform,order_number,production_number,tracking_number,product_code,product_name,product_size,slots,quantity,buyer_name,tracking_status,note,pattern,production_started_at,production_completed_at,payment_time,ship_by_date,aluminum_color,glass_color,screen_type,stock_deducted,qc_checked_at,qc_checked_by,qc_reject_count,qc_last_reject_reason,qc_last_rejected_at,qc_last_rejected_by,panels_used';
     const fallbackColumns = 'id,order_date,platform,order_number,production_number,tracking_number,product_code,product_name,product_size,slots,quantity,buyer_name,tracking_status,note,pattern,production_started_at,production_completed_at,aluminum_color,glass_color,screen_type,qc_checked_at,qc_checked_by,qc_reject_count,qc_last_reject_reason,qc_last_rejected_at,qc_last_rejected_by';
     const viewableStatuses = getViewableProductionStatuses();
     try {
@@ -720,7 +720,7 @@ async function rpcReturnBackupStockForOrder(order) {
     return data;
 }
 
-function openComponentsModal(order, comps, backupOption = null) {
+function openComponentsModal(order, comps, backupOption = null, panelOption = null) {
     return new Promise((resolve) => {
         const modal = document.getElementById('componentsModal');
         const list = document.getElementById('componentsList');
@@ -736,6 +736,8 @@ function openComponentsModal(order, comps, backupOption = null) {
 
         const normalizedComps = comps.map((component, index) => ({
             ...component,
+            base_need: component.need,
+            part: bomPartName(component.component_product_code),
             row_key: `${String(component.component_product_code || 'component').trim()}__${index}`
         }));
         const hasInsufficientStock = normalizedComps.some(c => (parseInt(c.have) || 0) < (parseInt(c.need) || 0));
@@ -754,7 +756,7 @@ function openComponentsModal(order, comps, backupOption = null) {
                     <div style="font-weight:500; font-size:0.9rem;">${esc(order.product_name)}</div>
                     ${order.product_code ? `<div style="font-size:0.75rem; color:var(--primary); margin-top:2px;">SKU: ${esc(order.product_code)}</div>` : ''}
                 </div>`;
-        list.innerHTML = headerInfo + warningHtml;
+        list.innerHTML = headerInfo + warningHtml + renderPanelUseSection(panelOption);
 
         list.innerHTML += `
             <div class="components-selection-toolbar">
@@ -780,7 +782,7 @@ function openComponentsModal(order, comps, backupOption = null) {
                             ${nameHtml}
                         </div>
                         <div style="display:flex;align-items:center;gap:8px;font-size:0.82rem;white-space:nowrap;">
-                            <span style="color:var(--muted);">ต้องการ <strong style="color:#fff;">${c.need}</strong></span>
+                            <span style="color:var(--muted);">ต้องการ <strong style="color:#fff;" data-need-key="${esc(c.row_key)}">${c.need}</strong></span>
                             <span style="color:rgba(255,255,255,0.15)">|</span>
                             <span style="background:${isInsufficient ? 'rgba(239,68,68,0.12)' : 'rgba(16,185,129,0.12)'}; 
                                          color:${isInsufficient ? '#f87171' : '#34d399'}; 
@@ -870,10 +872,37 @@ function openComponentsModal(order, comps, backupOption = null) {
             confirmBtn.disabled = selectedInsufficient;
             confirmBtn.style.cursor = selectedInsufficient ? 'not-allowed' : '';
             confirmBtn.title = selectedInsufficient ? 'ไม่สามารถยืนยันได้เมื่อรายการที่เลือกมีสต็อกไม่เพียงพอ' : '';
+            const panelsN = getPanelsUsed().reduce((s, p) => s + p.qty, 0);
             confirmBtn.textContent = selectedCount > 0
-                ? `ยืนยันและตัด ${selectedCount} รายการ`
+                ? `ยืนยันและตัด ${panelsN ? selectedComponents.filter(c => (parseInt(c.need) || 0) > 0).length : selectedCount} รายการ${panelsN ? ` · ใช้บานเก็บ ${panelsN} บาน` : ''}`
                 : 'ยืนยันโดยไม่ตัดวัสดุ';
         };
+
+        // 🪟 ใช้บานเก็บ: ลดจำนวนวัสดุที่ต้องตัดตามสูตรต่อบาน
+        const panelInputs = [...list.querySelectorAll('input[data-pu]')];
+        const getPanelsUsed = () => panelInputs
+            .map(i => ({ type: i.dataset.pu, qty: Math.max(0, Math.min(parseInt(i.value, 10) || 0, Number(i.max) || 0)) }))
+            .filter(p => p.qty > 0);
+        const applyPanelUse = () => {
+            const reduce = {};
+            getPanelsUsed().forEach(p => {
+                const rec = (panelOption && panelOption.recipes[p.type]) || {};
+                Object.entries(rec).forEach(([part, q]) => { reduce[part] = (reduce[part] || 0) + q * p.qty; });
+            });
+            normalizedComps.forEach(c => {
+                c.need = Math.max(0, (parseInt(c.base_need) || 0) - (reduce[c.part] || 0));
+                const el = list.querySelector(`[data-need-key="${CSS.escape(c.row_key)}"]`);
+                if (el) el.innerHTML = c.need === c.base_need ? String(c.need)
+                    : `<s style="opacity:.5">${c.base_need}</s> → ${c.need}`;
+            });
+            updateComponentSelectionState();
+        };
+        panelInputs.forEach(i => i.addEventListener('input', applyPanelUse));
+        const panelFillBtn = list.querySelector('#panelUseFill');
+        if (panelFillBtn) panelFillBtn.addEventListener('click', () => {
+            panelInputs.forEach(i => { i.value = i.max; });
+            applyPanelUse();
+        });
         componentCheckboxes.forEach(input => input.addEventListener('change', updateComponentSelectionState));
         if (selectAllCheckbox) {
             selectAllCheckbox.addEventListener('change', () => {
@@ -929,7 +958,8 @@ function openComponentsModal(order, comps, backupOption = null) {
 
         confirmBtn.onclick = () => onDone({
             mode: 'components',
-            selectedComponents: getSelectedComponents()
+            selectedComponents: getSelectedComponents(),
+            panels: getPanelsUsed()
         });
         if (backupBtn) backupBtn.onclick = () => {
             const allocations = getSelectedAllocations();
@@ -1075,7 +1105,8 @@ async function performDeduction(order) {
         });
 
         const backupOption = await fetchBackupStockOption(order);
-        const deductionMode = await openComponentsModal(order, compsWithNeed, backupOption);
+        const panelOption = isBOM ? await getPanelUseOption(order) : null;
+        const deductionMode = await openComponentsModal(order, compsWithNeed, backupOption, panelOption);
         if (!deductionMode) return false;
 
         if (deductionMode?.mode === 'backup') {
@@ -1094,7 +1125,18 @@ async function performDeduction(order) {
         }
 
         let deductionResult;
-        if (isBOM) {
+        const panelsUsed = Array.isArray(deductionMode?.panels) ? deductionMode.panels : [];
+        if (isBOM && panelsUsed.length) {
+            // ใช้บานเก็บ → ตัดวัสดุน้อยลง + หักบานออกจากสต๊อกบาน (ทำในฐานข้อมูลทีเดียว)
+            const { data, error } = await db.rpc('rpc_deduct_components_with_panels', {
+                p_order_id: order.id,
+                p_selected_component_codes: [...new Set(selectedComponents.map(c => String(c.component_product_code || '').trim()).filter(Boolean))],
+                p_panels: panelsUsed
+            });
+            if (error) throw error;
+            deductionResult = data || { stock_deducted: true };
+            log(`🪟 ใช้บานเก็บ ${data?.panels_used ?? ''} บาน · ตัดวัสดุลดลง ${data?.saved_pieces ?? 0} ชิ้น`, 'success');
+        } else if (isBOM) {
             if (selectedComponents.length === compsWithNeed.length) {
                 await rpcDeductComponentsForOrder(order);
                 deductionResult = { stock_deducted: true };
@@ -1465,6 +1507,46 @@ const PANEL_LABEL = { fixed: 'บานตาย', slide: 'บานเลื่
 const PANEL_ORDER = ['fixed', 'slide', 'slide_handle', 'slide_plain'];
 let panelStockBySku = {};   // product_code → { panel_type: { qty, loc } }
 
+// 'SLWD-ขวางบน-ขาว-52.7' → 'ขวางบน' (ตรงกับ bom_part_name ในฐานข้อมูล)
+function bomPartName(code) {
+    return String(code || '').replace(/^(SLWD|SLD)-/, '').replace(/-(ขาว|ดำ|เขียว|ใส|ชาดำ|ฝ้า)(?=-|$)/g, '').replace(/-[\d.]+(x[\d.]+)?$/, '');
+}
+
+let panelRecipesByFamily = null;   // family → { panel_type: { part: qty } }
+async function getPanelUseOption(order) {
+    const fam = (String(order.product_code || '').match(/^(SLWD|SLD)\dP/) || [])[0];
+    const layout = PANEL_LAYOUT[fam];
+    const stock = panelStockBySku[order.product_code];
+    if (!layout || !stock) return null;
+    if (!panelRecipesByFamily) {
+        const { data, error } = await db.from('panel_recipes').select('family, panel_type, part, qty');
+        if (error) return null;
+        panelRecipesByFamily = {};
+        (data || []).forEach(r => {
+            const f = (panelRecipesByFamily[r.family] = panelRecipesByFamily[r.family] || {});
+            (f[r.panel_type] = f[r.panel_type] || {})[r.part] = r.qty;
+        });
+    }
+    const sets = Math.max(1, parseInt(order.quantity, 10) || 1);
+    const types = PANEL_ORDER.filter(t => layout[t] && stock[t] && stock[t].qty > 0)
+        .map(t => ({ type: t, max: Math.min(layout[t] * sets, stock[t].qty), have: stock[t].qty, loc: stock[t].loc, need: layout[t] * sets }));
+    if (!types.length) return null;
+    return { types, recipes: panelRecipesByFamily[fam] || {} };
+}
+
+function renderPanelUseSection(opt) {
+    if (!opt) return '';
+    return `<section class="panel-use">
+        <div class="panel-use-head">🪟 มีบานเก็บในสต๊อกบาน — ใช้บานเก็บกี่บาน?
+            <button type="button" class="btn btn-sm btn-outline" id="panelUseFill">ใช้ทั้งหมดที่มี</button></div>
+        <div class="panel-use-hint">ใส่จำนวนแล้ววัสดุของบานที่ใช้จะลดลงจากรายการด้านล่างทันที · บานจะถูกหักออกจากสต๊อกบาน · ไม่ใช้ใส่ 0</div>
+        ${opt.types.map(t => `<div class="panel-use-row">
+            <span>${PANEL_LABEL[t.type]} <small>งานนี้ใช้ ${t.need} · ในสต๊อก ${t.have}${t.loc ? ' (📍' + esc(t.loc) + ')' : ''}</small></span>
+            <input type="number" min="0" max="${t.max}" value="0" data-pu="${t.type}" inputmode="numeric" aria-label="ใช้${PANEL_LABEL[t.type]}">
+        </div>`).join('')}
+    </section>`;
+}
+
 async function loadPanelStockForHints() {
     panelStockBySku = {};
     try {
@@ -1479,7 +1561,14 @@ async function loadPanelStockForHints() {
 }
 
 function panelHintHtml(o) {
-    if (o.tracking_status !== STATUS_PENDING && o.tracking_status !== STATUS_PRODUCING) return '';
+    // กำลังผลิต: บอกว่าใบนี้ใช้บานเก็บไปแล้ว (ตัดวัสดุตอนเริ่มผลิตไปแล้ว)
+    if (o.tracking_status === STATUS_PRODUCING) {
+        const used = Array.isArray(o.panels_used) ? o.panels_used : [];
+        return used.length
+            ? '<div class="card-panels"><div class="card-panels-label">🪟 งานนี้ใช้บานเก็บแล้ว</div><div><b>' + used.map(p => (PANEL_LABEL[p.type] || p.type) + ' ' + p.qty).join(' · ') + '</b> · ทำกรอบ + บานที่เหลือ</div></div>'
+            : '';
+    }
+    if (o.tracking_status !== STATUS_PENDING) return '';
     const stock = panelStockBySku[o.product_code];
     const fam = (String(o.product_code || '').match(/^(SLWD|SLD)\dP/) || [])[0];
     const layout = PANEL_LAYOUT[fam];
@@ -1494,13 +1583,13 @@ function panelHintHtml(o) {
     });
     if (!use.length) return '';
     const sameSku = allOrders.filter(x => x.product_code === o.product_code
-        && (x.tracking_status === STATUS_PENDING || x.tracking_status === STATUS_PRODUCING)).length;
+        && x.tracking_status === STATUS_PENDING).length;
     return `<div class="card-panels">
         <div class="card-panels-label">🪟 มีบานเก็บในสต๊อกบาน ใช้กับงานนี้ได้</div>
         <div>✅ ใช้ได้: <b>${use.join(' · ')}</b></div>
         <div>🔨 ต้องทำ: <b>กรอบ${make.length ? ' + ' + make.join(' + ') : 'อย่างเดียว'}</b></div>
         ${sameSku > 1 ? `<div class="card-panels-warn">⚠️ มีงาน SKU นี้รออยู่ ${sameSku} ใบ ใช้บานชุดเดียวกัน</div>` : ''}
-        <div class="card-panels-note">ตอนนี้ระบบยังตัดวัสดุเต็มชุด · ถ้าหยิบบานเก็บไปใช้ ให้ลดยอดในหน้าสต๊อกบานด้วย</div>
+        <div class="card-panels-note">กด "เริ่มผลิต" แล้วใส่จำนวนบานเก็บที่จะใช้ · ระบบตัดวัสดุน้อยลงและหักบานจากสต๊อกบานให้เอง</div>
     </div>`;
 }
 
