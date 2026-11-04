@@ -27,7 +27,22 @@
         h1 { font-size:1.35rem; margin:10px 0 2px; }
         h2 { font-size:1.05rem; margin:0 0 10px; }
         .sub { color: var(--muted-strong,#64748b); font-size:.88rem; margin:0 0 14px; }
-        .kpis { display:grid; grid-template-columns:repeat(5,1fr); gap:9px; margin-bottom:14px; }
+        .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(105px, 1fr)); gap:9px; margin-bottom:14px; }
+        #panelBox { display:none; margin-top:10px; padding:12px; border-radius:12px;
+                border:1.5px dashed #2563eb; background: rgba(37,99,235,.06); }
+        .pn-row { display:flex; align-items:center; gap:10px; padding:8px 2px; border-bottom:1px solid var(--border-strong,#e2e8f0); }
+        .pn-row:last-child { border-bottom:0; }
+        .pn-name { flex:1 1 auto; font-weight:600; }
+        .pn-name small { display:block; font-weight:400; color: var(--muted-strong,#64748b); font-size:.76rem; }
+        #panelBox .pn-row input, #panelBox #panelLoc { width:84px; flex:0 0 auto; font-family:inherit; font-size:1.05rem; padding:8px 6px; text-align:center;
+                border:1px solid var(--border-strong,#cbd5e1); border-radius:9px;
+                background: var(--surface,#fff); color: var(--text-main,#0f172a); }
+        #panelBox #panelLoc { width:120px; text-transform:uppercase; }
+        .ps-row { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;
+                border:1px solid var(--border-strong,#e2e8f0); border-radius:12px; padding:9px 12px; margin-bottom:7px; }
+        .ps-qty { font-size:1.3rem; font-weight:800; color:#2563eb; min-width:44px; text-align:center; }
+        .ps-actions { display:flex; gap:6px; }
+        .ps-actions .btn { padding:7px 10px; font-size:.85rem; }
         .kpi { background: var(--surface,#fff); border:1px solid var(--border-strong,#e2e8f0);
                border-radius:14px; padding:11px 8px; text-align:center; }
         .kpi b { display:block; font-size:1.4rem; line-height:1.25; }
@@ -108,7 +123,7 @@
                  border-radius:14px; padding:12px; }
         .modal-box img { max-width:100%; display:block; margin:0 auto 10px; border-radius:10px; }
         @media (max-width:640px) {
-            .kpis { grid-template-columns:repeat(3,1fr); }
+            .ps-row { font-size:.88rem; }
             .search { flex-direction:column; }
             .btn-submit { width:100%; padding:15px; }
         }
@@ -126,6 +141,7 @@
             <div class="kpi"><b id="kTotal">-</b><span>ตีกลับเดือนนี้</span></div>
             <div class="kpi"><b id="kBackup" style="color:#16a34a">-</b><span>เข้าสต็อกสำรอง</span></div>
             <div class="kpi"><b id="kRepair" style="color:#0f766e">-</b><span>ส่งซ่อม</span></div>
+            <div class="kpi"><b id="kPanels" style="color:#2563eb">-</b><span>เก็บบาน</span></div>
             <div class="kpi"><b id="kSalvage" style="color:#b45309">-</b><span>แยกชิ้นส่วน</span></div>
             <div class="kpi"><b id="kDamaged" style="color:#dc2626">-</b><span>ทิ้ง/ซ่อมไม่ได้</span></div>
         </div>
@@ -171,8 +187,18 @@
                 <div class="choices" data-group="handling">
                     <label class="choice" id="optBackup"><input type="radio" name="handling" value="backup_stock"><div>📦 เข้าสต็อกสำรอง<small>ของสภาพดี · บวกยอดสินค้าสำเร็จรูป รุ่นเดียวกันหยิบไปส่งได้</small></div></label>
                     <label class="choice"><input type="radio" name="handling" value="repair"><div>🔧 ซ่อม<small>ของเสียหาย · เลือกวัสดุที่เสียจากสูตร (BOM) เบิกเฉพาะตัวนั้น · ซ่อมเสร็จเข้าสต็อกสำรอง</small></div></label>
+                    <label class="choice" id="optPanels"><input type="radio" name="handling" value="keep_panels"><div>🪟 เก็บบานที่ดี<small>กรอบเสีย บานยังดี · เก็บบานเข้าคลังบานสำเร็จ ไว้ใช้กับงานใหม่ SKU เดียวกัน (SLWD/SLD 2-4 บาน)</small></div></label>
                     <label class="choice"><input type="radio" name="handling" value="salvage"><div>♻️ แยกชิ้นส่วนที่ดีเข้าสต็อก<small>เสียหายหนัก (เกิน ~60%) ซ่อมไม่คุ้ม · ติ๊กชิ้นส่วนที่ยังใช้ได้จากสูตร (BOM) เก็บเข้าสต็อกวัสดุ</small></div></label>
                     <label class="choice"><input type="radio" name="handling" value="damaged"><div>🗑️ ทิ้ง / ซ่อมไม่ได้<small>ของเสียหาย · ไม่แตะสต็อก</small></div></label>
+                </div>
+                <div id="panelBox">
+                    <div style="font-weight:700;margin-bottom:4px;">🪟 ใส่จำนวนบานที่ยังดี (ส่วนที่เสียใส่ 0)</div>
+                    <div class="hint" style="margin-top:0">บานที่ใส่จะเข้าคลังบานสำเร็จ · งานใหม่ SKU เดียวกันจะเห็นว่ามีบานเก็บไว้</div>
+                    <div id="panelInputs"></div>
+                    <div class="pn-row" style="margin-top:4px;">
+                        <span class="pn-name">📍 ช่องเก็บบาน<small>ไม่บังคับ เช่น P01</small></span>
+                        <input id="panelLoc" type="text" maxlength="20" placeholder="P01">
+                    </div>
                 </div>
                 <div id="repairBox">
                     <div style="font-weight:700;margin-bottom:4px;" id="partsTitle">🔧 ติ๊กวัสดุที่เสีย แล้วใส่จำนวนที่ต้องเบิก</div>
@@ -199,6 +225,13 @@
             </div>
         </div>
 
+        <div class="card" id="panelStockCard" style="border:2px solid #2563eb;">
+            <h2>🪟 คลังบานสำเร็จ <span id="panelStockCount"></span></h2>
+            <div class="hint" style="margin:-4px 0 10px">บานที่ยังดีจากของตีกลับ · ใช้กับงานใหม่ SKU เดียวกันได้ (ทำแค่กรอบ + บานที่ขาด)</div>
+            <input id="panelSearch" type="text" placeholder="🔍 ค้นหา SKU หรือช่องเก็บ" style="width:100%;font-family:inherit;font-size:.95rem;padding:10px 12px;border:1px solid var(--border-strong,#cbd5e1);border-radius:11px;background:var(--surface,#fff);color:var(--text-main,#0f172a);margin-bottom:10px;">
+            <div id="panelStock"><div class="empty">กำลังโหลด...</div></div>
+        </div>
+
         <div class="card" id="repairCard" style="display:none; border:2px solid #0f766e;">
             <h2>🔧 งานซ่อมค้าง <span id="repairCount"></span></h2>
             <div class="hint" style="margin:-4px 0 10px">ซ่อมเสร็จแล้วกด ✅ ซ่อมเสร็จ — สินค้าจะเข้าสต็อกสำรองให้หยิบไปส่งออเดอร์อื่นได้</div>
@@ -217,8 +250,29 @@
     const BUCKET = 'order-returns';
     const MAX_PHOTOS = 5;
     const RETURNABLE = ['ตรวจเสร็จรอจัดส่ง', 'จัดส่งสำเร็จ', 'ระหว่างการขนส่ง', 'กำลังจัดส่ง'];
-    const HANDLING_LABEL = { backup_stock: '📦 เข้าสต็อกสำรอง', repair: '🔧 ซ่อม', salvage: '♻️ แยกชิ้นส่วนเข้าสต็อก', damaged: '🗑️ ทิ้ง/ซ่อมไม่ได้' };
-    const HANDLING_CLS = { backup_stock: 'ok', repair: 'blue', salvage: 'warn', damaged: 'bad' };
+    const HANDLING_LABEL = { backup_stock: '📦 เข้าสต็อกสำรอง', repair: '🔧 ซ่อม', keep_panels: '🪟 เก็บบาน', salvage: '♻️ แยกชิ้นส่วนเข้าสต็อก', damaged: '🗑️ ทิ้ง/ซ่อมไม่ได้' };
+    const HANDLING_CLS = { backup_stock: 'ok', repair: 'blue', keep_panels: 'blue', salvage: 'warn', damaged: 'bad' };
+    // จำนวนบานแต่ละประเภทต่อ 1 ชุด (ตรงกับ panel_layout ในฐานข้อมูล · ยืนยันกับเจ้าของ 04/11/2569)
+    const PANEL_LAYOUT = {
+        SLWD2P: { slide: 2 }, SLD2P: { slide: 2 },
+        SLWD3P: { fixed: 1, slide: 2 },
+        SLWD4P: { fixed: 2, slide_handle: 1, slide_plain: 1 },
+        SLD4P: { fixed: 2, slide_handle: 1, slide_plain: 1 }
+    };
+    const PANEL_LABEL = { fixed: 'บานตาย', slide: 'บานเลื่อน', slide_handle: 'บานเลื่อนฝั่งมือจับ', slide_plain: 'บานเลื่อนฝั่งเรียบ' };
+    const PANEL_ORDER = ['fixed', 'slide', 'slide_handle', 'slide_plain'];
+    function panelFamily(sku) { const m = String(sku || '').match(/^(SLWD|SLD)\dP/); return m ? m[0] : null; }
+    function panelLayout(sku) { return PANEL_LAYOUT[panelFamily(sku)] || null; }
+    // 'SLWD-ขวางบน-ขาว-52.7' → 'ขวางบน' (ตรงกับ bom_part_name ในฐานข้อมูล)
+    function bomPartName(code) {
+        return String(code || '').replace(/^(SLWD|SLD)-/, '').replace(/-(ขาว|ดำ|เขียว|ใส|ชาดำ|ฝ้า)(?=-|$)/g, '').replace(/-[\d.]+(x[\d.]+)?$/, '');
+    }
+    let panelRecipeParts = {};   // family → Set(ชื่อชิ้นส่วนที่เป็นของบาน) ใช้กรองให้เหลือแต่ชิ้นส่วนกรอบ
+    async function loadPanelRecipes() {
+        const { data } = await db.from('panel_recipes').select('family, part');
+        panelRecipeParts = {};
+        (data || []).forEach(r => { (panelRecipeParts[r.family] = panelRecipeParts[r.family] || new Set()).add(r.part); });
+    }
     let bomRows = [];        // สูตรวัสดุของสินค้าที่กำลังบันทึก [{code, name, bomQty, stock, loc}]
     let bomFor = null;       // product_code ที่โหลด bomRows ไว้
     let partsMode = null;    // repair | salvage ที่แสดงรายการอยู่
@@ -307,6 +361,8 @@
         document.getElementById('reasonNote').value = '';
         document.querySelectorAll('input[name=condition], input[name=handling]').forEach(r => { r.checked = false; });
         bomRows = []; bomFor = null; partsMode = null;
+        document.getElementById('panelInputs').innerHTML = '';
+        document.getElementById('panelLoc').value = '';
         document.getElementById('repairList').innerHTML = '<div class="empty">กำลังโหลดสูตรวัสดุ...</div>';
         photoBlobs.forEach(p => URL.revokeObjectURL(p.url));
         photoBlobs = [];
@@ -325,30 +381,59 @@
     function syncChoices() {
         const cond = document.querySelector('input[name=condition]:checked')?.value;
         document.querySelectorAll('input[name=handling]').forEach(h => {
-            const allowed = !cond || (cond === 'good' ? h.value === 'backup_stock' : h.value !== 'backup_stock');
+            const allowed = (!cond || (cond === 'good' ? h.value === 'backup_stock' : h.value !== 'backup_stock'))
+                && (h.value !== 'keep_panels' || !!(current && panelLayout(current.product_code)));
             h.disabled = !allowed;
             if (!allowed) h.checked = false;
             h.closest('.choice').classList.toggle('off', !allowed);
         });
         if (cond === 'good') document.querySelector('input[name=handling][value=backup_stock]').checked = true;
         document.querySelectorAll('.choice').forEach(c => c.classList.toggle('on', c.querySelector('input').checked));
-        // ซ่อม และ แยกชิ้นส่วน ใช้รายการจากสูตรวัสดุชุดเดียวกัน ต่างกันแค่ความหมายของการติ๊ก
+        // ซ่อม / แยกชิ้นส่วน / เก็บบาน ใช้รายการจากสูตรวัสดุชุดเดียวกัน ต่างกันแค่ความหมายของการติ๊ก
+        // (เก็บบาน = ชิ้นส่วนกรอบที่ยังใช้ได้ ไม่บังคับ · ซ่อนชิ้นส่วนที่เป็นของบานออก)
         const mode = document.querySelector('input[name=handling]:checked')?.value;
-        const usesParts = mode === 'repair' || mode === 'salvage';
+        const usesParts = mode === 'repair' || mode === 'salvage' || mode === 'keep_panels';
         document.getElementById('repairBox').style.display = usesParts ? 'block' : 'none';
+        document.getElementById('panelBox').style.display = mode === 'keep_panels' ? 'block' : 'none';
+        if (mode === 'keep_panels' && !document.getElementById('panelInputs').childElementCount) renderPanelInputs();
         document.getElementById('partsTitle').textContent = mode === 'salvage'
             ? '♻️ ติ๊กชิ้นส่วนที่ยังใช้ได้ แล้วใส่จำนวนที่เก็บเข้าสต็อก'
-            : '🔧 ติ๊กวัสดุที่เสีย แล้วใส่จำนวนที่ต้องเบิก';
-        document.getElementById('partsHint').textContent = mode === 'salvage'
-            ? 'รายการมาจากสูตรวัสดุ (BOM) ของสินค้านี้ · กดบันทึกแล้วชิ้นที่ติ๊กจะบวกเข้าสต็อกวัสดุทันที (ดูได้ในประวัติรับเข้าของหน้าสต็อก)'
-            : 'รายการมาจากสูตรวัสดุ (BOM) ของสินค้านี้ · กดบันทึกแล้ววัสดุจะขึ้นในหน้าเตรียมวัสดุ (ป้าย 🔧 ซ่อมของตีกลับ) ให้คลังจ่าย';
-        // สลับ ซ่อม ↔ แยกชิ้นส่วน = ติ๊กคนละความหมาย ล้างที่ติ๊กไว้ก่อน
-        if (usesParts && partsMode && partsMode !== mode && bomRows.length) {
+            : mode === 'keep_panels'
+                ? '♻️ (ไม่บังคับ) ชิ้นส่วนกรอบที่ยังใช้ได้ เก็บเข้าสต็อกวัสดุ'
+                : '🔧 ติ๊กวัสดุที่เสีย แล้วใส่จำนวนที่ต้องเบิก';
+        document.getElementById('partsHint').textContent = mode === 'repair'
+            ? 'รายการมาจากสูตรวัสดุ (BOM) ของสินค้านี้ · กดบันทึกแล้ววัสดุจะขึ้นในหน้าเตรียมวัสดุ (ป้าย 🔧 ซ่อมของตีกลับ) ให้คลังจ่าย'
+            : 'รายการมาจากสูตรวัสดุ (BOM) ของสินค้านี้ · กดบันทึกแล้วชิ้นที่ติ๊กจะบวกเข้าสต็อกวัสดุทันที (ดูได้ในประวัติรับเข้าของหน้าสต็อก)';
+        // สลับโหมด = ติ๊กคนละความหมาย ล้างที่ติ๊กไว้ก่อน
+        const switched = usesParts && partsMode && partsMode !== mode;
+        partsMode = usesParts ? mode : partsMode;
+        if (switched && bomRows.length) {
             document.querySelectorAll('#repairList input[data-rp]').forEach(cb => { cb.checked = false; });
             renderBom();
         }
-        partsMode = usesParts ? mode : partsMode;
         if (usesParts && current && bomFor !== current.product_code) loadBom();
+    }
+
+    // ── เก็บบาน: ช่องใส่จำนวนบานแต่ละประเภท ─────────────────────────
+    function renderPanelInputs() {
+        const box = document.getElementById('panelInputs');
+        const layout = current && panelLayout(current.product_code);
+        if (!layout) { box.innerHTML = '<div class="empty">สินค้านี้ยังไม่รองรับการเก็บบาน</div>'; return; }
+        const retQty = parseInt(document.getElementById('qty').value, 10) || 1;
+        box.innerHTML = PANEL_ORDER.filter(t => layout[t]).map(t => {
+            const max = layout[t] * retQty;
+            return '<div class="pn-row"><span class="pn-name">' + PANEL_LABEL[t] + '<small>ชุดนี้มี ' + max + ' บาน</small></span>'
+                + '<input type="number" min="0" max="' + max + '" value="0" data-pt="' + t + '" inputmode="numeric" aria-label="จำนวน' + PANEL_LABEL[t] + 'ที่ยังดี"></div>';
+        }).join('');
+    }
+
+    function getPanels() {
+        return [...document.querySelectorAll('#panelInputs input[data-pt]')]
+            .map(i => ({ type: i.dataset.pt, qty: parseInt(i.value, 10) || 0, max: Number(i.max), label: PANEL_LABEL[i.dataset.pt] }));
+    }
+
+    function normalizeLoc(v) {
+        return String(v || '').replace(/\s+/g, '').toUpperCase().replace(/^([A-Z]+)-?0*(\d{1,3})$/, (m, a, b) => a + b.padStart(2, '0'));
     }
 
     // ── ซ่อม: สูตรวัสดุของ SKU ที่ตีกลับ ────────────────────────────
@@ -383,7 +468,9 @@
         const retQty = parseInt(document.getElementById('qty').value, 10) || 1;
         // จำที่ติ๊กไว้ (เปลี่ยนจำนวนตีกลับแล้ววาดใหม่ ไม่ให้หาย)
         const keep = new Set([...document.querySelectorAll('#repairList input[data-rp]:checked')].map(cb => cb.dataset.rp));
+        const hideParts = partsMode === 'keep_panels' && current ? (panelRecipeParts[panelFamily(current.product_code)] || new Set()) : null;
         document.getElementById('repairList').innerHTML = bomRows.map((r, i) => {
+            if (hideParts && hideParts.has(bomPartName(r.code))) return '';
             const max = r.bomQty * retQty;
             return '<label class="rp-row' + (keep.has(String(i)) ? '' : ' off') + '" data-i="' + i + '">'
                 + '<input type="checkbox" data-rp="' + i + '"' + (keep.has(String(i)) ? ' checked' : '') + (r.stock === null ? ' disabled' : '') + '>'
@@ -458,7 +545,16 @@
         if (!handling) { toast('กรุณาเลือกว่าจะจัดการของยังไง'); return; }
         if (!Number.isInteger(qty) || qty < 1 || qty > maxQty) { toast('จำนวนต้องอยู่ระหว่าง 1 ถึง ' + maxQty); qtyEl.focus(); return; }
 
-        const repairItems = (handling === 'repair' || handling === 'salvage') ? getRepairItems() : [];
+        const repairItems = (handling === 'repair' || handling === 'salvage' || handling === 'keep_panels') ? getRepairItems() : [];
+        const panels = handling === 'keep_panels' ? getPanels() : [];
+        const panelLoc = normalizeLoc(document.getElementById('panelLoc').value) || null;
+        if (handling === 'keep_panels') {
+            const badP = panels.find(p => !Number.isInteger(p.qty) || p.qty < 0 || p.qty > p.max);
+            if (badP) { toast(badP.label + ' ใส่ได้ 0 ถึง ' + badP.max + ' บาน'); return; }
+            if (!panels.some(p => p.qty > 0)) { toast('ใส่จำนวนบานที่ยังดีอย่างน้อย 1 บาน (ถ้าไม่มีเลย ให้เลือก "แยกชิ้นส่วน" หรือ "ทิ้ง")'); return; }
+            const badQty = repairItems.find(it => !Number.isInteger(it.qty) || it.qty < 1 || it.qty > it.max);
+            if (badQty) { toast('จำนวน "' + badQty.name + '" ต้องอยู่ระหว่าง 1 ถึง ' + badQty.max); return; }
+        }
         if (handling === 'salvage') {
             if (!bomRows.length) { toast('สินค้านี้ยังไม่มีสูตรวัสดุ แยกชิ้นส่วนไม่ได้'); return; }
             if (!repairItems.length) { toast('ติ๊กชิ้นส่วนที่ยังใช้ได้อย่างน้อย 1 รายการ (ถ้าไม่มีเลย ให้เลือก "ทิ้ง")'); return; }
@@ -483,7 +579,11 @@
                     : '\n\nไม่เบิกวัสดุ')
                   + '\nซ่อมเสร็จกด ✅ ซ่อมเสร็จ → เข้าสต็อกสำรอง'
                 : '')
-            + (handling === 'salvage'
+            + (handling === 'keep_panels'
+                ? '\n\nเก็บบานเข้าคลังบานสำเร็จ:\n' + panels.filter(p => p.qty > 0).map(p => '• ' + p.label + ' × ' + p.qty).join('\n')
+                  + (panelLoc ? '\nช่องเก็บ ' + panelLoc : '')
+                : '')
+            + ((handling === 'salvage' || (handling === 'keep_panels' && repairItems.length))
                 ? '\n\nเก็บชิ้นส่วนเข้าสต็อกวัสดุ ' + repairItems.length + ' รายการ:\n'
                   + repairItems.map(it => '• ' + it.name + ' + ' + it.qty).join('\n')
                 : '');
@@ -506,13 +606,17 @@
             const { data, error } = await db.rpc('rpc_record_order_return', {
                 p_order_id: current.id, p_reason: reason, p_reason_note: note || null,
                 p_condition: condition, p_action: handling, p_quantity: qty, p_photo_paths: uploaded,
-                p_repair_items: repairItems.map(it => ({ code: it.code, qty: it.qty }))
+                p_repair_items: repairItems.map(it => ({ code: it.code, qty: it.qty })),
+                p_panels: panels.filter(p => p.qty > 0).map(p => ({ type: p.type, qty: p.qty })),
+                p_panel_location: panelLoc
             });
             if (error) throw error;
             toast('✅ บันทึกของตีกลับแล้ว' + (handling === 'backup_stock' && data && data.backup_qty_after != null
                 ? ' · สต็อกสำรองตอนนี้ ' + data.backup_qty_after + ' ชิ้น'
                 : (handling === 'repair' && repairItems.length ? ' · วัสดุซ่อมขึ้นในหน้าเตรียมวัสดุแล้ว'
-                : (handling === 'salvage' ? ' · เก็บชิ้นส่วนเข้าสต็อกแล้ว ' + repairItems.length + ' รายการ' : ''))), 4500);
+                : (handling === 'salvage' ? ' · เก็บชิ้นส่วนเข้าสต็อกแล้ว ' + repairItems.length + ' รายการ'
+                : (handling === 'keep_panels' ? ' · เก็บบานเข้าคลังแล้ว ' + (data && data.panels) + ' บาน' : '')))), 4500);
+            loadPanelStock();
             resetForm(true);
             searchOrders();
             loadHistory();
@@ -531,7 +635,7 @@
     async function loadHistory() {
         const box = document.getElementById('hist');
         const { data, error } = await db.from('order_returns')
-            .select('id,production_number,order_number,product_name,product_code,quantity,reason,reason_note,condition,action,photo_paths,received_by,received_at,repair_items,repair_status,repair_done_at,repair_done_by,salvage_items')
+            .select('id,production_number,order_number,product_name,product_code,quantity,reason,reason_note,condition,action,photo_paths,received_by,received_at,repair_items,repair_status,repair_done_at,repair_done_by,salvage_items,panels')
             .order('received_at', { ascending: false })
             .limit(50);
         if (error) { box.innerHTML = '<div class="empty">โหลดประวัติไม่สำเร็จ: ' + esc(error.message) + '</div>'; return; }
@@ -556,10 +660,13 @@
 
     function repairItemsText(r) {
         const items = Array.isArray(r.repair_items) ? r.repair_items : [];
-        if (r.action === 'salvage') {
-            const parts = Array.isArray(r.salvage_items) ? r.salvage_items : [];
-            return '<br>♻️ เก็บเข้าสต็อก: ' + parts.map(it => esc(it.name || it.code) + ' +' + it.qty).join(', ');
+        const parts = Array.isArray(r.salvage_items) ? r.salvage_items : [];
+        const partsText = parts.length ? '<br>♻️ เก็บเข้าสต็อก: ' + parts.map(it => esc(it.name || it.code) + ' +' + it.qty).join(', ') : '';
+        if (r.action === 'keep_panels') {
+            const ps = Array.isArray(r.panels) ? r.panels : [];
+            return '<br>🪟 เก็บบาน: ' + ps.map(p => (PANEL_LABEL[p.type] || p.type) + ' ' + p.qty).join(', ') + partsText;
         }
+        if (r.action === 'salvage') return partsText;
         if (r.action !== 'repair') return '';
         return '<br>🔧 ' + (items.length ? 'เบิก: ' + items.map(it => esc(it.name || it.code) + ' ×' + it.qty).join(', ') : 'ไม่เบิกวัสดุ');
     }
@@ -604,6 +711,54 @@
         }
     }
 
+    // ── คลังบานสำเร็จ ───────────────────────────────────────────────
+    let panelStockRows = [];
+    async function loadPanelStock() {
+        const box = document.getElementById('panelStock');
+        const { data, error } = await db.from('panel_stock')
+            .select('product_code, panel_type, quantity, storage_location, updated_at')
+            .gt('quantity', 0).order('product_code').limit(1000);
+        if (error) { box.innerHTML = '<div class="empty">โหลดคลังบานไม่สำเร็จ: ' + esc(error.message) + '</div>'; return; }
+        panelStockRows = data || [];
+        renderPanelStock();
+    }
+
+    function renderPanelStock() {
+        const box = document.getElementById('panelStock');
+        const q = String(document.getElementById('panelSearch').value || '').trim().toUpperCase();
+        const rows = panelStockRows.filter(r => !q || r.product_code.toUpperCase().includes(q) || String(r.storage_location || '').includes(q));
+        const total = panelStockRows.reduce((s, r) => s + r.quantity, 0);
+        document.getElementById('panelStockCount').textContent = total ? '(' + total + ' บาน)' : '';
+        if (!rows.length) { box.innerHTML = '<div class="empty">' + (panelStockRows.length ? 'ไม่พบตามที่ค้นหา' : 'ยังไม่มีบานในคลัง') + '</div>'; return; }
+        box.innerHTML = rows.sort((a, b) => a.product_code.localeCompare(b.product_code) || PANEL_ORDER.indexOf(a.panel_type) - PANEL_ORDER.indexOf(b.panel_type))
+            .map(r => '<div class="ps-row"><div><div style="font-weight:700;">' + esc(r.product_code) + '</div>'
+                + '<div class="meta">' + (PANEL_LABEL[r.panel_type] || r.panel_type)
+                + (r.storage_location ? ' · <span class="rp-loc">📍 ' + esc(r.storage_location) + '</span>' : ' · ยังไม่ระบุช่อง') + '</div></div>'
+                + '<div style="display:flex;align-items:center;gap:10px;"><span class="ps-qty">' + r.quantity + '</span>'
+                + '<div class="ps-actions"><button class="btn btn-ghost" data-pmove="' + esc(r.product_code) + '|' + r.panel_type + '" title="ย้ายช่องเก็บ">📍</button>'
+                + '<button class="btn btn-ghost" data-pminus="' + esc(r.product_code) + '|' + r.panel_type + '" title="ลดยอด เช่น บานในคลังเสีย">−1</button></div></div></div>')
+            .join('');
+    }
+
+    async function adjustPanel(key, delta) {
+        const [code, type] = key.split('|');
+        let reason = null, loc = null;
+        if (delta) {
+            reason = prompt('ลด ' + (PANEL_LABEL[type] || type) + ' ของ ' + code + ' 1 บาน\nเหตุผล (เช่น บานในคลังมีรอย / นับแล้วไม่ตรง):', '');
+            if (reason === null) return;
+            if (reason.trim().length < 3) { toast('กรุณาใส่เหตุผลอย่างน้อย 3 ตัวอักษร'); return; }
+        } else {
+            loc = prompt('ย้าย ' + (PANEL_LABEL[type] || type) + ' ของ ' + code + ' ไปช่องไหน (เช่น P02):', '');
+            if (loc === null) return;
+            loc = normalizeLoc(loc);
+            if (!loc) { toast('กรุณาใส่ช่องเก็บ'); return; }
+        }
+        const { error } = await db.rpc('rpc_adjust_panel_stock', { p_product_code: code, p_panel_type: type, p_delta: delta, p_reason: reason, p_location: loc });
+        if (error) { toast('❌ ' + error.message, 5000); return; }
+        toast(delta ? '✅ ลดยอดแล้ว' : '✅ ย้ายช่องเก็บแล้ว');
+        loadPanelStock();
+    }
+
     async function loadKpis() {
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
@@ -615,6 +770,7 @@
         document.getElementById('kBackup').textContent = n('backup_stock');
         document.getElementById('kRepair').textContent = n('repair');
         document.getElementById('kSalvage').textContent = n('salvage');
+        document.getElementById('kPanels').textContent = n('keep_panels');
         document.getElementById('kDamaged').textContent = n('damaged');
     }
 
@@ -638,6 +794,14 @@
 
         loadKpis();
         loadHistory();
+        loadPanelStock();
+        loadPanelRecipes();
+        document.getElementById('panelSearch').addEventListener('input', renderPanelStock);
+        document.getElementById('panelStock').addEventListener('click', e => {
+            const m = e.target.closest('[data-pmove]'), d = e.target.closest('[data-pminus]');
+            if (m) adjustPanel(m.dataset.pmove, 0);
+            if (d) adjustPanel(d.dataset.pminus, -1);
+        });
 
         const q = document.getElementById('q');
         document.getElementById('btnSearch').addEventListener('click', searchOrders);
@@ -652,7 +816,10 @@
             if (e.target.name === 'condition' || e.target.name === 'handling') syncChoices();
         });
         document.getElementById('photos').addEventListener('change', e => addPhotos([...e.target.files]));
-        document.getElementById('qty').addEventListener('input', () => { if (bomRows.length) renderBom(); });
+        document.getElementById('qty').addEventListener('input', () => {
+            if (bomRows.length) renderBom();
+            if (document.getElementById('panelInputs').childElementCount) renderPanelInputs();
+        });
         document.getElementById('repairList').addEventListener('change', e => {
             const cb = e.target.closest('input[data-rp]');
             if (cb) cb.closest('.rp-row').classList.toggle('off', !cb.checked);
