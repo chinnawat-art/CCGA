@@ -1583,6 +1583,30 @@
             border-radius: 99px; font-size: .8rem; font-weight: 800;
             background: #0f766e; color: #fff;
         }
+        .order-zone-badge {
+            display: inline-block; margin-left: 6px; padding: 3px 11px;
+            border-radius: 99px; font-size: .78rem; font-weight: 800;
+            border: 1px solid transparent;
+        }
+        .order-zone-badge.zone-1 { background: rgba(59, 130, 246, .12); color: #1d4ed8; border-color: rgba(59, 130, 246, .35); }
+        .order-zone-badge.zone-2 { background: #7c3aed; color: #fff; }
+        .zone-filter-bar {
+            display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+            margin: 0 0 .75rem;
+        }
+        .zone-filter-bar[hidden] { display: none; }
+        .zone-filter-label { font-weight: 700; font-size: .9rem; color: #64748b; }
+        .zone-btn {
+            padding: 7px 14px; border-radius: 99px; cursor: pointer;
+            border: 1px solid #cbd5e1; background: #fff; color: #334155;
+            font: inherit; font-size: .88rem; font-weight: 700;
+        }
+        .zone-btn.active { background: #1e293b; color: #fff; border-color: #1e293b; }
+        .zone-btn[data-zone="2"].active { background: #7c3aed; border-color: #7c3aed; }
+        .dark-theme .zone-btn { background: #1e293b; color: #e2e8f0; border-color: #475569; }
+        .dark-theme .zone-btn.active { background: #e2e8f0; color: #0f172a; }
+        .dark-theme .zone-btn[data-zone="2"].active { background: #7c3aed; color: #fff; }
+        .dark-theme .order-zone-badge.zone-1 { color: #93c5fd; }
     </style>
 </head>
 
@@ -1696,6 +1720,13 @@
             <button class="tab-btn" id="tabDamage" onclick="switchTab('damage')">
                 ⚠️ วัสดุเสียหาย <span class="tab-count" id="countDamage">0</span>
             </button>
+        </div>
+
+        <div class="zone-filter-bar" id="zoneFilterBar" hidden>
+            <span class="zone-filter-label">📍 จุดเบิกวัสดุ:</span>
+            <button type="button" class="zone-btn" data-zone="all" onclick="setZoneFilter('all')">ทั้งหมด</button>
+            <button type="button" class="zone-btn" data-zone="1" onclick="setZoneFilter('1')">จุดที่ 1</button>
+            <button type="button" class="zone-btn" data-zone="2" onclick="setZoneFilter('2')">จุดที่ 2 · บานกระทุ้ง/บานเปิด</button>
         </div>
 
         <div class="order-search-bar" id="orderSearchBar">
@@ -1812,6 +1843,74 @@
 
         const DEDUCT_PREFIX = 'ตัดสต็อกอัตโนมัติ (เริ่มผลิต)';
 
+        // ─── จุดผลิต + สิทธิ์ SKU (ใช้ชุดเดียวกับหน้าผลิต) ────────────────────
+        // จุดที่ 2 = บานกระทุ้ง/บานเปิด (ANWD, CMWD) วัสดุเก็บอีกที่ · ที่เหลือ = จุดที่ 1
+        // คนที่ติ๊กสิทธิ์ "🏷️ SKU" ไว้ เห็นเฉพาะงานกลุ่มนั้น · ไม่ติ๊กเลย/CEO เห็นทั้งหมด + มีปุ่มกรองจุด
+        const PRODUCTION_SKUS = ['ANWD', 'CMD', 'CMWD', 'D', 'FDD', 'FDWD', 'FXWD', 'LVWD', 'SAWD', 'SLD', 'SLWD'];
+        const PRODUCTION_SKU_PERMISSION_PREFIX = 'data_view_production_sku_';
+        const SITE2_SKUS = ['ANWD', 'CMWD'];
+        const ZONE_LABELS = { '1': 'จุดที่ 1', '2': 'จุดที่ 2 · บานกระทุ้ง/บานเปิด' };
+        let zoneFilter = 'all';
+
+        function skuZone(sku) {
+            const code = String(sku || '').toUpperCase().trim();
+            return SITE2_SKUS.some(prefix => code.startsWith(prefix)) ? '2' : '1';
+        }
+
+        function configuredProductionSkus() {
+            if (window.auth?.role === 'Ceo') return [];
+            return PRODUCTION_SKUS.filter(sku =>
+                window.auth?.hasPermission?.(`${PRODUCTION_SKU_PERMISSION_PREFIX}${sku}`));
+        }
+
+        function canViewOrderSku(sku) {
+            const configured = configuredProductionSkus();
+            if (!configured.length) return true;
+            const code = String(sku || '').toUpperCase().trim();
+            return configured.some(prefix => code.startsWith(prefix));
+        }
+
+        // เห็นได้ทั้งสองจุดไหม (แอดมิน/CEO/คนที่ไม่ได้ติ๊ก SKU หรือติ๊กครอบทั้งสองจุด)
+        function canSeeBothZones() {
+            const configured = configuredProductionSkus();
+            if (!configured.length) return true;
+            const zones = new Set(configured.map(skuZone));
+            return zones.size > 1;
+        }
+
+        function setupZoneFilter() {
+            const bar = document.getElementById('zoneFilterBar');
+            if (!bar) return;
+            if (!canSeeBothZones()) { bar.hidden = true; zoneFilter = 'all'; return; }
+            try {
+                const saved = localStorage.getItem('materialPrepZone');
+                if (saved === '1' || saved === '2' || saved === 'all') zoneFilter = saved;
+            } catch (e) { /* เบราว์เซอร์ไม่ให้เก็บ ใช้ค่าเริ่มต้น */ }
+            bar.hidden = activeTab === 'damage';
+            paintZoneButtons();
+        }
+
+        function paintZoneButtons() {
+            document.querySelectorAll('#zoneFilterBar [data-zone]').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.zone === zoneFilter);
+            });
+        }
+
+        function setZoneFilter(zone) {
+            zoneFilter = zone;
+            try { localStorage.setItem('materialPrepZone', zone); } catch (e) { /* ไม่เป็นไร */ }
+            paintZoneButtons();
+            processData();
+            renderContent();
+            updateKPIs();
+        }
+
+        function zoneBadgeHtml(sku) {
+            if (!canSeeBothZones()) return '';
+            const zone = skuZone(sku);
+            return `<span class="order-zone-badge zone-${zone}" title="วัสดุงานนี้เบิกจาก${ZONE_LABELS[zone]}">📍 ${ZONE_LABELS[zone]}</span>`;
+        }
+
         // ─── DAMAGE REPORT STATE ────────────────────────────────────────────
         let dmgAllLogs = [];
         let dmgCurrentView = 'summary';
@@ -1830,6 +1929,7 @@
                 return;
             }
 
+            setupZoneFilter();
             await loadData();
             startRealtime();
             // Load damage badge count in background (no need to wait)
@@ -1851,7 +1951,9 @@
 
         // สิทธิ์โหลดเสร็จทีหลังข้อมูลได้ — วาดการ์ดใหม่ให้ปุ่มตรงกับสิทธิ์จริง
         window.addEventListener('auth-ready', () => {
-            if (allLogs.length) renderContent();
+            // สิทธิ์ SKU มาพร้อม auth-ready → จัดกลุ่มใหม่ตามจุด/สิทธิ์จริง
+            setupZoneFilter();
+            if (allLogs.length) { processData(); updateKPIs(); renderContent(); }
             if (dmgLoaded) dmgRenderTable();
         });
 
@@ -2065,6 +2167,10 @@
                 const parsedOrderSku = skuMatch ? skuMatch[1].trim() : null;
                 const orderSku = (orderId ? orderSkusMap[orderId] : null) || parsedOrderSku || 'ไม่ระบุ';
                 const orderNo = (orderId ? orderNumbersMap[orderId] : null) || parsedOrderNo;
+
+                // งานกลุ่ม SKU ที่ไม่มีสิทธิ์ดู / ไม่ใช่จุดที่เลือก → ไม่แสดง
+                if (!canViewOrderSku(orderSku)) return;
+                if (zoneFilter !== 'all' && skuZone(orderSku) !== zoneFilter) return;
 
                 // Group key: if orderId exists, use it. Otherwise, fallback to old date + SKU grouping.
                 let groupKey;
@@ -2536,7 +2642,7 @@
 
             document.getElementById('printArea').innerHTML = `
                 <div class="pl-head">
-                    <div class="pl-title">ใบเบิกวัสดุ${group.isRepair ? ' (ซ่อมของตีกลับ)' : ''}</div>
+                    <div class="pl-title">ใบเบิกวัสดุ${group.isRepair ? ' (ซ่อมของตีกลับ)' : ''}${skuZone(group.orderSku) === '2' ? ' · เบิกที่จุดที่ 2' : ''}</div>
                     <div class="pl-prod">เลขที่การผลิต<strong>${escHtml(group.productionNumber || 'ยังไม่กำหนด')}</strong></div>
                 </div>
                 <table class="pl-meta">
@@ -2644,6 +2750,7 @@
                             <div>
                                 <div class="order-title-text">${titleText}</div>
                                 <span class="order-sku-badge"># ${escHtml(group.orderSku)}</span>
+                                ${zoneBadgeHtml(group.orderSku)}
                                 ${group.isTest ? `<span class="order-test-badge">🧪 ใบทดลอง</span>` : ''}
                                 ${group.isRepair ? `<span class="order-repair-badge" title="วัสดุที่เบิกไปซ่อมของตีกลับ — จ่ายเฉพาะรายการในการ์ดนี้">🔧 ซ่อมของตีกลับ</span>` : ''}
                                 <span class="order-quantity-badge" title="จำนวนสินค้าสำเร็จรูปในเลขที่ออเดอร์นี้">📦 จำนวนออเดอร์: ${orderQuantityText} ชิ้น</span>
@@ -2703,6 +2810,8 @@
             if (dispatchDateToolbar) dispatchDateToolbar.hidden = tab !== 'done';
             const orderSearchBar = document.getElementById('orderSearchBar');
             if (orderSearchBar) orderSearchBar.hidden = tab === 'damage';
+            const zoneBar = document.getElementById('zoneFilterBar');
+            if (zoneBar) zoneBar.hidden = tab === 'damage' || !canSeeBothZones();
 
             if (tab === 'damage') {
                 mainContent.style.display = 'none';
