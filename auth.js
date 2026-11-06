@@ -25,10 +25,62 @@ if (window.location.protocol === 'file:') {
     });
 }
 
+// กันหน้าค้างบน iPhone: ตอนล็อกจอ/สลับแอป iOS พักหน้าเว็บไว้ คำขอข้อมูลที่ค้างอยู่บางครั้งไม่ตอบกลับเลย
+// หน้าเว็บจึงรอไปตลอด (ปุ่มหมุนค้าง ค้นหาไม่ได้) → แก้ 2 ชั้น
+//   1) ดึงข้อมูล (อ่านอย่างเดียว): รอเกิน 20 วิ ตัดทิ้ง / กลับมาเปิดจอแล้วตัวที่ค้างตั้งแต่ก่อนพักจอ ตัดทิ้งทันที
+//      → ตัวเชื่อมฐานข้อมูลลองดึงใหม่ให้เอง (เฉพาะการอ่าน ปลอดภัย ไม่ซ้ำ)
+//   2) บันทึก/ตัดสต็อก (เขียน): ไม่ตัดตอนกลับมาเปิดจอ และรอได้ถึง 60 วิ เพราะอาจบันทึกไปแล้วจริง
+//      ถ้าเกินจะแจ้งให้รีเฟรชดูก่อนกดซ้ำ กันตัดสต็อกซ้ำ
+// ไม่แตะการอัปโหลดรูป (ไฟล์ใหญ่ใช้เวลานานได้) และไม่แตะเรียลไทม์
+const DB_READ_TIMEOUT_MS = 20000;
+const DB_WRITE_TIMEOUT_MS = 60000;
+const pendingReads = new Set();
+let pageHiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { pageHiddenAt = Date.now(); return; }
+    if (!pageHiddenAt) return;
+    const hiddenAt = pageHiddenAt;
+    pageHiddenAt = 0;
+    pendingReads.forEach(req => { if (req.startedAt <= hiddenAt) req.abortStale(); });
+});
+function fetchWithTimeout(input, init = {}) {
+    const url = typeof input === 'string' ? input : String((input && input.url) || input || '');
+    if (!/\/(rest|auth)\/v1\//.test(url) || typeof AbortController === 'undefined') {
+        return fetch(input, init);
+    }
+    const method = String(init.method || (input && input.method) || 'GET').toUpperCase();
+    const isAuth = /\/auth\/v1\//.test(url);
+    // ล็อกอิน/ต่ออายุล็อกอิน: ใช้เวลารอแบบการอ่าน แต่ไม่ตัดตอนกลับมาเปิดจอ (ตัดกลางทางอาจทำให้หลุดล็อกอิน)
+    const isRead = isAuth || method === 'GET' || method === 'HEAD';
+    const ctrl = new AbortController();
+    const outer = init.signal;
+    if (outer) {
+        if (outer.aborted) ctrl.abort();
+        else outer.addEventListener('abort', () => ctrl.abort(), { once: true });
+    }
+    let reason = '';
+    const timer = setTimeout(() => { reason = 'timeout'; ctrl.abort(); },
+        isRead ? DB_READ_TIMEOUT_MS : DB_WRITE_TIMEOUT_MS);
+    const entry = { startedAt: Date.now(), abortStale: () => { reason = 'stale'; ctrl.abort(); } };
+    if (isRead && !isAuth) pendingReads.add(entry);
+    return fetch(input, { ...init, signal: ctrl.signal })
+        .catch(err => {
+            if (reason && !(outer && outer.aborted)) {
+                throw new Error(isRead
+                    ? 'เชื่อมต่อช้าหรือหลุด — ลองใหม่อีกครั้ง'
+                    : 'เน็ตช้า ไม่แน่ใจว่าบันทึกสำเร็จหรือยัง — รีเฟรชหน้าดูยอดก่อนกดซ้ำ');
+            }
+            throw err;
+        })
+        .finally(() => { clearTimeout(timer); pendingReads.delete(entry); });
+}
+
 // Initialize Supabase
 let supabaseClient = null;
 if (window.supabase && window.SUPABASE_CONFIG) {
-    supabaseClient = window.supabase.createClient(window.SUPABASE_CONFIG.URL, window.SUPABASE_CONFIG.KEY);
+    supabaseClient = window.supabase.createClient(window.SUPABASE_CONFIG.URL, window.SUPABASE_CONFIG.KEY, {
+        global: { fetch: fetchWithTimeout }
+    });
 }
 
 const PERMISSION_PAGE_CATALOG = [

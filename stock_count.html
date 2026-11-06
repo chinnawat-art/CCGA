@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
-    <script src="auth.js?v=20261104-1"></script>
+    <script src="auth.js?v=20261106-1"></script>
     <link rel="stylesheet" href="theme.css">
     <script src="theme.js" defer></script>
     <style>
@@ -215,12 +215,22 @@
         else query = query.order('last_stock_check', { ascending: true, nullsFirst: true })
                           .order('product_name', { ascending: true });
 
-        const { data, error, count } = await query.range(offset, offset + PAGE_SIZE - 1);
+        let data = null, error = null, count = null;
+        try {
+            ({ data, error, count } = await query.range(offset, offset + PAGE_SIZE - 1));
+        } catch (e) {
+            error = e;
+        } finally {
+            // ปลดล็อกเสมอ ถึงโหลดพลาด — ไม่งั้นค้นหา/กรอง/โหลดเพิ่ม จะกดไม่ติดไปตลอด (อาการค้างบน iPhone)
+            loading = false;
+        }
         if (reset) showResultInfo(error ? null : count, q, cat, color);
-        loading = false;
 
         if (error) {
-            document.getElementById('list').innerHTML = '<div class="empty">❌ โหลดไม่สำเร็จ: ' + esc(error.message) + '</div>';
+            const msg = '❌ โหลดไม่สำเร็จ: ' + esc(error.message || String(error))
+                + '<br><button type="button" class="btn-save" style="margin-top:10px" onclick="loadItems(true)">🔄 ลองใหม่</button>';
+            if (reset) document.getElementById('list').innerHTML = '<div class="empty">' + msg + '</div>';
+            else toast('โหลดเพิ่มไม่สำเร็จ ลองกดอีกครั้ง', 4000);
             return;
         }
         renderItems(data || [], reset);

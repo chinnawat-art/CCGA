@@ -96,6 +96,27 @@ function showToast(msg, type = 'success') {
 }
 
 // ─── REALTIME (Row-level) ─────────────────────────────────────────────────
+// เวลาฝ่ายผลิตตัดสต็อก 1 ออเดอร์ ระบบส่งสัญญาณมาทีละ 10-20 แถวติดกัน
+// เดิมวาดตารางใหม่ทั้งตารางทุกสัญญาณ → มือถือ (โดยเฉพาะ iPhone) หน่วง/ค้าง และช่องที่กำลังพิมพ์ถูกล้าง
+// ตอนนี้: รวบสัญญาณแล้ววาดครั้งเดียว และถ้ากำลังพิมพ์ในตารางอยู่ รอให้พิมพ์เสร็จก่อนค่อยวาด
+let realtimeRenderTimer = null;
+function scheduleRealtimeRender(delay = 400) {
+    clearTimeout(realtimeRenderTimer);
+    realtimeRenderTimer = setTimeout(() => {
+        const active = document.activeElement;
+        const tbody = document.getElementById('stockTableBody');
+        const typingInTable = active && tbody && tbody.contains(active)
+            && /^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName);
+        // กำลังพิมพ์ในตาราง หรือพักจออยู่ → ยังไม่วาด เช็คใหม่ทุก 1 วิ
+        if (typingInTable || document.hidden) {
+            scheduleRealtimeRender(1000);
+            return;
+        }
+        renderStockTable();
+        updateStatistics();
+    }, delay);
+}
+
 function startRealtime() {
     if (!dbSupabase) return;
     realtimeChannel = dbSupabase
@@ -106,8 +127,7 @@ function startRealtime() {
                 if (!allStocks.find(s => s.id === row.id)) {
                     allStocks.unshift(row);
                 }
-                renderStockTable();
-                updateStatistics();
+                scheduleRealtimeRender();
                 showToast(`➕ เพิ่มสินค้าใหม่: ${row.product_name}`, 'success');
             })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: STOCK_TABLE_NAME },
@@ -116,14 +136,12 @@ function startRealtime() {
                 const idx = allStocks.findIndex(s => s.id === row.id);
                 if (idx !== -1) allStocks[idx] = row;
                 else allStocks.unshift(row);
-                renderStockTable();
-                updateStatistics();
+                scheduleRealtimeRender();
             })
         .on('postgres_changes', { event: 'DELETE', schema: 'public', table: STOCK_TABLE_NAME },
             ({ old: row }) => {
                 allStocks = allStocks.filter(s => s.id !== row.id);
-                renderStockTable();
-                updateStatistics();
+                scheduleRealtimeRender();
                 showToast(`🗑️ ลบสินค้า: ${row.product_name || row.id}`, 'info');
             })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'stock_movement_log' },

@@ -4,7 +4,11 @@
 // เหตุผล: ระบบนี้ข้อมูลเปลี่ยนตลอด ถ้าให้อ่านจากแคชก่อนจะเห็นของเก่า
 // แคชเป็นแค่ตาข่ายรองตอนเน็ตหลุด ไม่ใช่แหล่งข้อมูลหลัก
 
-const VERSION = 'v2-20260918';
+const VERSION = 'v3-20261106';
+
+// เน็ตโรงงานช้า/หลุด: ถ้ารอไฟล์หน้าเว็บเกิน 8 วินาที และเคยเปิดหน้านี้แล้ว ให้ใช้ของที่เก็บไว้แทน
+// (เดิมรอไม่มีกำหนด เปลี่ยนหน้าแล้วจอค้างขาวนาน โดยเฉพาะแอปที่ติดตั้งบน iPhone)
+const NETWORK_TIMEOUT_MS = 8000;
 const CACHE = 'ccga-' + VERSION;
 
 self.addEventListener('install', e => self.skipWaiting());
@@ -28,12 +32,19 @@ self.addEventListener('fetch', event => {
 
   event.respondWith((async () => {
     try {
-      const fresh = await fetch(req);
-      if (fresh && fresh.ok) {
-        const cache = await caches.open(CACHE);
-        cache.put(req, fresh.clone());
-      }
-      return fresh;
+      const network = fetch(req).then(fresh => {
+        if (fresh && fresh.ok) {
+          const copy = fresh.clone();
+          caches.open(CACHE).then(cache => cache.put(req, copy)).catch(() => {});
+        }
+        return fresh;
+      });
+      const cached = await caches.match(req);
+      if (!cached) return await network;
+      // มีของเก่าเก็บไว้: แข่งกันระหว่างเน็ตกับเวลา 8 วิ ใครเสร็จก่อนใช้อันนั้น
+      const slow = new Promise(resolve => setTimeout(() => resolve(null), NETWORK_TIMEOUT_MS));
+      const winner = await Promise.race([network.catch(() => null), slow]);
+      return winner || cached;
     } catch (err) {
       const hit = await caches.match(req);
       if (hit) return hit;
