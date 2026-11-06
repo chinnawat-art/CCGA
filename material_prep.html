@@ -1583,6 +1583,21 @@
             border-radius: 99px; font-size: .8rem; font-weight: 800;
             background: #0f766e; color: #fff;
         }
+        .missing-stock-box {
+            margin-top: 10px; border: 2px dashed #f59e0b; border-radius: 12px;
+            padding: 8px 10px; background: rgba(245, 158, 11, .07);
+        }
+        .missing-stock-head { font-weight: 800; color: #b45309; margin: 2px 2px 8px; font-size: .92rem; }
+        .missing-stock-head span { font-weight: 500; font-size: .8rem; }
+        .material-item.is-missing-stock { opacity: .95; }
+        .missing-stock-have { font-size: .78rem; font-weight: 700; color: #dc2626; }
+        .qty-pill.missing { background: rgba(245, 158, 11, .2); color: #b45309; }
+        .missing-stock-count {
+            display: inline-block; padding: 1px 8px; border-radius: 99px; font-weight: 700;
+            background: rgba(245, 158, 11, .18); color: #b45309;
+        }
+        .dark-theme .missing-stock-head, .dark-theme .missing-stock-count, .dark-theme .qty-pill.missing { color: #fbbf24; }
+        .dark-theme .missing-stock-have { color: #f87171; }
         .order-zone-badge {
             display: inline-block; margin-left: 6px; padding: 3px 11px;
             border-radius: 99px; font-size: .78rem; font-weight: 800;
@@ -1838,6 +1853,11 @@
         let materialLocationMap = {}; // mapping of stock_items.id -> storage_location (ช่องเก็บ เช่น A01 = ชั้น A ช่องย่อย 01)
         let orderIsTestMap = {}; // mapping of orderId -> is_test (ใบทดลอง)
         let orderNotesMap = {}; // mapping of orderId -> note (หมายเหตุลูกค้า)
+        let orderPanelsUsedMap = {}; // orderId -> true ถ้าใช้บานเก็บ (วัสดุลดตามสูตร เทียบ BOM ตรง ๆ ไม่ได้)
+        // ─── วัสดุใน BOM ที่ไม่ได้ตัดสต็อกตอนเริ่มผลิต (ยอดในระบบไม่พอ → ต้องติ๊กออก) ───
+        // แสดงในการ์ด/ใบเบิกให้พนักงานรู้ว่าต้องหยิบ · อ่านอย่างเดียว ไม่ตัดสต็อก ไม่นับในการกดจ่าย
+        const bomCache = {}; // sku -> [{ code, qty }]
+        let missingByGroup = {}; // groupKey -> [{ code, name, category, need, have, unit, location }]
         let realtimeChannel = null;
         let dmgRealtimeChannel = null;
 
@@ -1903,6 +1923,7 @@
             processData();
             renderContent();
             updateKPIs();
+            loadMissingComponents().then(ok => { if (ok) renderContent(); });
         }
 
         function zoneBadgeHtml(sku) {
@@ -1953,7 +1974,10 @@
         window.addEventListener('auth-ready', () => {
             // สิทธิ์ SKU มาพร้อม auth-ready → จัดกลุ่มใหม่ตามจุด/สิทธิ์จริง
             setupZoneFilter();
-            if (allLogs.length) { processData(); updateKPIs(); renderContent(); }
+            if (allLogs.length) {
+                processData(); updateKPIs(); renderContent();
+                loadMissingComponents().then(ok => { if (ok) renderContent(); });
+            }
             if (dmgLoaded) dmgRenderTable();
         });
 
@@ -2071,7 +2095,7 @@
             try {
                 const { data, error } = await db
                     .from('stock_orders')
-                    .select('id, product_code, product_name, order_number, production_number, quantity, is_test, note')
+                    .select('id, product_code, product_name, order_number, production_number, quantity, is_test, note, panels_used')
                     .in('id', orderIds);
                 if (error) {
                     console.error('Error fetching order names:', error);
@@ -2086,6 +2110,7 @@
                         orderQuantitiesMap[o.id] = Number(o.quantity) || 0;
                         orderIsTestMap[o.id] = o.is_test === true;
                         orderNotesMap[o.id] = String(o.note || '').trim() || null;
+                        orderPanelsUsedMap[o.id] = Array.isArray(o.panels_used) && o.panels_used.length > 0;
                     });
                 }
             } catch (err) {
@@ -2143,9 +2168,98 @@
                 processData();
                 renderContent();
                 updateKPIs();
+                // เติมรายการที่ไม่ได้ตัดสต็อกทีหลัง (ไม่ให้หน้าช้า) แล้ววาดการ์ดใหม่
+                if (await loadMissingComponents()) renderContent();
             } catch (err) {
                 showToast('❌ โหลดข้อมูลล้มเหลว: ' + err.message, 'error');
             }
+        }
+
+        // ─── วัสดุที่ไม่ได้ตัดสต็อก: เทียบ BOM × จำนวนออเดอร์ กับรายการที่ตัดไปจริง ─────
+        // ทำเฉพาะงานรอจัดเตรียม · ข้ามงานซ่อมของตีกลับ (ตัดแค่บางชิ้นโดยตั้งใจ) และงานที่ใช้บานเก็บ
+        async function loadMissingComponents() {
+            try {
+                const groups = Object.values(pendingGroups).filter(g =>
+                    orderSkusMap[g.key] && !g.isRepair && !orderPanelsUsedMap[g.key]);
+                const next = {};
+                if (!groups.length) { missingByGroup = next; return true; }
+
+                const skus = [...new Set(groups.map(g => g.orderSku))].filter(s => !bomCache[s]);
+                for (const sku of skus) {
+                    const { data, error } = await db.from('stock_bom')
+                        .select('component_product_code, component_qty')
+                        .eq('product_code', sku);
+                    if (error) throw error;
+                    const sum = {};
+                    (data || []).forEach(r => {
+                        const code = String(r.component_product_code || '').trim();
+                        if (code) sum[code] = (sum[code] || 0) + (Number(r.component_qty) || 0);
+                    });
+                    bomCache[sku] = Object.entries(sum).map(([code, qty]) => ({ code, qty }));
+                }
+
+                const wanted = {};
+                groups.forEach(g => {
+                    const bom = bomCache[g.orderSku] || [];
+                    if (!bom.length) return;
+                    const deducted = new Set(g.items.map(l => String(materialCodesMap[l.item_id] || '').trim()).filter(Boolean));
+                    const orderQty = Number(g.orderQuantity) > 0 ? Number(g.orderQuantity) : 1;
+                    const miss = bom.filter(b => !deducted.has(b.code) && b.qty > 0)
+                        .map(b => ({ code: b.code, need: b.qty * orderQty }));
+                    if (miss.length) { next[g.key] = miss; miss.forEach(m => { wanted[m.code] = true; }); }
+                });
+
+                const codes = Object.keys(wanted);
+                const info = {};
+                for (let i = 0; i < codes.length; i += 100) {
+                    const { data, error } = await db.from('stock_items')
+                        .select('product_code, product_name, category, quantity, unit, storage_location')
+                        .in('product_code', codes.slice(i, i + 100));
+                    if (error) throw error;
+                    (data || []).forEach(it => { info[it.product_code] = it; });
+                }
+                Object.values(next).forEach(list => list.forEach(m => {
+                    const it = info[m.code] || {};
+                    m.name = it.product_name || m.code;
+                    m.category = it.category || 'other';
+                    m.have = Number(it.quantity) || 0;
+                    m.unit = it.unit || 'ชิ้น';
+                    m.location = it.storage_location || '';
+                }));
+                Object.values(next).forEach(list => list.sort((a, b) =>
+                    String(a.location || '~').localeCompare(String(b.location || '~'), 'th', { numeric: true })
+                    || String(a.code).localeCompare(String(b.code), 'th', { numeric: true })));
+                missingByGroup = next;
+                return true;
+            } catch (err) {
+                console.error('loadMissingComponents:', err);
+                return false; // โหลดไม่ได้ = การ์ดแสดงแบบเดิม ไม่กระทบการจ่ายวัสดุ
+            }
+        }
+
+        function renderMissingSection(group) {
+            const miss = missingByGroup[group.key];
+            if (!miss || !miss.length) return '';
+            const rows = miss.map(m => `
+                <div class="material-item is-missing-stock">
+                    <div class="material-item-left">
+                        <div class="material-icon">⚠️</div>
+                        <div>
+                            ${m.location ? `<div class="material-location" title="ช่องเก็บวัสดุ">📍 ${escHtml(m.location)}</div>` : ''}
+                            <div class="material-name">${escHtml(m.name)}</div>
+                            <div class="material-code">รหัส: ${escHtml(m.code)}</div>
+                            <div class="missing-stock-have">ในระบบมี ${m.have.toLocaleString('th-TH')} ${escHtml(m.unit)}</div>
+                        </div>
+                    </div>
+                    <div class="material-qty">
+                        <span class="qty-pill missing">${m.need}</span>
+                        <span class="qty-unit">${escHtml(m.unit)}</span>
+                    </div>
+                </div>`).join('');
+            return `<div class="missing-stock-box">
+                    <div class="missing-stock-head">⚠️ ยังไม่ได้ตัดสต็อก ${miss.length} รายการ <span>— ตอนเริ่มผลิตยอดในระบบไม่พอ จึงไม่อยู่ในรายการด้านบน · หยิบตามจริงได้ แล้วแจ้งผู้ดูแลสต็อกปรับยอด</span></div>
+                    ${rows}
+                </div>`;
         }
 
         // ─── PROCESS: GROUP BY ORDER ─────────────────────────────────────────
@@ -2636,6 +2750,21 @@
                     <td class="c qty">${qty}</td>
                 </tr>`;
             });
+            const missList = pendingGroups[groupKey] ? (missingByGroup[groupKey] || []) : [];
+            if (missList.length) {
+                rows += `<tr class="cat"><td colspan="6">⚠️ ยังไม่ได้ตัดสต็อก (ยอดในระบบไม่พอ) — หยิบตามจริง แล้วแจ้งปรับยอด</td></tr>`;
+                missList.forEach(m => {
+                    no++;
+                    rows += `<tr>
+                        <td class="c">${no}</td>
+                        <td class="box"></td>
+                        <td class="loc">${escHtml(m.location || '-')}</td>
+                        <td>${escHtml(m.name)} <small>(ระบบมี ${m.have})</small></td>
+                        <td class="code">${escHtml(m.code)}</td>
+                        <td class="c qty">${m.need}</td>
+                    </tr>`;
+                });
+            }
 
             const qtyText = (group.orderQuantity != null && Number.isFinite(Number(group.orderQuantity)))
                 ? Number(group.orderQuantity).toLocaleString('th-TH') : '-';
@@ -2652,7 +2781,7 @@
                     ${group.note ? `<tr><td>📢 หมายเหตุ</td><td colspan="3" style="font-weight:800; font-size:13pt; border:2px solid #000;">${escHtml(group.note)}</td></tr>` : ''}
                     ${(r => r.slotCount ? `<tr><td>📍 ช่องที่ต้องไป</td><td colspan="3" style="font-weight:800; font-size:12pt;">${r.racks.map(k => `ชั้น ${escHtml(k.rack)}: ${k.codes.map(escHtml).join(', ')}`).join(' → ')}${r.missing ? ` (อีก ${r.missing} รายการยังไม่ระบุช่อง)` : ''}</td></tr>` : '')(getPickRoute(group))}
                     <tr><td>จำนวนออเดอร์</td><td>${qtyText} ชิ้น</td>
-                        <td>รายการวัสดุ</td><td>${group.items.length} รายการ</td></tr>
+                        <td>รายการวัสดุ</td><td>${group.items.length} รายการ${missList.length ? ` + ไม่ได้ตัดสต็อก ${missList.length}` : ''}</td></tr>
                 </table>
                 <table class="pl-items">
                     <thead><tr>
@@ -2759,7 +2888,7 @@
                                     <strong class="production-number-value ${group.productionNumber ? '' : 'is-unassigned'}">${escHtml(group.productionNumber || 'ยังไม่กำหนด')}</strong>
                                 </div>
                                 ${group.productName ? `<div class="order-product-name">📦 ${escHtml(group.productName)}</div>` : ''}
-                                <div class="order-time">🕐 เริ่มผลิต: ${dateStr} • ${group.items.length} รายการวัสดุ</div>
+                                <div class="order-time">🕐 เริ่มผลิต: ${dateStr} • ${group.items.length} รายการวัสดุ${!isDone && missingByGroup[group.key]?.length ? ` <span class="missing-stock-count">+ ไม่ได้ตัดสต็อก ${missingByGroup[group.key].length}</span>` : ''}</div>
                                 ${!isDone && canAct ? `<div><span class="pick-progress" data-group="${escHtml(group.key)}">☑️ เตรียมแล้ว ${loadPicked(group.key).size}/${group.items.length} รายการ</span></div>` : ''}
                                 ${isDone ? '' : renderPickRoute(group)}
                             </div>
@@ -2771,6 +2900,7 @@
                         </div>
                     </div>
                     <div class="material-list">${itemsHtml}</div>
+                    ${isDone ? '' : renderMissingSection(group)}
                     ${isDone ? '' : canAct
                         ? `<div class="section-note">📌 เปิดหน้านี้ในมือถือแล้วแตะช่องติ๊กทีละชิ้นตอนหยิบของได้เลย • เน็ตล่มให้กด "พิมพ์ใบเบิก" • หยิบครบแล้วกด "จ่ายวัสดุแล้ว"</div>`
                         : `<div class="section-note">👁️ บัญชีนี้ดูรายการวัสดุได้อย่างเดียว — การจ่ายวัสดุทำโดยฝ่ายที่มีสิทธิ์ "จ่ายวัสดุ"</div>`}
