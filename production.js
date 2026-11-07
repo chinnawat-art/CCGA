@@ -201,7 +201,7 @@ async function loadProductImage(sku) {
 // ─── LOAD DATA ────────────────────────────
 async function loadData() {
     log('กำลังโหลดข้อมูลจาก Supabase...');
-    const selectColumns = 'id,order_date,platform,order_number,production_number,tracking_number,product_code,product_name,product_size,slots,quantity,buyer_name,tracking_status,note,pattern,production_started_at,production_completed_at,payment_time,ship_by_date,aluminum_color,glass_color,screen_type,stock_deducted,qc_checked_at,qc_checked_by,qc_reject_count,qc_last_reject_reason,qc_last_rejected_at,qc_last_rejected_by,panels_used';
+    const selectColumns = 'id,order_date,platform,order_number,production_number,tracking_number,product_code,product_name,product_size,slots,quantity,buyer_name,tracking_status,note,pattern,production_started_at,production_completed_at,payment_time,ship_by_date,aluminum_color,glass_color,screen_type,stock_deducted,qc_checked_at,qc_checked_by,qc_reject_count,qc_last_reject_reason,qc_last_rejected_at,qc_last_rejected_by,panels_used,custom_width,custom_height,custom_size_by,custom_size_at';
     const fallbackColumns = 'id,order_date,platform,order_number,production_number,tracking_number,product_code,product_name,product_size,slots,quantity,buyer_name,tracking_status,note,pattern,production_started_at,production_completed_at,aluminum_color,glass_color,screen_type,qc_checked_at,qc_checked_by,qc_reject_count,qc_last_reject_reason,qc_last_rejected_at,qc_last_rejected_by';
     const viewableStatuses = getViewableProductionStatuses();
     try {
@@ -666,6 +666,7 @@ async function fetchBackupStockOption(order) {
     const productCode = String(order?.product_code || '').trim();
     const requiredQty = Math.max(1, parseInt(order?.quantity) || 1);
     if (!productCode) return null;
+    if (hasCustomSize(order)) return null;   // สินค้าสำเร็จรูปในสต็อกสำรองเป็นขนาด SKU ใช้กับงานขนาดพิเศษไม่ได้
 
     try {
         const { data, error } = await db.rpc('rpc_get_backup_stock_for_production_order', {
@@ -755,6 +756,7 @@ function openComponentsModal(order, comps, backupOption = null, panelOption = nu
                     <div style="font-size:0.75rem; color:var(--muted); margin-bottom:4px;">📦 ออเดอร์ #${esc(order.order_number || order.id)}</div>
                     <div style="font-weight:500; font-size:0.9rem;">${esc(order.product_name)}</div>
                     ${order.product_code ? `<div style="font-size:0.75rem; color:var(--primary); margin-top:2px;">SKU: ${esc(order.product_code)}</div>` : ''}
+                    ${hasCustomSize(order) ? `<div class="custom-size-note">✂️ ขนาดพิเศษ ${fmtCm(order.custom_width)} x ${fmtCm(order.custom_height)} ซม. — ตัดวัสดุของ SKU นี้ แล้วช่างตัดลงตามขนาดที่หน้าเตรียมวัสดุ (ใช้บานเก็บ/สต็อกสำรองไม่ได้)</div>` : ''}
                 </div>`;
         list.innerHTML = headerInfo + warningHtml + renderPanelUseSection(panelOption);
 
@@ -1224,6 +1226,7 @@ function renderOrderCard(o) {
         const canFinishPending = window.auth?.role === 'Ceo' || window.auth?.hasPermission?.('action_complete_pending_production') === true;
         actionsHtml = `
             ${canCancel ? `<button class="btn btn-outline btn-sm" style="color:#f87171;border-color:rgba(239,68,68,0.35);" onclick="cancelProductionOrder('${o.id}',this)">❌ ยกเลิก</button>` : ''}
+            <button class="btn btn-outline btn-sm btn-custom-size" title="กรอกขนาดที่ลูกค้าสั่งจริง (ต้องไม่เกินขนาด SKU)" onclick="openCustomSizeModal('${o.id}')">📐 ${hasCustomSize(o) ? 'แก้ขนาดลูกค้า' : 'ขนาดตามลูกค้า'}</button>
             <button class="btn btn-produce btn-sm" onclick="updateStatus('${o.id}','${STATUS_PRODUCING}',this)">🔨 เริ่มผลิต</button>
             ${canFinishPending ? `<button class="btn btn-done btn-sm" onclick="updateStatus('${o.id}','${STATUS_DONE}',this)">✅ ผลิตสำเร็จ</button>` : ''}`;
     } else if (status === STATUS_PRODUCING) {
@@ -1295,7 +1298,8 @@ function renderOrderCard(o) {
     }
 
     const details = [
-        o.product_size ? `<span class="detail-pill size">📐 ${esc(o.product_size)}</span>` : '',
+        o.product_size ? `<span class="detail-pill size${hasCustomSize(o) ? ' is-overridden' : ''}">📐 ${esc(o.product_size)}</span>` : '',
+        hasCustomSize(o) ? `<span class="detail-pill custom-size" title="ลูกค้าสั่งขนาดพิเศษ — ตัดวัสดุของ SKU แล้วตัดลง">✂️ ลูกค้าสั่ง ${fmtCm(o.custom_width)} x ${fmtCm(o.custom_height)}</span>` : '',
         o.slots != null ? `<span class="detail-pill slots">🔲 ${o.slots} ช่อง</span>` : '',
         o.pattern ? `<span class="detail-pill pattern">🎨 ${esc(o.pattern)}</span>` : '',
         o.aluminum_color ? `<span class="detail-pill" style="background:rgba(255,255,255,0.05); color:#94a3b8; border:1px solid rgba(255,255,255,0.1);">🏗️ ${esc(o.aluminum_color)}</span>` : '',
@@ -1348,7 +1352,7 @@ function renderOrderCard(o) {
     return `
     <div class="order-card ${cardCls}${panelCls}${o.is_test ? ' is-test' : ''}" id="card_${o.id}">
         <div class="card-top">
-            <div class="card-badges">${badgeHtml}${o.is_test ? '<span class="badge badge-test">🧪 ใบทดลอง</span>' : ''}</div>
+            <div class="card-badges">${badgeHtml}${hasCustomSize(o) ? '<span class="badge badge-custom">📐 ขนาดพิเศษ</span>' : ''}${o.is_test ? '<span class="badge badge-test">🧪 ใบทดลอง</span>' : ''}</div>
             <div style="text-align:right;">
                 <span class="plat ${platCls}">${esc(o.platform)}</span>
                 <div class="card-date" style="margin-top:4px;">${(() => {
@@ -1524,6 +1528,7 @@ async function getPanelUseOption(order) {
     const layout = PANEL_LAYOUT[fam];
     const stock = panelStockBySku[order.product_code];
     if (!layout || !stock) return null;
+    if (hasCustomSize(order)) return null;   // บานเก็บเป็นขนาด SKU ใช้กับงานขนาดพิเศษไม่ได้
     if (!panelRecipesByFamily) {
         const { data, error } = await db.from('panel_recipes').select('family, panel_type, part, qty');
         if (error) return null;
@@ -1576,7 +1581,7 @@ async function loadPanelStockForHints() {
 
 // การ์ดงานรอผลิตที่มีบานเก็บพอใช้ → สีฟ้า แยกจากงานที่ต้องทำทั้งชุด (เจ้าของขอ 07/11/2569)
 function panelUsableNow(o) {
-    if (o.tracking_status !== STATUS_PENDING) return false;
+    if (o.tracking_status !== STATUS_PENDING || hasCustomSize(o)) return false;
     const stock = panelStockBySku[o.product_code];
     const layout = PANEL_LAYOUT[(String(o.product_code || '').match(/^(SLWD|SLD)\dP/) || [])[0]];
     return !!(stock && layout && Object.keys(layout).some(t => stock[t] && stock[t].qty > 0));
@@ -1590,7 +1595,7 @@ function panelHintHtml(o) {
             ? '<div class="card-panels"><div class="card-panels-label">🪟 งานนี้ใช้บานเก็บแล้ว</div><div><b>' + used.map(p => (PANEL_LABEL[p.type] || p.type) + ' ' + p.qty).join(' · ') + '</b> · ทำกรอบ + บานที่เหลือ</div></div>'
             : '';
     }
-    if (o.tracking_status !== STATUS_PENDING) return '';
+    if (o.tracking_status !== STATUS_PENDING || hasCustomSize(o)) return '';
     const stock = panelStockBySku[o.product_code];
     const fam = (String(o.product_code || '').match(/^(SLWD|SLD)\dP/) || [])[0];
     const layout = PANEL_LAYOUT[fam];
@@ -1613,6 +1618,155 @@ function panelHintHtml(o) {
         ${sameSku > 1 ? `<div class="card-panels-warn">⚠️ มีงาน SKU นี้รออยู่ ${sameSku} ใบ ใช้บานชุดเดียวกัน</div>` : ''}
         <div class="card-panels-note">กด "เริ่มผลิต" แล้วใส่จำนวนบานเก็บที่จะใช้ · ระบบตัดวัสดุน้อยลงและหักบานจากสต๊อกบานให้เอง</div>
     </div>`;
+}
+
+// ═══ ขนาดตามลูกค้า (งานสั่งขนาดพิเศษ · เจ้าของขอ 07/11/2569) ═══════════
+// ลูกค้ากด SKU มาตรฐาน แต่สั่งขนาดจริงไม่ตรง → คนสั่งผลิตกรอกขนาดในการ์ด (เฉพาะงานรอผลิต)
+// กติกา: SKU ต้องใหญ่กว่าหรือเท่ากับขนาดที่สั่ง ทั้งกว้างและสูง (ฐานข้อมูลเช็คซ้ำใน rpc_set_order_custom_size)
+// ตัดสต็อกวัสดุของ SKU ตามเดิม · ขนาดตัดคิดจาก BOM ของ SKU (custom_cut_list) โชว์ที่หน้าเตรียมวัสดุ
+function skuSizeWH(o) {
+    const m = String(o?.product_size || '').match(/([0-9]+(?:\.[0-9]+)?)\s*[xX×]\s*([0-9]+(?:\.[0-9]+)?)/);
+    return m ? [parseFloat(m[1]), parseFloat(m[2])] : null;
+}
+function fmtCm(n) { return String(Math.round(Number(n) * 10) / 10); }
+function hasCustomSize(o) { return o && o.custom_width != null && o.custom_height != null; }
+
+let customSizeTimer = null;
+let customSizeSeq = 0;
+function closeCustomSizeModal() {
+    const ov = document.getElementById('customSizeModal');
+    if (ov) ov.style.display = 'none';
+    clearTimeout(customSizeTimer);
+}
+
+function openCustomSizeModal(id) {
+    const o = allOrders.find(x => x.id === id);
+    if (!o) { alert('❌ ไม่พบออเดอร์'); return; }
+    if (o.tracking_status !== STATUS_PENDING || o.stock_deducted === true) {
+        alert('แก้ขนาดได้เฉพาะงานที่ยังรอผลิต (ยังไม่ตัดวัสดุ)');
+        return;
+    }
+    const sku = skuSizeWH(o);
+    let ov = document.getElementById('customSizeModal');
+    if (!ov) {
+        ov = document.createElement('div');
+        ov.id = 'customSizeModal';
+        ov.className = 'modal-overlay';
+        ov.addEventListener('click', e => { if (e.target === ov || e.target.closest('[data-cs-close]')) closeCustomSizeModal(); });
+        document.body.appendChild(ov);
+    }
+    ov.innerHTML = `<div class="modal-content cs-modal" role="dialog" aria-modal="true" aria-labelledby="csTitle">
+        <div class="modal-header">
+            <h3 class="modal-heading" id="csTitle">📐 ขนาดตามลูกค้าสั่ง</h3>
+            <button type="button" class="modal-close-btn" data-cs-close aria-label="ปิด">✕</button>
+        </div>
+        <div class="cs-sku">ออเดอร์ <b>${esc(o.order_number || '-')}</b><br>
+            SKU <b>${esc(o.product_code || '-')}</b> · ขนาดตาม SKU <b>${sku ? fmtCm(sku[0]) + ' x ' + fmtCm(sku[1]) : '-'}</b> ซม.</div>
+        <div class="cs-rule">ขนาดที่ลูกค้าสั่งต้อง <b>ไม่เกินขนาด SKU</b> ทั้งกว้างและสูง · ระบบตัดวัสดุของ SKU นี้ แล้วช่างตัดลงตามขนาดในตาราง</div>
+        <div class="cs-inputs">
+            <label>กว้าง (ซม.)<input id="csW" type="number" step="0.1" min="1" inputmode="decimal" value="${o.custom_width ?? ''}"></label>
+            <span class="cs-x">x</span>
+            <label>สูง (ซม.)<input id="csH" type="number" step="0.1" min="1" inputmode="decimal" value="${o.custom_height ?? ''}"></label>
+        </div>
+        <div id="csMsg" class="cs-msg" role="status"></div>
+        <div id="csPreview" class="cs-preview"></div>
+        <div class="modal-actions cs-actions">
+            ${hasCustomSize(o) ? '<button type="button" class="btn btn-outline btn-sm" id="csClear">↩ กลับไปใช้ขนาดตาม SKU</button>' : ''}
+            <button type="button" class="btn btn-outline btn-sm" data-cs-close>ยกเลิก</button>
+            <button type="button" class="btn btn-done btn-sm" id="csSave" disabled>💾 บันทึกขนาดลูกค้า</button>
+        </div>
+    </div>`;
+    ov.style.display = 'flex';
+
+    const wEl = document.getElementById('csW'), hEl = document.getElementById('csH');
+    const msg = document.getElementById('csMsg'), prev = document.getElementById('csPreview');
+    const saveBtn = document.getElementById('csSave');
+
+    const check = () => {
+        const w = parseFloat(wEl.value), h = parseFloat(hEl.value);
+        saveBtn.disabled = true;
+        prev.innerHTML = '';
+        if (!(w > 0) || !(h > 0)) { msg.className = 'cs-msg'; msg.textContent = 'กรอกกว้างและสูงที่ลูกค้าสั่ง'; return; }
+        if (sku && (w > sku[0] || h > sku[1])) {
+            msg.className = 'cs-msg is-error';
+            msg.innerHTML = `❌ ขนาดที่สั่ง ${fmtCm(w)} x ${fmtCm(h)} <b>ใหญ่กว่า SKU</b> (${fmtCm(sku[0])} x ${fmtCm(sku[1])}) — ต้องให้ลูกค้ากด SKU ที่ใหญ่กว่าหรือเท่ากับขนาดที่สั่ง`;
+            return;
+        }
+        if (sku && w === sku[0] && h === sku[1]) {
+            msg.className = 'cs-msg';
+            msg.textContent = 'ขนาดเท่ากับ SKU พอดี — ไม่ต้องตั้งขนาดพิเศษ';
+            saveBtn.disabled = !hasCustomSize(o);
+            return;
+        }
+        msg.className = 'cs-msg';
+        msg.textContent = '⏳ กำลังคำนวณขนาดตัด...';
+        clearTimeout(customSizeTimer);
+        const seq = ++customSizeSeq;
+        customSizeTimer = setTimeout(async () => {
+            try {
+                const { data, error } = await db.rpc('custom_cut_list', { p_sku: o.product_code, p_width: w, p_height: h });
+                if (seq !== customSizeSeq) return;
+                if (error) throw error;
+                const rows = (data || []).filter(r => r.base_size);
+                const unsure = rows.filter(r => !r.sure).length;
+                prev.innerHTML = rows.length ? `<table class="cs-table">
+                    <thead><tr><th>วัสดุ</th><th>ตาม SKU</th><th>ตัดเป็น</th></tr></thead>
+                    <tbody>${rows.map(r => `<tr class="${r.sure ? '' : 'is-unsure'}">
+                        <td>${esc(r.component_product_code.replace(/-[0-9.]+(x[0-9.]+)?$/, ''))} <small>× ${r.component_qty}</small></td>
+                        <td>${esc(r.base_size)}</td>
+                        <td><b>${r.sure ? esc(r.cut_size) : '❓ วัดเอง'}</b></td></tr>`).join('')}</tbody></table>`
+                    : '<div class="cs-msg">SKU นี้ไม่มีวัสดุที่ต้องตัดตามขนาด</div>';
+                msg.className = unsure ? 'cs-msg is-warn' : 'cs-msg is-ok';
+                msg.textContent = unsure
+                    ? `⚠️ มี ${unsure} รายการที่ระบบคำนวณไม่ได้แน่ชัด — ช่างต้องวัดเอง`
+                    : '✅ คำนวณขนาดตัดครบทุกชิ้น';
+                saveBtn.disabled = false;
+            } catch (err) {
+                if (seq !== customSizeSeq) return;
+                msg.className = 'cs-msg is-error';
+                msg.textContent = '❌ คำนวณไม่สำเร็จ: ' + (err.message || err);
+                saveBtn.disabled = false;   // บันทึกได้ ฐานข้อมูลเช็คกติกาเอง
+            }
+        }, 450);
+    };
+    wEl.addEventListener('input', check);
+    hEl.addEventListener('input', check);
+    hEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !saveBtn.disabled) saveBtn.click(); });
+    saveBtn.addEventListener('click', () => saveCustomSize(o, parseFloat(wEl.value), parseFloat(hEl.value), saveBtn));
+    document.getElementById('csClear')?.addEventListener('click', e => saveCustomSize(o, null, null, e.currentTarget));
+    if (hasCustomSize(o)) check();
+    setTimeout(() => wEl.focus(), 50);
+}
+
+async function saveCustomSize(o, w, h, btn) {
+    const clearing = w == null && h == null;
+    if (!clearing && !confirm(`ยืนยันขนาดตามลูกค้า ${fmtCm(w)} x ${fmtCm(h)} ซม.\nออเดอร์ ${o.order_number || '-'} · SKU ${o.product_code}`)) return;
+    if (pendingStatusUpdates.has(o.id)) return;
+    pendingStatusUpdates.add(o.id);
+    const old = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '⏳';
+    try {
+        const { data, error } = await db.rpc('rpc_set_order_custom_size', { p_order_id: o.id, p_width: w, p_height: h });
+        if (error) throw error;
+        const isSet = data?.status === 'ok';
+        o.custom_width = isSet ? data.width : null;
+        o.custom_height = isSet ? data.height : null;
+        const action = isSet
+            ? `ตั้งขนาดตามลูกค้า ${fmtCm(data.width)} x ${fmtCm(data.height)} (SKU ${fmtCm(data.sku_width)} x ${fmtCm(data.sku_height)})`
+            : 'ล้างขนาดตามลูกค้า กลับไปใช้ขนาดตาม SKU';
+        const { error: logError } = await db.from('production_logs').insert({ order_id: o.id, order_number: o.order_number || '-', action });
+        if (logError) console.warn('Unable to save custom size log:', logError);
+        log(`📐 ${action} · ออเดอร์ ${o.order_number || '-'}`, 'success');
+        closeCustomSizeModal();
+        applyFilters();
+    } catch (err) {
+        alert('❌ บันทึกขนาดไม่สำเร็จ: ' + (err.message || err));
+        btn.disabled = false;
+        btn.innerHTML = old;
+    } finally {
+        pendingStatusUpdates.delete(o.id);
+    }
 }
 
 // ═══ ปุ่ม 🚚 ส่งแล้ว (แท็บตรวจเสร็จรอจัดส่ง · เจ้าของขอ 03/11/2569) ═══════════

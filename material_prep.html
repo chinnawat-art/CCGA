@@ -1613,6 +1613,26 @@
         .dark-theme .panel-pick-box { color: #dcfce7; background: rgba(22, 163, 74, 0.2); }
         .dark-theme .panel-pick-label { color: #86efac; }
         .dark-theme .panel-pick-loc { color: #fca5a5; }
+        /* งานขนาดพิเศษ (07/11/2569) */
+        .order-custom-badge {
+            display: inline-block; margin-left: 6px; padding: 3px 11px;
+            border-radius: 99px; font-size: .85rem; font-weight: 800;
+            background: #7c3aed; color: #fff;
+        }
+        .custom-size-box {
+            flex: 1 1 260px; max-width: 520px; align-self: center;
+            font-size: 1.05rem; font-weight: 700; line-height: 1.5;
+            color: #4c1d95; background: #ede9fe;
+            border: 2px solid #7c3aed; border-left-width: 8px; border-radius: 10px; padding: 10px 14px;
+        }
+        .custom-size-box small { display: block; font-size: .8rem; font-weight: 500; opacity: .85; }
+        .dark-theme .custom-size-box { color: #ede9fe; background: rgba(124, 58, 237, 0.22); }
+        .custom-cut { margin-top: 3px; font-size: .95rem; font-weight: 600; color: #6d28d9; }
+        .custom-cut b { font-size: 1.1rem; }
+        .custom-cut small { font-weight: 400; opacity: .75; }
+        .custom-cut.is-unsure { color: #d97706; }
+        .dark-theme .custom-cut { color: #c4b5fd; }
+        .dark-theme .custom-cut.is-unsure { color: #fbbf24; }
         .order-repair-badge {
             display: inline-block; margin-left: 6px; padding: 3px 11px;
             border-radius: 99px; font-size: .8rem; font-weight: 800;
@@ -1891,6 +1911,8 @@
         let orderPanelsUsedMap = {}; // orderId -> true ถ้าใช้บานเก็บ (วัสดุลดตามสูตร เทียบ BOM ตรง ๆ ไม่ได้)
         let orderPanelsListMap = {}; // orderId -> [{type, qty}] บานเก็บที่งานนี้ใช้ ต้องไปหยิบจากสต๊อกบาน (07/11/2569)
         let panelLocMap = {};        // 'SKU|panel_type' -> ช่องเก็บบาน
+        let orderCustomSizeMap = {}; // orderId -> { w, h } ขนาดตามลูกค้า (งานสั่งขนาดพิเศษ 07/11/2569)
+        let customCutMap = {};       // orderId -> { รหัสวัสดุ: { cut, base, sure } } ขนาดที่ต้องตัดลง
         const PREP_PANEL_LABEL = { fixed: 'บานตาย (กลาง)', slide: 'บานเลื่อน', slide_left: 'บานเลื่อนซ้าย', slide_right: 'บานเลื่อนขวา', fixed_left: 'บาน 1 ตายซ้าย', slide_plain: 'บาน 2 เลื่อนฝั่งจับเรียบ', slide_handle: 'บาน 3 เลื่อนฝั่งจับล็อค', fixed_right: 'บาน 4 ตายขวา' };
         const PREP_PANEL_ORDER = ['slide_left', 'fixed', 'slide_right', 'fixed_left', 'slide_plain', 'slide_handle', 'fixed_right', 'slide'];
         // ─── วัสดุใน BOM ที่ไม่ได้ตัดสต็อกตอนเริ่มผลิต (ยอดในระบบไม่พอ → ต้องติ๊กออก) ───
@@ -2123,6 +2145,8 @@
             orderPanelsUsedMap = {};
             orderPanelsListMap = {};
             panelLocMap = {};
+            orderCustomSizeMap = {};
+            customCutMap = {};
             const orderIds = [];
             allLogs.forEach(log => {
                 const idMatch = log.reason ? log.reason.match(/ID ออเดอร์:\s*([^\s]+)/) : null;
@@ -2137,7 +2161,7 @@
             try {
                 const { data, error } = await db
                     .from('stock_orders')
-                    .select('id, product_code, product_name, order_number, production_number, quantity, is_test, note, panels_used')
+                    .select('id, product_code, product_name, order_number, production_number, quantity, is_test, note, panels_used, custom_width, custom_height')
                     .in('id', orderIds);
                 if (error) {
                     console.error('Error fetching order names:', error);
@@ -2154,7 +2178,22 @@
                         orderNotesMap[o.id] = String(o.note || '').trim() || null;
                         orderPanelsUsedMap[o.id] = Array.isArray(o.panels_used) && o.panels_used.length > 0;
                         orderPanelsListMap[o.id] = Array.isArray(o.panels_used) ? o.panels_used.filter(p => p && Number(p.qty) > 0) : [];
+                        orderCustomSizeMap[o.id] = (o.custom_width != null && o.custom_height != null)
+                            ? { w: Number(o.custom_width), h: Number(o.custom_height) } : null;
                     });
+                    // งานขนาดพิเศษ: คำนวณขนาดตัดของวัสดุแต่ละชิ้นจาก BOM ของ SKU
+                    await Promise.all(data.filter(o => orderCustomSizeMap[o.id]).map(async o => {
+                        try {
+                            const cs = orderCustomSizeMap[o.id];
+                            const { data: cuts, error: cutErr } = await db.rpc('custom_cut_list', {
+                                p_sku: o.product_code, p_width: cs.w, p_height: cs.h
+                            });
+                            if (cutErr) throw cutErr;
+                            const m = {};
+                            (cuts || []).forEach(r => { if (r.base_size) m[r.component_product_code] = { cut: r.cut_size, base: r.base_size, sure: r.sure }; });
+                            customCutMap[o.id] = m;
+                        } catch (e) { console.warn('custom_cut_list', e); customCutMap[o.id] = null; }
+                    }));
                     // ช่องเก็บบานของงานที่ใช้บานเก็บ — บอกพนักงานว่าต้องไปหยิบบานที่ช่องไหน
                     const panelSkus = [...new Set(data.filter(o => (orderPanelsListMap[o.id] || []).length).map(o => o.product_code).filter(Boolean))];
                     if (panelSkus.length) {
@@ -2361,6 +2400,7 @@
                         orderQuantity: orderId ? (orderQuantitiesMap[orderId] ?? null) : null,
                         isTest: orderId ? (orderIsTestMap[orderId] === true) : false,
                         panels: orderId ? (orderPanelsListMap[orderId] || []) : [],
+                        customSize: orderId ? (orderCustomSizeMap[orderId] || null) : null,
                         createdAt: log.created_at,
                         items: [],
                         // dispatch info (from first dispatched item)
@@ -2799,7 +2839,7 @@
                     <td class="c">${no}</td>
                     <td class="box"></td>
                     <td class="loc">${escHtml(materialLocationMap[log.item_id] || '-')}</td>
-                    <td>${escHtml(log.item_name || '-')}</td>
+                    <td>${escHtml(log.item_name || '-')}${(c => c ? `<br><b>✂️ ${c.sure ? 'ตัดเป็น ' + escHtml(c.cut) : 'วัดเอง'}</b>` : '')(group.customSize && customCutMap[group.key] ? customCutMap[group.key][materialCodesMap[log.item_id]] : null)}</td>
                     <td class="code">${escHtml(code)}</td>
                     <td class="c qty">${qty}</td>
                 </tr>`;
@@ -2832,6 +2872,7 @@
                     <tr><td>เลขที่ออเดอร์</td><td><strong>${escHtml(group.orderNo || '-')}</strong></td>
                         <td>รหัสสินค้า</td><td><strong>${escHtml(group.orderSku || '-')}</strong></td></tr>
                     <tr><td>สินค้า</td><td colspan="3">${escHtml(group.productName || '-')}</td></tr>
+                    ${group.customSize ? `<tr><td>✂️ ขนาดพิเศษ</td><td colspan="3" style="font-weight:800; font-size:13pt; border:2px solid #000;">ลูกค้าสั่ง ${fmtCm(group.customSize.w)} x ${fmtCm(group.customSize.h)} ซม. — ตัดวัสดุลงตามขนาด "ตัดเป็น"</td></tr>` : ''}
                     ${group.note ? `<tr><td>📢 หมายเหตุ</td><td colspan="3" style="font-weight:800; font-size:13pt; border:2px solid #000;">${escHtml(group.note)}</td></tr>` : ''}
                     ${(r => r.slotCount ? `<tr><td>📍 ช่องที่ต้องไป</td><td colspan="3" style="font-weight:800; font-size:12pt;">${r.racks.map(k => `ชั้น ${escHtml(k.rack)}: ${k.codes.map(escHtml).join(', ')}`).join(' → ')}${r.missing ? ` (อีก ${r.missing} รายการยังไม่ระบุช่อง)` : ''}</td></tr>` : '')(getPickRoute(group))}
                     <tr><td>จำนวนออเดอร์</td><td>${qtyText} ชิ้น</td>
@@ -2852,6 +2893,20 @@
 
             window.print();
         }
+
+        // งานขนาดพิเศษ: บอกขนาดที่ต้องตัดลงของวัสดุแต่ละชิ้น
+        function customCutLine(group, log) {
+            if (!group.customSize) return '';
+            const m = customCutMap[group.key];
+            const code = materialCodesMap[log.item_id];
+            if (m === null) return `<div class="custom-cut is-unsure">✂️ คำนวณขนาดตัดไม่ได้ — วัดตามขนาดลูกค้า</div>`;
+            const c = m && code ? m[code] : null;
+            if (!c) return '';
+            return c.sure
+                ? `<div class="custom-cut">✂️ ตัดเป็น <b>${escHtml(c.cut)}</b> <small>(ชิ้นเดิม ${escHtml(c.base)})</small></div>`
+                : `<div class="custom-cut is-unsure">✂️ ❓ วัดเอง <small>(ชิ้นเดิม ${escHtml(c.base)})</small></div>`;
+        }
+        function fmtCm(n) { return String(Math.round(Number(n) * 10) / 10); }
 
         // กล่องฟ้า: งานนี้ใช้บานเก็บ → ไปหยิบบานจากสต๊อกบาน · วัสดุในการ์ดเป็นแค่กรอบ + บานที่ต้องทำเพิ่ม
         function renderPanelPickBox(group) {
@@ -2922,6 +2977,7 @@
                                     ? `<div class="material-location" title="ช่องเก็บวัสดุ">📍 ${escHtml(materialLocationMap[log.item_id])}</div>`
                                     : (isDone || !groupHasLoc ? '' : `<div class="material-location is-missing" title="ตั้งช่องเก็บได้ที่หน้าจัดการสต็อก คอลัมน์ 📍 ช่องเก็บ">📍 ยังไม่ระบุช่อง</div>`)}
                                 <div class="material-name">${escHtml(log.item_name || '-')}</div>
+                                ${customCutLine(group, log)}
                                 ${materialCodesMap[log.item_id] ? `<div class="material-code">รหัส: ${escHtml(materialCodesMap[log.item_id])}</div>` : ''}
                                 <div class="material-time">${log.created_at ? new Date(log.created_at).toLocaleString('th-TH', { hour12: false }) : '-'}</div>
                             </div>
@@ -2951,6 +3007,7 @@
                                 <span class="order-sku-badge"># ${escHtml(group.orderSku)}</span>
                                 ${zoneBadgeHtml(group.orderSku)}
                                 ${group.panels && group.panels.length ? '<span class="order-panels-badge">🪟 เบิกบานเก็บ</span>' : ''}
+                                ${group.customSize ? `<span class="order-custom-badge">📐 ขนาดพิเศษ ${fmtCm(group.customSize.w)} x ${fmtCm(group.customSize.h)}</span>` : ''}
                                 ${group.isTest ? `<span class="order-test-badge">🧪 ใบทดลอง</span>` : ''}
                                 ${group.isRepair ? `<span class="order-repair-badge" title="วัสดุที่เบิกไปซ่อมของตีกลับ — จ่ายเฉพาะรายการในการ์ดนี้">🔧 ซ่อมของตีกลับ</span>` : ''}
                                 <span class="order-quantity-badge" title="จำนวนสินค้าสำเร็จรูปในเลขที่ออเดอร์นี้">📦 จำนวนออเดอร์: ${orderQuantityText} ชิ้น</span>
@@ -2964,6 +3021,7 @@
                                 ${isDone ? '' : renderPickRoute(group)}
                             </div>
                         </div>
+                        ${group.customSize ? `<div class="custom-size-box">✂️ งานขนาดพิเศษ: ลูกค้าสั่ง ${fmtCm(group.customSize.w)} x ${fmtCm(group.customSize.h)} ซม.<small>วัสดุเบิกตาม SKU ${escHtml(group.orderSku)} แล้วตัดลงตามขนาด "ตัดเป็น" ในแต่ละรายการ</small></div>` : ''}
                         ${group.panels && group.panels.length ? renderPanelPickBox(group) : ''}
                         ${group.note ? `<div class="order-note-box"><div class="order-note-label">📢 หมายเหตุ — อ่านก่อนจัดของ</div><div>${escHtml(group.note)}</div></div>` : ''}
                         <div class="order-group-actions">

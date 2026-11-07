@@ -1547,3 +1547,32 @@ body::before {
     border: 1px solid #15803d;
     font-weight: 800;
 }
+
+/* ขนาดตามลูกค้า (งานสั่งขนาดพิเศษ · 07/11/2569) */
+.badge-custom { background: #7c3aed; color: #fff; border: 1px solid #6d28d9; font-weight: 800; }
+.detail-pill.custom-size { background: #7c3aed; color: #fff; border: 1px solid #6d28d9; font-weight: 800; }
+.detail-pill.size.is-overridden { text-decoration: line-through; opacity: 0.6; }
+.btn-custom-size { color: #7c3aed; border-color: rgba(124, 58, 237, 0.5); }
+.dark-theme .btn-custom-size { color: #c4b5fd; }
+.custom-size-note { margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: rgba(124, 58, 237, 0.14);
+    border: 1px solid rgba(124, 58, 237, 0.45); color: var(--text); font-size: 0.85rem; font-weight: 600; }
+.cs-modal { max-width: 520px; }
+.cs-sku { font-size: 0.92rem; line-height: 1.6; margin-bottom: 8px; }
+.cs-rule { font-size: 0.82rem; padding: 8px 10px; border-radius: 8px; background: rgba(124, 58, 237, 0.1);
+    border: 1px solid rgba(124, 58, 237, 0.3); margin-bottom: 12px; line-height: 1.5; }
+.cs-inputs { display: flex; align-items: flex-end; gap: 10px; margin-bottom: 8px; }
+.cs-inputs label { flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; font-weight: 600; }
+.cs-inputs input { font: inherit; font-size: 1.3rem; font-weight: 700; padding: 8px 10px; border-radius: 10px; text-align: center;
+    border: 1px solid var(--border); background: var(--bg-card-strong, #fff); color: var(--text); width: 100%; box-sizing: border-box; }
+.cs-x { font-size: 1.3rem; font-weight: 700; padding-bottom: 10px; }
+.cs-msg { font-size: 0.88rem; min-height: 1.3em; margin: 6px 0; }
+.cs-msg.is-error { color: #dc2626; font-weight: 700; }
+.cs-msg.is-warn { color: #d97706; font-weight: 700; }
+.cs-msg.is-ok { color: #16a34a; font-weight: 700; }
+.cs-preview { max-height: 300px; overflow-y: auto; margin-bottom: 12px; }
+.cs-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+.cs-table th, .cs-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); text-align: left; }
+.cs-table th { font-size: 0.78rem; opacity: 0.75; }
+.cs-table td:nth-child(2), .cs-table td:nth-child(3), .cs-table th:nth-child(2), .cs-table th:nth-child(3) { text-align: right; white-space: nowrap; }
+.cs-table tr.is-unsure td { color: #d97706; }
+.cs-actions { flex-wrap: wrap; }
