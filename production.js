@@ -1211,12 +1211,16 @@ function renderOrderCard(o) {
     const platCls = { Shopee: 'p-shopee', Lazada: 'p-lazada', TikTok: 'p-tiktok' }[o.platform] || 'p-other';
     const cardCls = status === STATUS_QC_DONE ? 'is-qcdone'
         : (status === STATUS_DONE ? 'is-done' : (status === STATUS_PRODUCING ? 'is-producing' : 'is-pending'));
+    const canUsePanels = panelUsableNow(o);
+    const usedPanels = status === STATUS_PRODUCING && Array.isArray(o.panels_used) && o.panels_used.length > 0;
+    const panelCls = canUsePanels ? ' has-panels' : (usedPanels ? ' used-panels' : '');
 
     let badgeHtml = '';
     let actionsHtml = '';
 
     if (status === STATUS_PENDING) {
-        badgeHtml = `<span class="badge badge-pending">⏳ รอผลิต</span>`;
+        badgeHtml = `<span class="badge badge-pending">⏳ รอผลิต</span>`
+            + (canUsePanels ? '<span class="badge badge-panels">🪟 เบิกบานได้</span>' : '');
         const canFinishPending = window.auth?.role === 'Ceo' || window.auth?.hasPermission?.('action_complete_pending_production') === true;
         actionsHtml = `
             ${canCancel ? `<button class="btn btn-outline btn-sm" style="color:#f87171;border-color:rgba(239,68,68,0.35);" onclick="cancelProductionOrder('${o.id}',this)">❌ ยกเลิก</button>` : ''}
@@ -1224,6 +1228,7 @@ function renderOrderCard(o) {
             ${canFinishPending ? `<button class="btn btn-done btn-sm" onclick="updateStatus('${o.id}','${STATUS_DONE}',this)">✅ ผลิตสำเร็จ</button>` : ''}`;
     } else if (status === STATUS_PRODUCING) {
         badgeHtml = `<span class="badge badge-producing">🔨 กำลังผลิต</span>`
+            + (usedPanels ? '<span class="badge badge-panels">🪟 ใช้บานเก็บ</span>' : '')
             + (Number(o.qc_reject_count) > 0 ? `<span class="badge badge-qcreject">🔁 QC ตีกลับ</span>` : '');
         const canFinish = ['Ceo', 'pdtPerson'].includes(window.auth.role);
         actionsHtml = `
@@ -1341,9 +1346,9 @@ function renderOrderCard(o) {
     }).catch(err => console.error('Image load error:', err));
 
     return `
-    <div class="order-card ${cardCls}${o.is_test ? ' is-test' : ''}" id="card_${o.id}">
+    <div class="order-card ${cardCls}${panelCls}${o.is_test ? ' is-test' : ''}" id="card_${o.id}">
         <div class="card-top">
-            ${badgeHtml}${o.is_test ? '<span class="badge badge-test">🧪 ใบทดลอง</span>' : ''}
+            <div class="card-badges">${badgeHtml}${o.is_test ? '<span class="badge badge-test">🧪 ใบทดลอง</span>' : ''}</div>
             <div style="text-align:right;">
                 <span class="plat ${platCls}">${esc(o.platform)}</span>
                 <div class="card-date" style="margin-top:4px;">${(() => {
@@ -1567,6 +1572,14 @@ async function loadPanelStockForHints() {
             (panelStockBySku[r.product_code] = panelStockBySku[r.product_code] || {})[r.panel_type] = { qty: r.quantity, loc: r.storage_location };
         });
     } catch (e) { /* เตือนไม่ได้ก็ไม่เป็นไร หน้าผลิตใช้ต่อได้ */ }
+}
+
+// การ์ดงานรอผลิตที่มีบานเก็บพอใช้ → สีฟ้า แยกจากงานที่ต้องทำทั้งชุด (เจ้าของขอ 07/11/2569)
+function panelUsableNow(o) {
+    if (o.tracking_status !== STATUS_PENDING) return false;
+    const stock = panelStockBySku[o.product_code];
+    const layout = PANEL_LAYOUT[(String(o.product_code || '').match(/^(SLWD|SLD)\dP/) || [])[0]];
+    return !!(stock && layout && Object.keys(layout).some(t => stock[t] && stock[t].qty > 0));
 }
 
 function panelHintHtml(o) {

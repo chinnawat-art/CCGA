@@ -1578,6 +1578,39 @@
             border: 1px solid rgba(245, 158, 11, .45);
         }
         .dark-theme .order-test-badge { color: #fbbf24; }
+        /* การ์ดงานที่เบิกบานเก็บ (07/11/2569) — สีฟ้า แยกจากงานที่ต้องเตรียมทั้งชุด */
+        .order-group-card.uses-panels {
+            border: 3px solid #2563eb;
+            box-shadow: 0 10px 28px rgba(37, 99, 235, 0.18);
+        }
+        .order-group-card.uses-panels .order-group-header {
+            background: rgba(37, 99, 235, 0.12);
+        }
+        .order-panels-badge {
+            display: inline-block; margin-left: 6px; padding: 3px 11px;
+            border-radius: 99px; font-size: .8rem; font-weight: 800;
+            background: #2563eb; color: #fff;
+        }
+        .panel-pick-box {
+            flex: 1 1 260px;
+            max-width: 520px;
+            align-self: center;
+            font-size: 1.05rem;
+            line-height: 1.5;
+            color: #1e3a8a;
+            background: #dbeafe;
+            border: 2px solid #2563eb;
+            border-left-width: 8px;
+            border-radius: 10px;
+            padding: 10px 14px;
+        }
+        .panel-pick-box ul { margin: 2px 0 0; padding-left: 1.2rem; }
+        .panel-pick-label { font-size: .88rem; font-weight: 800; color: #1d4ed8; }
+        .panel-pick-loc { font-weight: 800; color: #b91c1c; white-space: nowrap; }
+        .panel-pick-note { font-size: .78rem; opacity: .8; margin-top: 3px; }
+        .dark-theme .panel-pick-box { color: #dbeafe; background: rgba(37, 99, 235, 0.2); }
+        .dark-theme .panel-pick-label { color: #93c5fd; }
+        .dark-theme .panel-pick-loc { color: #fca5a5; }
         .order-repair-badge {
             display: inline-block; margin-left: 6px; padding: 3px 11px;
             border-radius: 99px; font-size: .8rem; font-weight: 800;
@@ -1854,6 +1887,10 @@
         let orderIsTestMap = {}; // mapping of orderId -> is_test (ใบทดลอง)
         let orderNotesMap = {}; // mapping of orderId -> note (หมายเหตุลูกค้า)
         let orderPanelsUsedMap = {}; // orderId -> true ถ้าใช้บานเก็บ (วัสดุลดตามสูตร เทียบ BOM ตรง ๆ ไม่ได้)
+        let orderPanelsListMap = {}; // orderId -> [{type, qty}] บานเก็บที่งานนี้ใช้ ต้องไปหยิบจากสต๊อกบาน (07/11/2569)
+        let panelLocMap = {};        // 'SKU|panel_type' -> ช่องเก็บบาน
+        const PREP_PANEL_LABEL = { fixed: 'บานตาย (กลาง)', slide: 'บานเลื่อน', slide_left: 'บานเลื่อนซ้าย', slide_right: 'บานเลื่อนขวา', fixed_left: 'บาน 1 ตายซ้าย', slide_plain: 'บาน 2 เลื่อนฝั่งจับเรียบ', slide_handle: 'บาน 3 เลื่อนฝั่งจับล็อค', fixed_right: 'บาน 4 ตายขวา' };
+        const PREP_PANEL_ORDER = ['slide_left', 'fixed', 'slide_right', 'fixed_left', 'slide_plain', 'slide_handle', 'fixed_right', 'slide'];
         // ─── วัสดุใน BOM ที่ไม่ได้ตัดสต็อกตอนเริ่มผลิต (ยอดในระบบไม่พอ → ต้องติ๊กออก) ───
         // แสดงในการ์ด/ใบเบิกให้พนักงานรู้ว่าต้องหยิบ · อ่านอย่างเดียว ไม่ตัดสต็อก ไม่นับในการกดจ่าย
         const bomCache = {}; // sku -> [{ code, qty }]
@@ -2081,6 +2118,9 @@
             orderNumbersMap = {};
             orderQuantitiesMap = {};
             orderNotesMap = {};
+            orderPanelsUsedMap = {};
+            orderPanelsListMap = {};
+            panelLocMap = {};
             const orderIds = [];
             allLogs.forEach(log => {
                 const idMatch = log.reason ? log.reason.match(/ID ออเดอร์:\s*([^\s]+)/) : null;
@@ -2111,7 +2151,18 @@
                         orderIsTestMap[o.id] = o.is_test === true;
                         orderNotesMap[o.id] = String(o.note || '').trim() || null;
                         orderPanelsUsedMap[o.id] = Array.isArray(o.panels_used) && o.panels_used.length > 0;
+                        orderPanelsListMap[o.id] = Array.isArray(o.panels_used) ? o.panels_used.filter(p => p && Number(p.qty) > 0) : [];
                     });
+                    // ช่องเก็บบานของงานที่ใช้บานเก็บ — บอกพนักงานว่าต้องไปหยิบบานที่ช่องไหน
+                    const panelSkus = [...new Set(data.filter(o => (orderPanelsListMap[o.id] || []).length).map(o => o.product_code).filter(Boolean))];
+                    if (panelSkus.length) {
+                        const { data: ps, error: psErr } = await db.from('panel_stock')
+                            .select('product_code, panel_type, storage_location')
+                            .in('product_code', panelSkus);
+                        if (!psErr) (ps || []).forEach(r => {
+                            if (r.storage_location) panelLocMap[r.product_code + '|' + r.panel_type] = r.storage_location;
+                        });
+                    }
                 }
             } catch (err) {
                 console.error('fetchOrderProductNames exception:', err);
@@ -2307,6 +2358,7 @@
                         note: orderId ? (orderNotesMap[orderId] || null) : null,
                         orderQuantity: orderId ? (orderQuantitiesMap[orderId] ?? null) : null,
                         isTest: orderId ? (orderIsTestMap[orderId] === true) : false,
+                        panels: orderId ? (orderPanelsListMap[orderId] || []) : [],
                         createdAt: log.created_at,
                         items: [],
                         // dispatch info (from first dispatched item)
@@ -2799,6 +2851,22 @@
             window.print();
         }
 
+        // กล่องฟ้า: งานนี้ใช้บานเก็บ → ไปหยิบบานจากสต๊อกบาน · วัสดุในการ์ดเป็นแค่กรอบ + บานที่ต้องทำเพิ่ม
+        function renderPanelPickBox(group) {
+            const list = (group.panels || []).slice().sort((a, b) =>
+                PREP_PANEL_ORDER.indexOf(a.type) - PREP_PANEL_ORDER.indexOf(b.type));
+            if (!list.length) return '';
+            const rows = list.map(p => {
+                const loc = panelLocMap[group.orderSku + '|' + p.type];
+                return `<li><b>${escHtml(PREP_PANEL_LABEL[p.type] || p.type)} × ${Number(p.qty) || 0}</b>${loc ? ` <span class="panel-pick-loc">📍 ${escHtml(loc)}</span>` : ''}</li>`;
+            }).join('');
+            return `<div class="panel-pick-box">
+                <div class="panel-pick-label">🪟 งานนี้เบิกบานเก็บ — ไปหยิบบานจากชั้นเก็บบาน</div>
+                <ul>${rows}</ul>
+                <div class="panel-pick-note">วัสดุด้านล่าง = กรอบ + บานที่ต้องทำเพิ่มเท่านั้น</div>
+            </div>`;
+        }
+
         function renderGroupCard(group) {
             const isDone = activeTab === 'done';
             const canAct = canDispatchMaterial();
@@ -2872,7 +2940,7 @@
                 : '-';
 
             return `
-                <div class="order-group-card ${isDone ? 'dispatched-card' : ''}">
+                <div class="order-group-card ${isDone ? 'dispatched-card' : ''}${group.panels && group.panels.length ? ' uses-panels' : ''}">
                     <div class="order-group-header">
                         <div class="order-group-title">
                             <button type="button" class="material-product-image is-loading" data-sku="${escHtml(group.orderSku)}" aria-label="รูปสินค้า ${escHtml(group.orderSku)}">📦</button>
@@ -2880,6 +2948,7 @@
                                 <div class="order-title-text">${titleText}</div>
                                 <span class="order-sku-badge"># ${escHtml(group.orderSku)}</span>
                                 ${zoneBadgeHtml(group.orderSku)}
+                                ${group.panels && group.panels.length ? '<span class="order-panels-badge">🪟 เบิกบานเก็บ</span>' : ''}
                                 ${group.isTest ? `<span class="order-test-badge">🧪 ใบทดลอง</span>` : ''}
                                 ${group.isRepair ? `<span class="order-repair-badge" title="วัสดุที่เบิกไปซ่อมของตีกลับ — จ่ายเฉพาะรายการในการ์ดนี้">🔧 ซ่อมของตีกลับ</span>` : ''}
                                 <span class="order-quantity-badge" title="จำนวนสินค้าสำเร็จรูปในเลขที่ออเดอร์นี้">📦 จำนวนออเดอร์: ${orderQuantityText} ชิ้น</span>
@@ -2893,6 +2962,7 @@
                                 ${isDone ? '' : renderPickRoute(group)}
                             </div>
                         </div>
+                        ${group.panels && group.panels.length ? renderPanelPickBox(group) : ''}
                         ${group.note ? `<div class="order-note-box"><div class="order-note-label">📢 หมายเหตุ — อ่านก่อนจัดของ</div><div>${escHtml(group.note)}</div></div>` : ''}
                         <div class="order-group-actions">
                             ${printBtn}
