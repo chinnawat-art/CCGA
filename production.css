@@ -1416,28 +1416,28 @@ body::before {
     margin: 0 0 14px;
     padding: 10px 12px;
     border-radius: 10px;
-    border: 2px solid #2563eb;
-    background: rgba(37, 99, 235, 0.1);
+    border: 2px solid #16a34a;
+    background: rgba(22, 163, 74, 0.1);
 }
-.panel-use-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 800; color: #2563eb; }
+.panel-use-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 800; color: #16a34a; }
 .panel-use-hint { font-size: 0.8rem; opacity: 0.8; margin: 4px 0 6px; }
-.panel-use-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px dashed rgba(37, 99, 235, 0.3); font-weight: 600; }
+.panel-use-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px dashed rgba(22, 163, 74, 0.3); font-weight: 600; }
 .panel-use-row small { display: block; font-weight: 400; opacity: 0.75; }
 .panel-use-row input { width: 72px; text-align: center; font: inherit; font-size: 1.05rem; padding: 6px; border-radius: 8px;
-    border: 1px solid rgba(37, 99, 235, 0.45); background: var(--surface, #fff); color: var(--text, #0f172a); }
+    border: 1px solid rgba(22, 163, 74, 0.45); background: var(--surface, #fff); color: var(--text, #0f172a); }
 
 /* เตือนมีบานเก็บในสต๊อกบาน */
 .card-panels {
     margin-top: 8px;
     padding: 9px 12px;
     border-radius: 10px;
-    border: 2px solid #2563eb;
+    border: 2px solid #16a34a;
     border-left-width: 8px;
-    background: rgba(37, 99, 235, 0.1);
+    background: rgba(22, 163, 74, 0.1);
     font-size: 0.95rem;
     line-height: 1.55;
 }
-.card-panels-label { font-weight: 800; color: #2563eb; margin-bottom: 2px; }
+.card-panels-label { font-weight: 800; color: #16a34a; margin-bottom: 2px; }
 .card-panels-warn { color: #d97706; font-weight: 700; }
 .card-panels-note { font-size: 0.78rem; opacity: 0.75; margin-top: 3px; }
 
@@ -1516,15 +1516,15 @@ body::before {
 .card-badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .order-card.has-panels,
 .order-card.used-panels {
-    border: 4px solid #3b82f6;
+    border: 4px solid #22c55e;
     background-color: var(--bg-card);
-    background-image: linear-gradient(rgba(37, 99, 235, 0.2), rgba(37, 99, 235, 0.2));
-    box-shadow: 0 14px 38px rgba(37, 99, 235, 0.28), 0 0 14px rgba(37, 99, 235, 0.2);
+    background-image: linear-gradient(rgba(22, 163, 74, 0.2), rgba(22, 163, 74, 0.2));
+    box-shadow: 0 14px 38px rgba(22, 163, 74, 0.28), 0 0 14px rgba(22, 163, 74, 0.2);
 }
 .order-card.has-panels:hover,
 .order-card.used-panels:hover {
-    border-color: #2563eb;
-    box-shadow: 0 16px 44px rgba(37, 99, 235, 0.36), 0 0 16px rgba(37, 99, 235, 0.26);
+    border-color: #16a34a;
+    box-shadow: 0 16px 44px rgba(22, 163, 74, 0.36), 0 0 16px rgba(22, 163, 74, 0.26);
 }
 /* แถบฟ้าเต็มหัวการ์ด — มองไกล ๆ ก็รู้ว่างานนี้เบิกบานได้ */
 .order-card.has-panels::before,
@@ -1534,7 +1534,7 @@ body::before {
     margin: -1.5rem -1.5rem 0;
     padding: 10px 16px;
     border-radius: 17px 17px 0 0;
-    background: #2563eb;
+    background: #16a34a;
     color: #fff;
     font-weight: 800;
     font-size: 1.05rem;
@@ -1542,8 +1542,8 @@ body::before {
 }
 .order-card.used-panels::before { content: "🪟 ออเดอร์นี้ใช้บานเก็บแล้ว — ทำกรอบ + บานที่เหลือ"; }
 .badge-panels {
-    background: #2563eb;
+    background: #16a34a;
     color: #fff;
-    border: 1px solid #1d4ed8;
+    border: 1px solid #15803d;
     font-weight: 800;
 }
