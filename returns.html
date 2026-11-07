@@ -16,7 +16,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <script src="auth.js?v=20261106-1"></script>
-    <script src="panel-picker.js?v=20261107-1"></script>
+    <script src="panel-picker.js?v=20261107-2"></script>
     <link rel="stylesheet" href="theme.css">
     <script src="theme.js" defer></script>
     <style>
@@ -263,7 +263,7 @@
         SLWD4P: { fixed_left: 1, fixed_right: 1, slide_handle: 1, slide_plain: 1 },
         SLD4P: { fixed_left: 1, fixed_right: 1, slide_handle: 1, slide_plain: 1 }
     };
-    const PANEL_LABEL = { fixed: 'บานตาย', slide: 'บานเลื่อน', fixed_left: 'บาน 1 ตายซ้าย', slide_plain: 'บาน 2 เลื่อนฝั่งเรียบ', slide_handle: 'บาน 3 เลื่อนฝั่งมือจับ', fixed_right: 'บาน 4 ตายขวา' };
+    const PANEL_LABEL = { fixed: 'บานตาย', slide: 'บานเลื่อน', fixed_left: 'บาน 1 ตายซ้าย', slide_plain: 'บาน 2 เลื่อนฝั่งจับเรียบ', slide_handle: 'บาน 3 เลื่อนฝั่งจับล็อค', fixed_right: 'บาน 4 ตายขวา' };
     const PANEL_ORDER = ['fixed', 'slide', 'fixed_left', 'slide_plain', 'slide_handle', 'fixed_right'];
     function panelFamily(sku) { const m = String(sku || '').match(/^(SLWD|SLD)\dP/); return m ? m[0] : null; }
     function panelLayout(sku) { return PANEL_LAYOUT[panelFamily(sku)] || null; }
