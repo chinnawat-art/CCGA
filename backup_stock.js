@@ -91,6 +91,7 @@ function setupRealtime() {
                         reorder_point: nw.reorder_point ?? 2,
                         unit: nw.unit || 'ชิ้น',
                         notes: nw.notes || '',
+                        storage_location: nw.storage_location || '',
                         updated_at: nw.updated_at || null
                     });
                 }
@@ -165,6 +166,7 @@ function updateBackupStockRowInDOM(stock) {
         reorder_point: stock.reorder_point ?? 2,
         unit: stock.unit || 'ชิ้น',
         notes: stock.notes || '',
+        storage_location: stock.storage_location || '',
         updated_at: stock.updated_at || null
     };
 
@@ -180,28 +182,29 @@ function updateBackupStockRowInDOM(stock) {
         quantityCell.className = `qty-value ${qtyClass}`;
     }
 
-    const unitCell = row.children[3];
+    const unitCell = row.children[4];
     if (unitCell) unitCell.innerHTML = esc(mergedStock.unit || 'ชิ้น');
 
-    const sizeCell = row.children[4];
+    const sizeCell = row.children[5];
     if (sizeCell) {
         sizeCell.innerHTML = mergedStock.product_size
             ? `<span style="background:rgba(168,85,247,0.12);color:#c084fc;padding:2px 8px;border-radius:20px;font-size:0.8rem;">${esc(mergedStock.product_size)}</span>`
             : '<span style="color:var(--muted);">-</span>';
     }
 
-    const reorderCell = row.children[5];
+    const reorderCell = row.children[6];
     if (reorderCell) reorderCell.innerHTML = `<span style="color: var(--muted); font-size:0.88rem;">${mergedStock.reorder_point ?? 2}</span>`;
 
-    const notesCell = row.children[6];
+    const notesCell = row.children[7];
     if (notesCell) notesCell.innerHTML = mergedStock.notes
         ? `<span class="stock-note" title="${esc(mergedStock.notes)}">${esc(mergedStock.notes)}</span>`
         : '<span style="color:var(--muted);">-</span>';
 
-    const badgeCell = row.children[8];
+    const badgeCell = row.children[9];
     if (badgeCell) badgeCell.innerHTML = badge;
 
     row.classList.toggle('row-low', isLow);
+    refreshLocationCell(row, mergedStock);
 
     if (!mergedStock.product_size) {
         loadSkuDetailsForBackupRow(productCode);
@@ -237,7 +240,7 @@ async function loadSkuDetailsForBackupRow(productCode) {
         productNameCell.textContent = sku.name;
     }
 
-    const sizeCell = row.children[4];
+    const sizeCell = row.children[5];
     if (sizeCell) {
         sizeCell.innerHTML = sku.size
             ? `<span style="background:rgba(168,85,247,0.12);color:#c084fc;padding:2px 8px;border-radius:20px;font-size:0.8rem;">${esc(sku.size)}</span>`
@@ -251,7 +254,7 @@ async function refreshBackupStockList() {
         // Load backup stock quantities first
         const { data: backups, error: bkErr } = await db
             .from('production_backup_stock')
-            .select('product_code, quantity, reorder_point, unit, notes, updated_at')
+            .select('product_code, quantity, reorder_point, unit, notes, updated_at, storage_location')
             .gt('quantity', 0)
             .order('product_code', { ascending: true });
 
@@ -304,6 +307,7 @@ async function refreshBackupStockList() {
                 unit: b.unit || 'ชิ้น',
                 notes: productLots.map(lot => lot.note).filter(Boolean).join(', ') || b.notes || '',
                 lots: productLots,
+                storage_location: b.storage_location || '',
                 updated_at: b.updated_at || null
             };
         });
@@ -618,7 +622,8 @@ function renderBackupStockTable() {
         items = items.filter(s =>
             (s.product_code || '').toLowerCase().includes(searchQuery) ||
             (s.product_name || '').toLowerCase().includes(searchQuery) ||
-            (s.notes || '').toLowerCase().includes(searchQuery)
+            (s.notes || '').toLowerCase().includes(searchQuery) ||
+            (s.storage_location || '').toLowerCase().includes(searchQuery)
         );
     }
 
@@ -657,6 +662,7 @@ function buildRow(s) {
         <td>
             <div class="product-name">${esc(s.product_name)}</div>
         </td>
+        <td>${buildLocationEditor(s)}</td>
         <td style="text-align: right; padding-right: 2rem;">
             <span class="qty-value ${qtyClass}">${(s.quantity ?? 0).toLocaleString('th-TH')}</span>
         </td>
@@ -673,6 +679,101 @@ function buildRow(s) {
         </td>
         <td>${badge}</td>
     </tr>`;
+}
+
+// ─── ช่องเก็บ (07/11/2569) ─────────────────────────────────────
+// รูปแบบเดียวกับหน้าสต็อกวัสดุ: A01 = ชั้น A ชั้นย่อย 01
+// พิมพ์แบบไหนก็ได้ ระบบจัดให้: a1 / A-1 / a 01 → A01 · หลายช่องคั่นด้วย , → "A01, A02"
+// ชื่อที่ไม่ตรงรูปแบบ (เช่น ชั้นกระจก) เก็บตามที่พิมพ์ แค่ทำตัวอังกฤษเป็นตัวใหญ่
+function normalizeLocation(value) {
+    return String(value || '').split(/[,，]/).map(part => {
+        const p = part.replace(/\s+/g, ' ').trim().toUpperCase();
+        const m = p.match(/^([A-Z]+)\s*-?\s*0*(\d{1,3})$/);
+        return m ? m[1] + m[2].padStart(2, '0') : p;
+    }).filter(Boolean).join(', ');
+}
+
+function describeLocation(value) {
+    return value.split(', ').map(code => {
+        const m = code.match(/^([A-Z]+)(\d+)$/);
+        return m ? `ชั้น ${m[1]} ช่อง ${code}` : code;
+    }).join(' และ ');
+}
+
+function buildLocationEditor(s) {
+    const loc = s.storage_location || '';
+    return `
+            <div class="location-editor">
+                <span class="location-symbol" aria-hidden="true">📍</span>
+                <input type="text" maxlength="60" value="${esc(loc)}"
+                    data-original-value="${esc(loc)}"
+                    data-code="${esc(s.product_code)}"
+                    placeholder="เช่น A01"
+                    aria-label="ช่องเก็บของ ${esc(s.product_code)}"
+                    oninput="markLocationDirty(this)"
+                    onkeydown="handleLocationKeyDown(event, this)">
+                <button type="button" disabled
+                    onclick="saveLocation(this.parentElement.querySelector('input'), this)"
+                    title="แก้ช่องเก็บก่อนจึงจะบันทึกได้">✓</button>
+            </div>`;
+}
+
+function handleLocationKeyDown(event, input) {
+    if (event.key === 'Enter' && input.value !== input.dataset.originalValue) {
+        event.preventDefault();
+        saveLocation(input, input.parentElement.querySelector('button'));
+    }
+}
+
+function markLocationDirty(input) {
+    const editor = input.closest('.location-editor');
+    const button = editor.querySelector('button');
+    const isDirty = input.value !== input.dataset.originalValue;
+    editor.classList.toggle('is-dirty', isDirty);
+    button.disabled = !isDirty;
+    button.title = isDirty ? 'บันทึกช่องเก็บใหม่' : 'ยังไม่มีการเปลี่ยนแปลง';
+}
+
+async function saveLocation(input, button) {
+    const code = input.dataset.code;
+    const stock = allBackupStocks.find(s => s.product_code === code);
+    if (!stock) return;
+
+    const value = normalizeLocation(input.value) || null;
+    button.disabled = true;
+    const originalText = button.textContent;
+    button.textContent = '…';
+
+    try {
+        const { error } = await db
+            .from('production_backup_stock')
+            .update({ storage_location: value, updated_at: new Date().toISOString() })
+            .eq('product_code', code);
+        if (error) throw error;
+
+        stock.storage_location = value || '';
+        const cell = input.closest('td');
+        if (cell) cell.innerHTML = buildLocationEditor(stock);
+        showToast(value
+            ? `📍 ${code} เก็บที่${describeLocation(value)}`
+            : `📍 ล้างช่องเก็บของ ${code} แล้ว`, 'success');
+    } catch (err) {
+        button.disabled = false;
+        button.textContent = originalText;
+        const msg = /storage_location/.test(err.message || '')
+            ? 'ฐานข้อมูลยังไม่มีช่องเก็บ — ต้องรัน SQL ก่อน'
+            : err.message;
+        showToast('❌ บันทึกช่องเก็บไม่สำเร็จ: ' + msg, 'error');
+    }
+}
+
+// อัปเดตช่องเก็บที่คนอื่นแก้ (realtime) — ไม่ทับช่องที่กำลังพิมพ์อยู่
+function refreshLocationCell(row, stock) {
+    const cell = row.children[2];
+    if (!cell) return;
+    const input = cell.querySelector('input');
+    if (input && (document.activeElement === input || input.value !== input.dataset.originalValue)) return;
+    cell.innerHTML = buildLocationEditor(stock);
 }
 
 // ─── LOG RENDERING ──────────────────────────────────────────────
