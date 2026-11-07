@@ -16,6 +16,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <script src="auth.js?v=20261106-1"></script>
+    <script src="panel-picker.js?v=20261107-1"></script>
     <link rel="stylesheet" href="theme.css">
     <script src="theme.js" defer></script>
     <style>
@@ -127,8 +128,8 @@
     </div>
 
 <script>
-    const PANEL_LABEL = { fixed: 'บานตาย', fixed_left: 'บานตายซ้าย', fixed_right: 'บานตายขวา', slide: 'บานเลื่อน', slide_handle: 'บานเลื่อนฝั่งมือจับ', slide_plain: 'บานเลื่อนฝั่งเรียบ' };
-    const PANEL_ORDER = ['fixed', 'fixed_left', 'fixed_right', 'slide', 'slide_handle', 'slide_plain'];
+    const PANEL_LABEL = { fixed: 'บานตาย', slide: 'บานเลื่อน', fixed_left: 'บาน 1 ตายซ้าย', slide_plain: 'บาน 2 เลื่อนฝั่งเรียบ', slide_handle: 'บาน 3 เลื่อนฝั่งมือจับ', fixed_right: 'บาน 4 ตายขวา' };
+    const PANEL_ORDER = ['fixed', 'slide', 'fixed_left', 'slide_plain', 'slide_handle', 'fixed_right'];
     // จำนวนบานต่อชุด (ตรงกับ panel_layout ในฐานข้อมูล)
     const PANEL_LAYOUT = {
         SLWD2P: { slide: 2 }, SLD2P: { slide: 2 },
@@ -189,7 +190,7 @@
         shown.forEach(r => { (bySku[r.product_code] = bySku[r.product_code] || []).push(r); });
         box.innerHTML = Object.keys(bySku).sort().map(code => {
             const layout = PANEL_LAYOUT[panelFamily(code)] || {};
-            const set = Object.entries(layout).map(([t, n]) => PANEL_LABEL[t] + ' ' + n).join(' + ');
+            const set = PANEL_ORDER.filter(t => layout[t]).map(t => PANEL_LABEL[t] + ' ' + layout[t]).join(' + ');
             return '<div class="sku"><div class="sku-head"><div>'
                 + '<div class="sku-code">' + esc(code) + '</div>'
                 + (names[code] ? '<div class="meta">' + esc(names[code]) + '</div>' : '')
@@ -270,7 +271,7 @@
         if (error || !data) { info.className = 'bad'; info.textContent = '❌ ไม่พบ SKU ' + code + ' ในทะเบียนสินค้า'; return; }
         names[code] = data.name || '';
         addSkuOk = code;
-        info.className = 'ok'; info.textContent = '✅ ' + (data.name || code) + ' · 1 ชุดใช้: ' + Object.entries(layout).map(([t, n]) => PANEL_LABEL[t] + ' ' + n).join(' + ');
+        info.className = 'ok'; info.textContent = '✅ ' + (data.name || code) + ' · 1 ชุดใช้: ' + PANEL_ORDER.filter(t => layout[t]).map(t => PANEL_LABEL[t] + ' ' + layout[t]).join(' + ');
         renderAddTypes(layout);
     }
 
@@ -278,6 +279,13 @@
     function renderAddTypes(layout) {
         const box = document.getElementById('addTypes');
         if (!layout) { box.innerHTML = '<div class="f"><label>จำนวนบาน *</label><span class="meta">— ใส่ SKU ก่อน —</span></div>'; return; }
+        // ชุด 4 บาน: ใส่จำนวนในภาพบาน 1-4 (เทียบกับรูปสินค้า)
+        if (window.PanelPicker && PanelPicker.positions(addSkuOk)) {
+            box.innerHTML = PanelPicker.html(addSkuOk, t =>
+                '<input id="add_' + t + '" class="num" type="number" min="0" step="1" value="0" inputmode="numeric" data-at="' + t + '" aria-label="จำนวน' + PANEL_LABEL[t] + '"><div class="pp-extra">บาน</div>');
+            PanelPicker.loadPhotos(db, box);
+            return;
+        }
         box.innerHTML = PANEL_ORDER.filter(t => layout[t]).map(t =>
             '<div class="f"><label for="add_' + t + '">' + PANEL_LABEL[t] + '</label>'
             + '<input id="add_' + t + '" class="num" type="number" min="0" step="1" value="0" inputmode="numeric" data-at="' + t + '">'

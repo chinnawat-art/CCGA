@@ -16,6 +16,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <script src="auth.js?v=20261106-1"></script>
+    <script src="panel-picker.js?v=20261107-1"></script>
     <link rel="stylesheet" href="theme.css">
     <script src="theme.js" defer></script>
     <style>
@@ -262,8 +263,8 @@
         SLWD4P: { fixed_left: 1, fixed_right: 1, slide_handle: 1, slide_plain: 1 },
         SLD4P: { fixed_left: 1, fixed_right: 1, slide_handle: 1, slide_plain: 1 }
     };
-    const PANEL_LABEL = { fixed: 'บานตาย', fixed_left: 'บานตายซ้าย', fixed_right: 'บานตายขวา', slide: 'บานเลื่อน', slide_handle: 'บานเลื่อนฝั่งมือจับ', slide_plain: 'บานเลื่อนฝั่งเรียบ' };
-    const PANEL_ORDER = ['fixed', 'fixed_left', 'fixed_right', 'slide', 'slide_handle', 'slide_plain'];
+    const PANEL_LABEL = { fixed: 'บานตาย', slide: 'บานเลื่อน', fixed_left: 'บาน 1 ตายซ้าย', slide_plain: 'บาน 2 เลื่อนฝั่งเรียบ', slide_handle: 'บาน 3 เลื่อนฝั่งมือจับ', fixed_right: 'บาน 4 ตายขวา' };
+    const PANEL_ORDER = ['fixed', 'slide', 'fixed_left', 'slide_plain', 'slide_handle', 'fixed_right'];
     function panelFamily(sku) { const m = String(sku || '').match(/^(SLWD|SLD)\dP/); return m ? m[0] : null; }
     function panelLayout(sku) { return PANEL_LAYOUT[panelFamily(sku)] || null; }
     // 'SLWD-ขวางบน-ขาว-52.7' → 'ขวางบน' (ตรงกับ bom_part_name ในฐานข้อมูล)
@@ -424,6 +425,16 @@
         const layout = current && panelLayout(current.product_code);
         if (!layout) { box.innerHTML = '<div class="empty">สินค้านี้ยังไม่รองรับการเก็บบาน</div>'; return; }
         const retQty = parseInt(document.getElementById('qty').value, 10) || 1;
+        // ชุด 4 บาน: ใส่จำนวนบานที่ยังดีในภาพบาน 1-4 (เทียบกับรูปสินค้า)
+        if (window.PanelPicker && PanelPicker.positions(current.product_code)) {
+            box.innerHTML = PanelPicker.html(current.product_code, t => {
+                const max = layout[t] * retQty;
+                return '<div class="pp-extra">ชุดนี้มี ' + max + '</div>'
+                    + '<input type="number" min="0" max="' + max + '" value="0" data-pt="' + t + '" inputmode="numeric" aria-label="จำนวน' + PANEL_LABEL[t] + 'ที่ยังดี">';
+            }, 'มองจากรูปสินค้า ซ้าย → ขวา · ใส่จำนวนบานที่ยังดีตรงบานที่ตรงกัน');
+            PanelPicker.loadPhotos(db, box);
+            return;
+        }
         box.innerHTML = PANEL_ORDER.filter(t => layout[t]).map(t => {
             const max = layout[t] * retQty;
             return '<div class="pn-row"><span class="pn-name">' + PANEL_LABEL[t] + '<small>ชุดนี้มี ' + max + ' บาน</small></span>'

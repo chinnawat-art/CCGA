@@ -1,0 +1,104 @@
+// ภาพตำแหน่งบาน 4 บาน (SLD4P / SLWD4P) — ใช้ตอนเลือกบานในสต๊อกบาน / ของตีกลับ / เริ่มผลิต
+// เจ้าของกำหนด 07/11/2569 (มองจากรูปสินค้า ซ้าย → ขวา):
+//   บาน 1 = บานตายฝั่งซ้าย · บาน 2 = บานเลื่อนฝั่งเรียบ · บาน 3 = บานเลื่อนฝั่งมือจับ · บาน 4 = บานตายฝั่งขวา
+// ช่องกรอกจำนวนอยู่ในรูปบานแต่ละบานเลย พนักงานดูรูปแล้วใส่ตรงบานที่ถือจริง ไม่ต้องจำว่าซ้าย/ขวาคืออะไร
+(function () {
+    'use strict';
+
+    var POSITIONS = {
+        SLWD4P: ['fixed_left', 'slide_plain', 'slide_handle', 'fixed_right'],
+        SLD4P: ['fixed_left', 'slide_plain', 'slide_handle', 'fixed_right']
+    };
+    var TILE = {
+        fixed_left: { no: 1, kind: 'fixed', name: 'บานตาย', side: 'ฝั่งซ้าย' },
+        slide_plain: { no: 2, kind: 'slide', name: 'บานเลื่อน', side: 'ฝั่งเรียบ' },
+        slide_handle: { no: 3, kind: 'slide', name: 'บานเลื่อน', side: 'ฝั่งมือจับ' },
+        fixed_right: { no: 4, kind: 'fixed', name: 'บานตาย', side: 'ฝั่งขวา' }
+    };
+    var photoCache = {};
+
+    function family(sku) {
+        var m = String(sku || '').match(/^(SLWD|SLD)\dP/);
+        return m ? m[0] : '';
+    }
+
+    function positions(sku) {
+        return POSITIONS[family(sku)] || null;
+    }
+
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
+    function injectCss() {
+        if (document.getElementById('pp-css')) return;
+        var css = ''
+            + '.pp{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;margin:6px 0 4px}'
+            + '.pp-photo{flex:0 0 130px;text-align:center;font-size:.72rem;color:var(--muted-strong,#64748b)}'
+            + '.pp-photo img{width:130px;height:auto;border-radius:8px;border:1px solid var(--border,#cbd5e1);background:#fff;display:block;margin-bottom:3px}'
+            + '.pp-photo .pp-nophoto{width:130px;height:96px;border-radius:8px;border:1px dashed var(--border,#cbd5e1);display:flex;align-items:center;justify-content:center;margin-bottom:3px}'
+            + '.pp-main{flex:1 1 300px;min-width:0}'
+            + '.pp-cap{font-size:.78rem;color:var(--muted-strong,#64748b);margin-bottom:4px}'
+            + '.pp-frame{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:6px;border-radius:8px;background:#9ca3af}'
+            + '.pp-tile{background:var(--surface,#fff);color:var(--text,#0f172a);border:3px solid #111827;border-radius:4px;padding:6px 4px 8px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:3px;min-height:150px;position:relative}'
+            + '.pp-tile.fixed{background-image:repeating-linear-gradient(135deg,rgba(100,116,139,.13) 0 6px,transparent 6px 14px)}'
+            + '.pp-tile.off{opacity:.45}'
+            + '.pp-no{width:30px;height:30px;border-radius:50%;background:#111827;color:#fff;font-weight:700;font-size:1.05rem;display:flex;align-items:center;justify-content:center}'
+            + '.pp-name{font-weight:700;font-size:.82rem;line-height:1.25}'
+            + '.pp-side{font-size:.74rem;color:var(--muted-strong,#64748b);line-height:1.2}'
+            + '.pp-mark{font-size:1.1rem;line-height:1;color:#475569}'
+            + '.pp-tile input{width:100%;max-width:70px;text-align:center;font-size:1.05rem;padding:6px 2px;margin-top:auto}'
+            + '.pp-extra{font-size:.7rem;color:var(--muted-strong,#64748b);line-height:1.25}'
+            + '@media (max-width:420px){.pp-photo{flex-basis:100%;display:flex;gap:8px;align-items:center;text-align:left}.pp-photo img,.pp-photo .pp-nophoto{width:72px}}';
+        var st = document.createElement('style');
+        st.id = 'pp-css';
+        st.textContent = css;
+        document.head.appendChild(st);
+    }
+
+    // tileFn(type, info) → HTML ที่ใส่ในบาน (ช่องกรอก + ข้อความเล็ก) · คืน null = บานนี้ใช้ไม่ได้ (ทำจาง)
+    function html(sku, tileFn, caption) {
+        var pos = positions(sku);
+        if (!pos) return '';
+        injectCss();
+        var tiles = pos.map(function (type) {
+            var t = TILE[type];
+            var inner = tileFn(type, t);
+            return '<div class="pp-tile ' + t.kind + (inner == null ? ' off' : '') + '">'
+                + '<div class="pp-no">' + t.no + '</div>'
+                + '<div class="pp-name">' + t.name + '</div>'
+                + '<div class="pp-side">' + t.side + '</div>'
+                + '<div class="pp-mark" aria-hidden="true">' + (t.kind === 'slide' ? '⇆' : '▦') + '</div>'
+                + (inner == null ? '<div class="pp-extra">—</div>' : inner)
+                + '</div>';
+        }).join('');
+        return '<div class="pp">'
+            + '<div class="pp-photo" data-pp-img="' + esc(sku) + '"><div class="pp-nophoto">🖼️</div><span>รูปสินค้า</span></div>'
+            + '<div class="pp-main"><div class="pp-cap">' + (caption || 'มองจากรูปสินค้า ซ้าย → ขวา · ใส่จำนวนตรงบานที่ตรงกัน') + '</div>'
+            + '<div class="pp-frame">' + tiles + '</div></div>'
+            + '</div>';
+    }
+
+    // ใส่รูปสินค้าของ SKU (ตาราง product_images) ลงในกล่องรูป — ไม่มีรูปก็ไม่เป็นไร
+    function loadPhotos(db, root) {
+        if (!db || !root) return;
+        var boxes = root.querySelectorAll('[data-pp-img]');
+        Array.prototype.forEach.call(boxes, function (box) {
+            var sku = box.getAttribute('data-pp-img');
+            var put = function (url) {
+                if (!url || !box.isConnected) return;
+                box.innerHTML = '<img src="' + esc(url) + '" alt="รูปสินค้า ' + esc(sku) + '" loading="lazy"><span>รูปสินค้า</span>';
+            };
+            if (photoCache[sku] !== undefined) { put(photoCache[sku]); return; }
+            db.from('product_images').select('image_url').eq('sku', sku).maybeSingle()
+                .then(function (res) {
+                    photoCache[sku] = (res && res.data && res.data.image_url) || '';
+                    put(photoCache[sku]);
+                }, function () { /* ไม่มีรูป ใช้ภาพบานอย่างเดียว */ });
+        });
+    }
+
+    window.PanelPicker = { positions: positions, html: html, loadPhotos: loadPhotos, TILE: TILE };
+})();

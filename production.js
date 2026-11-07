@@ -879,6 +879,7 @@ function openComponentsModal(order, comps, backupOption = null, panelOption = nu
         };
 
         // 🪟 ใช้บานเก็บ: ลดจำนวนวัสดุที่ต้องตัดตามสูตรต่อบาน
+        if (window.PanelPicker) PanelPicker.loadPhotos(db, list);
         const panelInputs = [...list.querySelectorAll('input[data-pu]')];
         const getPanelsUsed = () => panelInputs
             .map(i => ({ type: i.dataset.pu, qty: Math.max(0, Math.min(parseInt(i.value, 10) || 0, Number(i.max) || 0)) }))
@@ -1503,8 +1504,8 @@ const PANEL_LAYOUT = {
     SLWD4P: { fixed_left: 1, fixed_right: 1, slide_handle: 1, slide_plain: 1 },
     SLD4P: { fixed_left: 1, fixed_right: 1, slide_handle: 1, slide_plain: 1 }
 };
-const PANEL_LABEL = { fixed: 'บานตาย', fixed_left: 'บานตายซ้าย', fixed_right: 'บานตายขวา', slide: 'บานเลื่อน', slide_handle: 'บานเลื่อนฝั่งมือจับ', slide_plain: 'บานเลื่อนฝั่งเรียบ' };
-const PANEL_ORDER = ['fixed', 'fixed_left', 'fixed_right', 'slide', 'slide_handle', 'slide_plain'];
+const PANEL_LABEL = { fixed: 'บานตาย', slide: 'บานเลื่อน', fixed_left: 'บาน 1 ตายซ้าย', slide_plain: 'บาน 2 เลื่อนฝั่งเรียบ', slide_handle: 'บาน 3 เลื่อนฝั่งมือจับ', fixed_right: 'บาน 4 ตายขวา' };
+const PANEL_ORDER = ['fixed', 'slide', 'fixed_left', 'slide_plain', 'slide_handle', 'fixed_right'];
 let panelStockBySku = {};   // product_code → { panel_type: { qty, loc } }
 
 // 'SLWD-ขวางบน-ขาว-52.7' → 'ขวางบน' (ตรงกับ bom_part_name ในฐานข้อมูล)
@@ -1531,7 +1532,7 @@ async function getPanelUseOption(order) {
     const types = PANEL_ORDER.filter(t => layout[t] && stock[t] && stock[t].qty > 0)
         .map(t => ({ type: t, max: Math.min(layout[t] * sets, stock[t].qty), have: stock[t].qty, loc: stock[t].loc, need: layout[t] * sets }));
     if (!types.length) return null;
-    return { types, recipes: panelRecipesByFamily[fam] || {} };
+    return { types, recipes: panelRecipesByFamily[fam] || {}, sku: order.product_code };
 }
 
 function renderPanelUseSection(opt) {
@@ -1540,7 +1541,15 @@ function renderPanelUseSection(opt) {
         <div class="panel-use-head">🪟 มีบานเก็บในสต๊อกบาน — ใช้บานเก็บกี่บาน?
             <button type="button" class="btn btn-sm btn-outline" id="panelUseFill">ใช้ทั้งหมดที่มี</button></div>
         <div class="panel-use-hint">ใส่จำนวนแล้ววัสดุของบานที่ใช้จะลดลงจากรายการด้านล่างทันที · บานจะถูกหักออกจากสต๊อกบาน · ไม่ใช้ใส่ 0</div>
-        ${opt.types.map(t => `<div class="panel-use-row">
+        ${window.PanelPicker && PanelPicker.positions(opt.sku)
+            // ชุด 4 บาน: ใส่จำนวนในภาพบาน 1-4 (เทียบกับรูปสินค้า) · บานที่ไม่มีในสต๊อกจะจาง
+            ? PanelPicker.html(opt.sku, type => {
+                const t = opt.types.find(x => x.type === type);
+                if (!t) return null;
+                return `<div class="pp-extra">ในสต๊อก ${t.have}${t.loc ? '<br>📍' + esc(t.loc) : ''}</div>
+                    <input type="number" min="0" max="${t.max}" value="0" data-pu="${t.type}" inputmode="numeric" aria-label="ใช้${PANEL_LABEL[t.type]}">`;
+            }, 'มองจากรูปสินค้า ซ้าย → ขวา · ใส่จำนวนบานเก็บที่จะใช้ตรงบานที่ตรงกัน')
+            : opt.types.map(t => `<div class="panel-use-row">
             <span>${PANEL_LABEL[t.type]} <small>งานนี้ใช้ ${t.need} · ในสต๊อก ${t.have}${t.loc ? ' (📍' + esc(t.loc) + ')' : ''}</small></span>
             <input type="number" min="0" max="${t.max}" value="0" data-pu="${t.type}" inputmode="numeric" aria-label="ใช้${PANEL_LABEL[t.type]}">
         </div>`).join('')}
