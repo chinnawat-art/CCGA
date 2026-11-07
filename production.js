@@ -1500,11 +1500,11 @@ window.qcReject = qcReject;
 const PANEL_LAYOUT = {
     SLWD2P: { slide: 2 }, SLD2P: { slide: 2 },
     SLWD3P: { fixed: 1, slide: 2 },
-    SLWD4P: { fixed: 2, slide_handle: 1, slide_plain: 1 },
-    SLD4P: { fixed: 2, slide_handle: 1, slide_plain: 1 }
+    SLWD4P: { fixed_left: 1, fixed_right: 1, slide_handle: 1, slide_plain: 1 },
+    SLD4P: { fixed_left: 1, fixed_right: 1, slide_handle: 1, slide_plain: 1 }
 };
-const PANEL_LABEL = { fixed: 'บานตาย', slide: 'บานเลื่อน', slide_handle: 'บานเลื่อนฝั่งมือจับ', slide_plain: 'บานเลื่อนฝั่งเรียบ' };
-const PANEL_ORDER = ['fixed', 'slide', 'slide_handle', 'slide_plain'];
+const PANEL_LABEL = { fixed: 'บานตาย', fixed_left: 'บานตายซ้าย', fixed_right: 'บานตายขวา', slide: 'บานเลื่อน', slide_handle: 'บานเลื่อนฝั่งมือจับ', slide_plain: 'บานเลื่อนฝั่งเรียบ' };
+const PANEL_ORDER = ['fixed', 'fixed_left', 'fixed_right', 'slide', 'slide_handle', 'slide_plain'];
 let panelStockBySku = {};   // product_code → { panel_type: { qty, loc } }
 
 // 'SLWD-ขวางบน-ขาว-52.7' → 'ขวางบน' (ตรงกับ bom_part_name ในฐานข้อมูล)

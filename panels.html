@@ -127,14 +127,14 @@
     </div>
 
 <script>
-    const PANEL_LABEL = { fixed: 'บานตาย', slide: 'บานเลื่อน', slide_handle: 'บานเลื่อนฝั่งมือจับ', slide_plain: 'บานเลื่อนฝั่งเรียบ' };
-    const PANEL_ORDER = ['fixed', 'slide', 'slide_handle', 'slide_plain'];
+    const PANEL_LABEL = { fixed: 'บานตาย', fixed_left: 'บานตายซ้าย', fixed_right: 'บานตายขวา', slide: 'บานเลื่อน', slide_handle: 'บานเลื่อนฝั่งมือจับ', slide_plain: 'บานเลื่อนฝั่งเรียบ' };
+    const PANEL_ORDER = ['fixed', 'fixed_left', 'fixed_right', 'slide', 'slide_handle', 'slide_plain'];
     // จำนวนบานต่อชุด (ตรงกับ panel_layout ในฐานข้อมูล)
     const PANEL_LAYOUT = {
         SLWD2P: { slide: 2 }, SLD2P: { slide: 2 },
         SLWD3P: { fixed: 1, slide: 2 },
-        SLWD4P: { fixed: 2, slide_handle: 1, slide_plain: 1 },
-        SLD4P: { fixed: 2, slide_handle: 1, slide_plain: 1 }
+        SLWD4P: { fixed_left: 1, fixed_right: 1, slide_handle: 1, slide_plain: 1 },
+        SLD4P: { fixed_left: 1, fixed_right: 1, slide_handle: 1, slide_plain: 1 }
     };
     let db = null, rows = [], names = {};
 
@@ -175,8 +175,8 @@
         const total = rows.reduce((s, r) => s + r.quantity, 0);
         document.getElementById('kTotal').textContent = total.toLocaleString('th-TH');
         document.getElementById('kSku').textContent = new Set(rows.map(r => r.product_code)).size;
-        document.getElementById('kFixed').textContent = rows.filter(r => r.panel_type === 'fixed').reduce((s, r) => s + r.quantity, 0);
-        document.getElementById('kSlide').textContent = rows.filter(r => r.panel_type !== 'fixed').reduce((s, r) => s + r.quantity, 0);
+        document.getElementById('kFixed').textContent = rows.filter(r => String(r.panel_type).startsWith('fixed')).reduce((s, r) => s + r.quantity, 0);
+        document.getElementById('kSlide').textContent = rows.filter(r => !String(r.panel_type).startsWith('fixed')).reduce((s, r) => s + r.quantity, 0);
         document.getElementById('kNoLoc').textContent = rows.filter(r => !r.storage_location).reduce((s, r) => s + r.quantity, 0);
 
         const shown = rows.filter(r => (!fam || panelFamily(r.product_code) === fam)
