@@ -1499,13 +1499,13 @@ window.qcReject = qcReject;
 // งานรอผลิต/กำลังผลิตที่ SKU ตรงกับบานในสต๊อกบาน → บอกว่าใช้บานไหนได้ และต้องทำเพิ่มอะไร
 // (ขั้นนี้เตือนอย่างเดียว ยังไม่ลดการตัดวัสดุ)
 const PANEL_LAYOUT = {
-    SLWD2P: { slide: 2 }, SLD2P: { slide: 2 },
-    SLWD3P: { fixed: 1, slide: 2 },
+    SLWD2P: { slide_left: 1, slide_right: 1 }, SLD2P: { slide_left: 1, slide_right: 1 },
+    SLWD3P: { slide_left: 1, fixed: 1, slide_right: 1 },
     SLWD4P: { fixed_left: 1, fixed_right: 1, slide_handle: 1, slide_plain: 1 },
     SLD4P: { fixed_left: 1, fixed_right: 1, slide_handle: 1, slide_plain: 1 }
 };
-const PANEL_LABEL = { fixed: 'บานตาย', slide: 'บานเลื่อน', fixed_left: 'บาน 1 ตายซ้าย', slide_plain: 'บาน 2 เลื่อนฝั่งจับเรียบ', slide_handle: 'บาน 3 เลื่อนฝั่งจับล็อค', fixed_right: 'บาน 4 ตายขวา' };
-const PANEL_ORDER = ['fixed', 'slide', 'fixed_left', 'slide_plain', 'slide_handle', 'fixed_right'];
+const PANEL_LABEL = { fixed: 'บานตาย (กลาง)', slide: 'บานเลื่อน', slide_left: 'บานเลื่อนซ้าย', slide_right: 'บานเลื่อนขวา', fixed_left: 'บาน 1 ตายซ้าย', slide_plain: 'บาน 2 เลื่อนฝั่งจับเรียบ', slide_handle: 'บาน 3 เลื่อนฝั่งจับล็อค', fixed_right: 'บาน 4 ตายขวา' };
+const PANEL_ORDER = ['slide_left', 'fixed', 'slide_right', 'fixed_left', 'slide_plain', 'slide_handle', 'fixed_right', 'slide'];
 let panelStockBySku = {};   // product_code → { panel_type: { qty, loc } }
 
 // 'SLWD-ขวางบน-ขาว-52.7' → 'ขวางบน' (ตรงกับ bom_part_name ในฐานข้อมูล)

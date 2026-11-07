@@ -1,15 +1,24 @@
-// ภาพตำแหน่งบาน 4 บาน (SLD4P / SLWD4P) — ใช้ตอนเลือกบานในสต๊อกบาน / ของตีกลับ / เริ่มผลิต
+// ภาพตำแหน่งบาน (ชุด 2 / 3 / 4 บาน) — ใช้ตอนเลือกบานในสต๊อกบาน / ของตีกลับ / เริ่มผลิต
 // เจ้าของกำหนด 07/11/2569 (มองจากรูปสินค้า ซ้าย → ขวา):
-//   บาน 1 = บานตายฝั่งซ้าย · บาน 2 = บานเลื่อนฝั่งจับเรียบ · บาน 3 = บานเลื่อนฝั่งจับล็อค · บาน 4 = บานตายฝั่งขวา
+//   4 บาน: 1 ตายฝั่งซ้าย · 2 เลื่อนฝั่งจับเรียบ · 3 เลื่อนฝั่งจับล็อค · 4 ตายฝั่งขวา
+//   3 บาน: 1 เลื่อนฝั่งซ้าย · 2 ตาย (ตรงกลาง) · 3 เลื่อนฝั่งขวา
+//   2 บาน: 1 เลื่อนฝั่งซ้าย · 2 เลื่อนฝั่งขวา
 // ช่องกรอกจำนวนอยู่ในรูปบานแต่ละบานเลย พนักงานดูรูปแล้วใส่ตรงบานที่ถือจริง ไม่ต้องจำว่าซ้าย/ขวาคืออะไร
 (function () {
     'use strict';
 
     var POSITIONS = {
+        SLWD2P: ['slide_left', 'slide_right'],
+        SLD2P: ['slide_left', 'slide_right'],
+        SLWD3P: ['slide_left', 'fixed', 'slide_right'],
         SLWD4P: ['fixed_left', 'slide_plain', 'slide_handle', 'fixed_right'],
         SLD4P: ['fixed_left', 'slide_plain', 'slide_handle', 'fixed_right']
     };
+    // เลขบานใช้ตามลำดับใน POSITIONS (no ด้านล่างเป็นของชุด 4 บาน)
     var TILE = {
+        slide_left: { kind: 'slide', name: 'บานเลื่อน', side: 'ฝั่งซ้าย' },
+        slide_right: { kind: 'slide', name: 'บานเลื่อน', side: 'ฝั่งขวา' },
+        fixed: { kind: 'fixed', name: 'บานตาย', side: 'ตรงกลาง' },
         fixed_left: { no: 1, kind: 'fixed', name: 'บานตาย', side: 'ฝั่งซ้าย' },
         slide_plain: { no: 2, kind: 'slide', name: 'บานเลื่อน', side: 'ฝั่งจับเรียบ' },
         slide_handle: { no: 3, kind: 'slide', name: 'บานเลื่อน', side: 'ฝั่งจับล็อค' },
@@ -63,11 +72,11 @@
         var pos = positions(sku);
         if (!pos) return '';
         injectCss();
-        var tiles = pos.map(function (type) {
+        var tiles = pos.map(function (type, idx) {
             var t = TILE[type];
             var inner = tileFn(type, t);
             return '<div class="pp-tile ' + t.kind + (inner == null ? ' off' : '') + '">'
-                + '<div class="pp-no">' + t.no + '</div>'
+                + '<div class="pp-no">' + (idx + 1) + '</div>'
                 + '<div class="pp-name">' + t.name + '</div>'
                 + '<div class="pp-side">' + t.side + '</div>'
                 + '<div class="pp-mark" aria-hidden="true">' + (t.kind === 'slide' ? '⇆' : '▦') + '</div>'
@@ -77,7 +86,7 @@
         return '<div class="pp">'
             + '<div class="pp-photo" data-pp-img="' + esc(sku) + '"><div class="pp-nophoto">🖼️</div><span>รูปสินค้า</span></div>'
             + '<div class="pp-main"><div class="pp-cap">' + (caption || 'มองจากรูปสินค้า ซ้าย → ขวา · ใส่จำนวนตรงบานที่ตรงกัน') + '</div>'
-            + '<div class="pp-frame">' + tiles + '</div></div>'
+            + '<div class="pp-frame" style="grid-template-columns:repeat(' + pos.length + ',minmax(0,1fr))">' + tiles + '</div></div>'
             + '</div>';
     }
 
