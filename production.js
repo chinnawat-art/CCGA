@@ -1682,12 +1682,17 @@ function openCustomSizeModal(id) {
     const msg = document.getElementById('csMsg'), prev = document.getElementById('csPreview');
     const saveBtn = document.getElementById('csSave');
 
+    const tooBig = (w, h) => !!sku && (w > sku[0] || h > sku[1]);
     const check = () => {
         const w = parseFloat(wEl.value), h = parseFloat(hEl.value);
+        // ยกเลิกผลคำนวณที่ค้างอยู่ทุกครั้งที่พิมพ์ — ไม่งั้นผลของตัวเลขเก่า (เช่น 15 ก่อนพิมพ์เป็น 150)
+        // จะกลับมาโชว์ตาราง + เปิดปุ่มบันทึกทับข้อความเตือน
+        clearTimeout(customSizeTimer);
+        const seq = ++customSizeSeq;
         saveBtn.disabled = true;
         prev.innerHTML = '';
         if (!(w > 0) || !(h > 0)) { msg.className = 'cs-msg'; msg.textContent = 'กรอกกว้างและสูงที่ลูกค้าสั่ง'; return; }
-        if (sku && (w > sku[0] || h > sku[1])) {
+        if (tooBig(w, h)) {
             msg.className = 'cs-msg is-error';
             msg.innerHTML = `❌ ขนาดที่สั่ง ${fmtCm(w)} x ${fmtCm(h)} <b>ใหญ่กว่า SKU</b> (${fmtCm(sku[0])} x ${fmtCm(sku[1])}) — ต้องให้ลูกค้ากด SKU ที่ใหญ่กว่าหรือเท่ากับขนาดที่สั่ง`;
             return;
@@ -1700,12 +1705,10 @@ function openCustomSizeModal(id) {
         }
         msg.className = 'cs-msg';
         msg.textContent = '⏳ กำลังคำนวณขนาดตัด...';
-        clearTimeout(customSizeTimer);
-        const seq = ++customSizeSeq;
         customSizeTimer = setTimeout(async () => {
             try {
                 const { data, error } = await db.rpc('custom_cut_list', { p_sku: o.product_code, p_width: w, p_height: h });
-                if (seq !== customSizeSeq) return;
+                if (seq !== customSizeSeq || parseFloat(wEl.value) !== w || parseFloat(hEl.value) !== h) return;
                 if (error) throw error;
                 const rows = (data || []).filter(r => r.base_size);
                 const unsure = rows.filter(r => !r.sure).length;
@@ -1732,7 +1735,11 @@ function openCustomSizeModal(id) {
     wEl.addEventListener('input', check);
     hEl.addEventListener('input', check);
     hEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !saveBtn.disabled) saveBtn.click(); });
-    saveBtn.addEventListener('click', () => saveCustomSize(o, parseFloat(wEl.value), parseFloat(hEl.value), saveBtn));
+    saveBtn.addEventListener('click', () => {
+        const w = parseFloat(wEl.value), h = parseFloat(hEl.value);
+        if (!(w > 0) || !(h > 0) || tooBig(w, h)) { check(); return; }   // เช็คซ้ำตอนกด กันพลาด
+        saveCustomSize(o, w, h, saveBtn);
+    });
     document.getElementById('csClear')?.addEventListener('click', e => saveCustomSize(o, null, null, e.currentTarget));
     if (hasCustomSize(o)) check();
     setTimeout(() => wEl.focus(), 50);
