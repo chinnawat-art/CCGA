@@ -2549,6 +2549,7 @@ function getAudioContext() {
 
 function playNotificationSound() {
     if (!soundEnabled) return;
+    if (window.SoundPrefs && SoundPrefs.play('new_order')) return;   // เสียงที่ผู้ใช้ตั้งเอง (sound-settings.js)
     try {
         const ctx = getAudioContext();
         if (!ctx) return;
@@ -2589,6 +2590,7 @@ function playNotificationSound() {
 
 function playStartProductionSound() {
     if (!soundEnabled) return;
+    if (window.SoundPrefs && SoundPrefs.play('start')) return;   // เสียงที่ผู้ใช้ตั้งเอง (sound-settings.js)
     try {
         const ctx = getAudioContext();
         if (!ctx) return;
@@ -2620,6 +2622,7 @@ function playStartProductionSound() {
 
 function playSuccessSound() {
     if (!soundEnabled) return;
+    if (window.SoundPrefs && SoundPrefs.play('done')) return;   // เสียงที่ผู้ใช้ตั้งเอง (sound-settings.js)
     try {
         const ctx = getAudioContext();
         if (!ctx) return;
@@ -2968,6 +2971,7 @@ let productionInitialized = false;
 window.addEventListener('auth-ready', async () => {
     if (productionInitialized) return;
     productionInitialized = true;
+    if (window.SoundPrefs) SoundPrefs.init(db);   // โหลดเสียงที่ผู้ใช้ตั้งไว้ (ไม่รอ)
     selectFirstAllowedTab();
     await loadData();
     setupRealtime();

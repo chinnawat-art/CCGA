@@ -51,6 +51,10 @@
                         <button id="soundToggleBtn" onclick="toggleNotificationSound()" class="text-button" title="เปิด/ปิด และทดสอบเสียงแจ้งเตือน">
                             🔔 เสียงแจ้งเตือน: เปิด
                         </button>
+                        <span class="soft-separator">|</span>
+                        <button id="soundSettingsBtn" onclick="SoundPrefs.open()" class="text-button" title="เลือกเสียง หรืออัปโหลดเสียงเอง (เฉพาะบัญชีนี้)">
+                            🎵 ตั้งเสียง
+                        </button>
                     </div>
                 </div>
             </div>
@@ -292,7 +296,8 @@
         </div>
     </div>
 
-    <script src="production.js?v=20261112-1"></script>
+    <script src="sound-settings.js?v=20261112-1"></script>
+    <script src="production.js?v=20261112-2"></script>
 </body>
 
 </html>
