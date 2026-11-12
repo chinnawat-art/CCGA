@@ -99,13 +99,14 @@
 
     // เล่นเสียงตามค่าที่ระบุ (ใช้ทั้งตอนแจ้งเตือนจริงและปุ่ม ▶ ทดลอง)
     // withDefault = true: "เสียงเดิม" ก็เล่นจากที่นี่ (ปุ่มทดลอง) · ตอนแจ้งเตือนจริงปล่อยให้ production.js เล่นเอง
-    function playCfg(key, cfg, buf, vol, withDefault) {
+    function playCfg(key, cfg, buf, vol, withDefault, count) {
         var sound = cfg.sound || 'default';
         var times = Math.min(3, Math.max(1, parseInt(cfg.repeat, 10) || 1));
         if (sound === 'none') return true;
         if (sound === 'speak') {
             var ev = EVENTS.filter(function (e) { return e.key === key; })[0];
-            return speakText(ev ? ev.speak : 'แจ้งเตือน', times, vol);
+            var n = parseInt(count, 10) || 1;   // รวบหลายใบ → พูดจำนวนด้วย
+            return speakText((ev ? ev.speak : 'แจ้งเตือน') + (n > 1 ? ' ' + n + ' ใบ' : ''), times, vol);
         }
         var c = ctx();
         if (!c) return false;
@@ -133,11 +134,11 @@
         return true;
     }
 
-    function play(key) {
+    function play(key, count) {
         if (!loaded) return false;
         var cfg = evCfg(key);
         if (!cfg.sound || cfg.sound === 'default') return false;
-        try { return playCfg(key, cfg, buffers[key], settings.volume == null ? 1 : settings.volume); }
+        try { return playCfg(key, cfg, buffers[key], settings.volume == null ? 1 : settings.volume, false, count); }
         catch (e) { console.warn('เล่นเสียงที่ตั้งไว้ไม่ได้:', e); return false; }
     }
 

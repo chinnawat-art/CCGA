@@ -2310,7 +2310,7 @@ async function updateStatus(id, newStatus, btnEl) {
                     };
                 }
                 log(`✅ ใช้สต็อกสำรองและปิดงานออเดอร์ ${order?.order_number || id} แล้ว`, 'success');
-                playSuccessSound();
+                queueSound('done');
                 if (card) {
                     card.style.transition = 'all 0.35s ease';
                     card.style.transform = 'scale(0.9)';
@@ -2429,11 +2429,11 @@ async function updateStatus(id, newStatus, btnEl) {
         log(`✅ อัปเดตสำเร็จ [${order?.order_number}] → ${newStatus}`, 'success');
 
         if (newStatus === STATUS_PRODUCING) {
-            playStartProductionSound();
+            queueSound('start');
         } else if (newStatus === STATUS_DONE) {
-            playSuccessSound();
+            queueSound('done');
         } else if (newStatus === STATUS_PENDING) {
-            playRevertSound();
+            queueSound('revert');
         }
 
         if (card) {
@@ -2534,6 +2534,25 @@ async function viewHistory(id) {
 let audioCtx = null;
 let soundEnabled = true;
 
+// รวบเสียง (เจ้าของขอ 12/11/2569): หลายออเดอร์เข้ามาพร้อมกัน → ดังครั้งเดียว ไม่ซ้อนกันเป็นก้อน
+// ออเดอร์ใหม่รอรวบ 2.5 วินาทีนับจากใบแรก · เริ่มผลิต/ผลิตสำเร็จ/ย้อนกลับ รอ 0.8 วินาที
+// เสียงพูดจะบอกจำนวนด้วย เช่น "มีออเดอร์ใหม่ 20 ใบ"
+const SOUND_BATCH_MS = { new_order: 2500, start: 800, done: 800, revert: 800 };
+const soundBatches = {};
+function queueSound(key) {
+    if (!soundEnabled) return;
+    const b = soundBatches[key] || (soundBatches[key] = { count: 0, timer: null });
+    b.count++;
+    if (b.timer) return;
+    b.timer = setTimeout(() => {
+        const n = b.count;
+        b.count = 0;
+        b.timer = null;
+        const fn = { new_order: playNotificationSound, start: playStartProductionSound, done: playSuccessSound, revert: playRevertSound }[key];
+        if (fn) fn(n);
+    }, SOUND_BATCH_MS[key] || 800);
+}
+
 function getAudioContext() {
     if (!audioCtx) {
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -2547,9 +2566,9 @@ function getAudioContext() {
     return audioCtx;
 }
 
-function playNotificationSound() {
+function playNotificationSound(count) {
     if (!soundEnabled) return;
-    if (window.SoundPrefs && SoundPrefs.play('new_order')) return;   // เสียงที่ผู้ใช้ตั้งเอง (sound-settings.js)
+    if (window.SoundPrefs && SoundPrefs.play('new_order', count)) return;   // เสียงที่ผู้ใช้ตั้งเอง (sound-settings.js)
     try {
         const ctx = getAudioContext();
         if (!ctx) return;
@@ -2588,9 +2607,9 @@ function playNotificationSound() {
     }
 }
 
-function playStartProductionSound() {
+function playStartProductionSound(count) {
     if (!soundEnabled) return;
-    if (window.SoundPrefs && SoundPrefs.play('start')) return;   // เสียงที่ผู้ใช้ตั้งเอง (sound-settings.js)
+    if (window.SoundPrefs && SoundPrefs.play('start', count)) return;   // เสียงที่ผู้ใช้ตั้งเอง (sound-settings.js)
     try {
         const ctx = getAudioContext();
         if (!ctx) return;
@@ -2620,9 +2639,9 @@ function playStartProductionSound() {
     }
 }
 
-function playSuccessSound() {
+function playSuccessSound(count) {
     if (!soundEnabled) return;
-    if (window.SoundPrefs && SoundPrefs.play('done')) return;   // เสียงที่ผู้ใช้ตั้งเอง (sound-settings.js)
+    if (window.SoundPrefs && SoundPrefs.play('done', count)) return;   // เสียงที่ผู้ใช้ตั้งเอง (sound-settings.js)
     try {
         const ctx = getAudioContext();
         if (!ctx) return;
@@ -2721,7 +2740,7 @@ function setupRealtime() {
                 if (canViewProductionStatus(nw.tracking_status) && !nw.tracking_number && canViewProductionSku(nw.product_code)) {
                     allOrders.push(nw);
                     log(`📥 ออเดอร์ใหม่: ${nw.order_number || '?'}`, 'success');
-                    playNotificationSound();
+                    queueSound('new_order');
                 }
             } else if (eventType === 'UPDATE') {
                 const idx = allOrders.findIndex(o => o.id === nw.id);
@@ -2731,16 +2750,16 @@ function setupRealtime() {
                         allOrders[idx] = { ...allOrders[idx], ...nw };
                         if (prevStatus !== nw.tracking_status) {
                             if (nw.tracking_status === STATUS_PRODUCING) {
-                                playStartProductionSound();
+                                queueSound('start');
                             } else if (nw.tracking_status === STATUS_DONE) {
-                                playSuccessSound();
+                                queueSound('done');
                             } else if (nw.tracking_status === STATUS_PENDING) {
-                                playRevertSound();
+                                queueSound('revert');
                             }
                         }
                     } else {
                         allOrders.push(nw);
-                        playNotificationSound();
+                        queueSound('new_order');
                     }
                 } else {
                     if (idx !== -1) allOrders.splice(idx, 1);
