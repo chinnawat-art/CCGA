@@ -1,0 +1,32 @@
+/* ให้ทุกหน้าพอดีจอมือถือ (เจ้าของแจ้ง 12/11/2569: หน้าสต็อกย่อเล็กทั้งหน้า + แตะช่องค้นหาแล้วจอซูม)
+   หลักการ: ห้ามมีอะไรดันความกว้างทั้งหน้าเกินจอ · ตารางกว้างให้เลื่อนซ้าย-ขวาเฉพาะในกรอบตาราง
+   โหลดไฟล์นี้เป็นตัวสุดท้ายใน <head> ของทุกหน้า */
+
+/* styles.css ตั้ง body เป็น flex (ไว้จัดกลางหน้า login) → กล่องหน้า (page-wrapper) ขยายตามตาราง 1,220px
+   ทำให้ทั้งหน้ากว้างเกินจอ (หน้าสต็อกวัสดุ / สต็อกสำรอง) */
+body > .page-wrapper { width: 100%; min-width: 0; }
+
+/* ช่องในตาราง grid ห้ามขยายตามเนื้อหาข้างใน (หน้า SKU / BOM / แดชบอร์ดผู้บริหาร) */
+.layout-grid > *, .report-grid > *, .analytics-grid > *, .summary-grid > *, .chart-grid > *, .kpis > *,
+.sku-form > * { min-width: 0; }
+@media (max-width: 540px) { .sku-image-uploader { grid-template-columns: minmax(0, 1fr); } .sku-image-uploader > * { min-width: 0; } .sku-image-controls { grid-template-columns: minmax(0, 1fr); } .sku-image-controls input[type="file"] { width: 100%; } }
+
+/* ตารางในแดชบอร์ดเงินให้เลื่อนในกรอบ */
+.dataTableWrap { overflow: auto; max-width: 100%; }
+
+@media (max-width: 760px) {
+    /* แถวปุ่ม/หัวข้อ ให้ขึ้นบรรทัดใหม่แทนการดันจอ */
+    .header, .header-right, .header-group, .header-left, .panel-header, .ps-actions, .toolbar { flex-wrap: wrap; }
+    .header-left { min-width: 0; }
+    input, select, textarea { max-width: 100%; }
+    .header-right, .header-group { max-width: 100%; }
+
+    /* iPhone ซูมจอเองเมื่อแตะช่องพิมพ์ที่ตัวอักษรเล็กกว่า 16px */
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+    select, textarea { font-size: 16px !important; }
+}
+
+@media (max-width: 480px) {
+    /* กรอบหน้าบางหน้าเผื่อขอบไว้กว้างเกิน (2rem) — ลดลงให้มีที่ให้เนื้อหา */
+    body > .page-wrapper, body > .container { padding-left: 0.75rem; padding-right: 0.75rem; }
+}

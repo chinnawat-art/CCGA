@@ -1012,7 +1012,60 @@
             from { opacity: 0; transform: translateY(5px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        /* ── มือถือ: ตารางสต็อกเป็นการ์ดทีละรายการ ไม่ต้องเลื่อนซ้าย-ขวา (เจ้าของแจ้ง 12/11/2569) ── */
+        @media (max-width: 640px) {
+            .page-wrapper { padding: 0.75rem 0.6rem; }
+            .header { padding: 1rem; margin-bottom: 1rem; }
+            .management-container { padding: 0.75rem; border-radius: 16px; }
+            .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; margin-bottom: 1rem; }
+            .stat-card { padding: 0.8rem 0.7rem; }
+            .stat-card h3 { font-size: 0.78rem; }
+            .stat-card .value { font-size: 1.6rem; }
+            .section-tabs { gap: 0.25rem; overflow-x: auto; }
+            .section-tab { padding-left: 0.5rem; padding-right: 0.5rem; white-space: nowrap; flex: 1; }
+            .toolbar > .search-input { flex: 1 1 100%; }
+            .category-tabs { gap: 0.25rem; margin-bottom: 0.75rem; }
+            .category-tab { min-width: 76px; padding: 0.6rem 0.4rem; }
+
+            #panel-stock .table-card { background: transparent; border: 0; }
+            #panel-stock .table-responsive { overflow: visible; }
+            #panel-stock .stock-table { min-width: 0; }
+            #panel-stock .stock-table thead { display: none; }
+            #panel-stock .stock-table, #panel-stock .stock-table tbody { display: block; }
+            #panel-stock .stock-table tbody tr {
+                display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 0.75rem; row-gap: 0.45rem;
+                grid-template-areas: "cat status" "name name" "qty adj" "loc size" "reorder reorder" "near near";
+                border: 1px solid var(--border); border-radius: 14px; padding: 0.8rem; margin-bottom: 0.7rem;
+                background: var(--bg-card-strong);
+            }
+            #panel-stock .stock-table tbody td { display: block; padding: 0 !important; border: 0; text-align: left !important; min-width: 0; }
+            #panel-stock .stock-table tbody td[colspan] { grid-column: 1 / -1; text-align: center !important; padding: 1.5rem 0 !important; }
+            #panel-stock .stock-table tbody td:nth-child(1)  { grid-area: cat; }
+            #panel-stock .stock-table tbody td:nth-child(2)  { grid-area: name; }
+            #panel-stock .stock-table tbody td:nth-child(3)  { grid-area: loc; }
+            #panel-stock .stock-table tbody td:nth-child(4)  { grid-area: qty; display: flex; align-items: baseline; gap: 0.35rem; }
+            #panel-stock .stock-table tbody td:nth-child(5)  { display: none; }
+            #panel-stock .stock-table tbody td:nth-child(6)  { grid-area: reorder; }
+            #panel-stock .stock-table tbody td:nth-child(7)  { grid-area: near; }
+            #panel-stock .stock-table tbody td:nth-child(8)  { grid-area: size; text-align: right !important; }
+            #panel-stock .stock-table tbody td:nth-child(9)  { grid-area: adj; justify-self: end; }
+            #panel-stock .stock-table tbody td:nth-child(10) { grid-area: status; justify-self: end; }
+            #panel-stock .stock-table tbody td:not([colspan]):nth-child(3)::before { content: 'ช่องเก็บ'; }
+            #panel-stock .stock-table tbody td:not([colspan]):nth-child(4)::before { content: 'คงเหลือ'; }
+            #panel-stock .stock-table tbody td:not([colspan]):nth-child(6)::before { content: 'แจ้งเตือนเมื่อเหลือ'; }
+            #panel-stock .stock-table tbody td:not([colspan]):nth-child(7)::before { content: 'ช่วงใกล้หมด'; }
+            #panel-stock .stock-table tbody td:not([colspan]):nth-child(8)::before { content: 'ขนาด'; }
+            #panel-stock .stock-table tbody td:not([colspan]):nth-child(9)::before { content: 'ปรับจำนวน'; text-align: right; }
+            #panel-stock .stock-table tbody td:not([colspan])::before { display: block; font-size: 0.72rem; color: var(--muted); margin-bottom: 0.15rem; }
+            #panel-stock .stock-table tbody td:not([colspan]):nth-child(4)::before { display: inline; margin: 0; }
+            #panel-stock .stock-table .qty-value { font-size: 1.35rem; }
+            #panel-stock .stock-table tbody td { background: transparent !important; }
+            #panel-stock .stock-table .product-name, #panel-stock .stock-table .product-code { white-space: normal; overflow-wrap: anywhere; }
+            #panel-stock .stock-table .qty-adjust-group input { width: 70px !important; }
+            #panel-stock .table-footer-bar { flex-wrap: wrap; gap: 0.5rem; }
+        }
     </style>
+    <link rel="stylesheet" href="mobile-fit.css?v=20261112-1">
 </head>
 
 <body>
