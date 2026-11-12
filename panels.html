@@ -16,7 +16,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <script src="auth.js?v=20261106-1"></script>
-    <script src="panel-picker.js?v=20261107-3"></script>
+    <script src="panel-picker.js?v=20261112-1"></script>
     <link rel="stylesheet" href="theme.css">
     <script src="theme.js" defer></script>
     <style>
@@ -87,6 +87,7 @@
             <div class="kpi"><b id="kSku">-</b><span>จำนวน SKU</span></div>
             <div class="kpi"><b id="kFixed">-</b><span>บานตาย</span></div>
             <div class="kpi"><b id="kSlide">-</b><span>บานเลื่อน</span></div>
+            <div class="kpi"><b id="kNet">-</b><span>บานมุ้ง</span></div>
             <div class="kpi"><b id="kNoLoc" style="color:#d97706">-</b><span>ยังไม่ระบุช่องเก็บ</span></div>
         </div>
 
@@ -116,6 +117,9 @@
                     <option value="SLWD4P">หน้าต่าง 4 บาน</option>
                     <option value="SLD2P">ประตู 2 บาน</option>
                     <option value="SLD4P">ประตู 4 บาน</option>
+                    <option value="ANWD1P">บานกระทุ้ง (มุ้ง)</option>
+                    <option value="CMWDL1P">บานเปิดซ้าย (มุ้ง)</option>
+                    <option value="CMWDR1P">บานเปิดขวา (มุ้ง)</option>
                 </select>
             </div>
             <div id="list"><div class="empty">กำลังโหลด...</div></div>
@@ -128,15 +132,10 @@
     </div>
 
 <script>
-    const PANEL_LABEL = { fixed: 'บานตาย (กลาง)', slide: 'บานเลื่อน', slide_left: 'บานเลื่อนซ้าย', slide_right: 'บานเลื่อนขวา', fixed_left: 'บาน 1 ตายซ้าย', slide_plain: 'บาน 2 เลื่อนฝั่งจับเรียบ', slide_handle: 'บาน 3 เลื่อนฝั่งจับล็อค', fixed_right: 'บาน 4 ตายขวา' };
-    const PANEL_ORDER = ['slide_left', 'fixed', 'slide_right', 'fixed_left', 'slide_plain', 'slide_handle', 'fixed_right', 'slide'];
-    // จำนวนบานต่อชุด (ตรงกับ panel_layout ในฐานข้อมูล)
-    const PANEL_LAYOUT = {
-        SLWD2P: { slide_left: 1, slide_right: 1 }, SLD2P: { slide_left: 1, slide_right: 1 },
-        SLWD3P: { slide_left: 1, fixed: 1, slide_right: 1 },
-        SLWD4P: { fixed_left: 1, fixed_right: 1, slide_handle: 1, slide_plain: 1 },
-        SLD4P: { fixed_left: 1, fixed_right: 1, slide_handle: 1, slide_plain: 1 }
-    };
+    const PANEL_LABEL = { fixed: 'บานตาย (กลาง)', slide: 'บานเลื่อน', slide_left: 'บานเลื่อนซ้าย', slide_right: 'บานเลื่อนขวา', fixed_left: 'บาน 1 ตายซ้าย', slide_plain: 'บาน 2 เลื่อนฝั่งจับเรียบ', slide_handle: 'บาน 3 เลื่อนฝั่งจับล็อค', fixed_right: 'บาน 4 ตายขวา', net: 'บานมุ้ง' };
+    const PANEL_ORDER = ['slide_left', 'fixed', 'slide_right', 'fixed_left', 'slide_plain', 'slide_handle', 'fixed_right', 'slide', 'net'];
+    // จำนวนบานต่อชุด (รวมบานมุ้ง) อยู่ใน panel-picker.js — ตรงกับ panel_layout ในฐานข้อมูล
+    function panelLayout(sku) { return window.PanelPicker ? PanelPicker.layout(sku) : null; }
     let db = null, rows = [], names = {};
 
     function esc(s) {
@@ -151,7 +150,7 @@
     function fmtDate(v) {
         return v ? new Date(v).toLocaleString('th-TH', { hour12:false, day:'2-digit', month:'short', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '-';
     }
-    function panelFamily(sku) { const m = String(sku || '').match(/^(SLWD|SLD)\dP/); return m ? m[0] : null; }
+    function panelFamily(sku) { return (window.PanelPicker && PanelPicker.family(sku)) || null; }
     function normalizeLoc(v) {
         return String(v || '').replace(/\s+/g, '').toUpperCase().replace(/^([A-Z]+)-?0*(\d{1,3})$/, (m, a, b) => a + b.padStart(2, '0'));
     }
@@ -177,7 +176,8 @@
         document.getElementById('kTotal').textContent = total.toLocaleString('th-TH');
         document.getElementById('kSku').textContent = new Set(rows.map(r => r.product_code)).size;
         document.getElementById('kFixed').textContent = rows.filter(r => String(r.panel_type).startsWith('fixed')).reduce((s, r) => s + r.quantity, 0);
-        document.getElementById('kSlide').textContent = rows.filter(r => !String(r.panel_type).startsWith('fixed')).reduce((s, r) => s + r.quantity, 0);
+        document.getElementById('kSlide').textContent = rows.filter(r => String(r.panel_type).startsWith('slide')).reduce((s, r) => s + r.quantity, 0);
+        document.getElementById('kNet').textContent = rows.filter(r => r.panel_type === 'net').reduce((s, r) => s + r.quantity, 0);
         document.getElementById('kNoLoc').textContent = rows.filter(r => !r.storage_location).reduce((s, r) => s + r.quantity, 0);
 
         const shown = rows.filter(r => (!fam || panelFamily(r.product_code) === fam)
@@ -189,7 +189,7 @@
         const bySku = {};
         shown.forEach(r => { (bySku[r.product_code] = bySku[r.product_code] || []).push(r); });
         box.innerHTML = Object.keys(bySku).sort().map(code => {
-            const layout = PANEL_LAYOUT[panelFamily(code)] || {};
+            const layout = panelLayout(code) || {};
             const set = PANEL_ORDER.filter(t => layout[t]).map(t => PANEL_LABEL[t] + ' ' + layout[t]).join(' + ');
             return '<div class="sku"><div class="sku-head"><div>'
                 + '<div class="sku-code">' + esc(code) + '</div>'
@@ -263,8 +263,8 @@
         addSkuOk = null;
         renderAddTypes(null);
         if (!code) { info.className = 'meta'; info.textContent = 'พิมพ์ SKU แล้วกด Enter'; return; }
-        const layout = PANEL_LAYOUT[panelFamily(code)];
-        if (!layout) { info.className = 'bad'; info.textContent = '❌ ' + code + ' ไม่ใช่สินค้าที่เก็บบานได้ (รองรับ SLWD/SLD 2-4 บาน)'; return; }
+        const layout = panelLayout(code);
+        if (!layout) { info.className = 'bad'; info.textContent = '❌ ' + code + ' ไม่ใช่สินค้าที่เก็บบานได้ (รองรับ SLWD/SLD 2-4 บาน · บานมุ้งของรุ่นที่มีมุ้ง รวมบานกระทุ้ง/บานเปิด)'; return; }
         info.className = 'meta'; info.textContent = 'กำลังเช็คทะเบียนสินค้า...';
         const { data, error } = await db.from('sku_master').select('product_code, name').eq('product_code', code).maybeSingle();
         if (el.value !== code) return;

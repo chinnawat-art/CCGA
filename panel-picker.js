@@ -3,10 +3,20 @@
 //   4 บาน: 1 ตายฝั่งซ้าย · 2 เลื่อนฝั่งจับเรียบ · 3 เลื่อนฝั่งจับล็อค · 4 ตายฝั่งขวา
 //   3 บาน: 1 เลื่อนฝั่งซ้าย · 2 ตาย (ตรงกลาง) · 3 เลื่อนฝั่งขวา
 //   2 บาน: 1 เลื่อนฝั่งซ้าย · 2 เลื่อนฝั่งขวา
+// บานมุ้ง (เจ้าของสั่ง 12/11/2569): รุ่นที่มีมุ้ง = รหัสมีตัว N หลังรหัสสี (เช่น SLWD2P0604BBNL0)
+//   SLWD/SLD 2-3 บาน มุ้ง 1 · 4 บาน มุ้ง 2 · บานกระทุ้ง ANWD / บานเปิด CMWDL/CMWDR มุ้ง 1 (เก็บได้แค่บานมุ้ง)
+//   → layout() คือจำนวนบานต่อชุดของทุกหน้า (ตรงกับ panel_family / panel_layout ในฐานข้อมูล)
 // ช่องกรอกจำนวนอยู่ในรูปบานแต่ละบานเลย พนักงานดูรูปแล้วใส่ตรงบานที่ถือจริง ไม่ต้องจำว่าซ้าย/ขวาคืออะไร
 (function () {
     'use strict';
 
+    var LAYOUT = {
+        SLWD2P: { slide_left: 1, slide_right: 1 }, SLD2P: { slide_left: 1, slide_right: 1 },
+        SLWD3P: { slide_left: 1, fixed: 1, slide_right: 1 },
+        SLWD4P: { fixed_left: 1, fixed_right: 1, slide_handle: 1, slide_plain: 1 },
+        SLD4P: { fixed_left: 1, fixed_right: 1, slide_handle: 1, slide_plain: 1 },
+        ANWD1P: {}, CMWDL1P: {}, CMWDR1P: {}
+    };
     var POSITIONS = {
         SLWD2P: ['slide_left', 'slide_right'],
         SLD2P: ['slide_left', 'slide_right'],
@@ -22,13 +32,28 @@
         fixed_left: { no: 1, kind: 'fixed', name: 'บานตาย', side: 'ฝั่งซ้าย' },
         slide_plain: { no: 2, kind: 'slide', name: 'บานเลื่อน', side: 'ฝั่งจับเรียบ' },
         slide_handle: { no: 3, kind: 'slide', name: 'บานเลื่อน', side: 'ฝั่งจับล็อค' },
-        fixed_right: { no: 4, kind: 'fixed', name: 'บานตาย', side: 'ฝั่งขวา' }
+        fixed_right: { no: 4, kind: 'fixed', name: 'บานตาย', side: 'ฝั่งขวา' },
+        net: { kind: 'net', name: 'บานมุ้ง', side: '' }
     };
     var photoCache = {};
 
     function family(sku) {
-        var m = String(sku || '').match(/^(SLWD|SLD)\dP/);
+        var m = String(sku || '').match(/^(?:SLWD|SLD)\dP|^(?:ANWD|CMWDL|CMWDR)1P/);
         return m ? m[0] : '';
+    }
+
+    function hasNet(sku) {
+        return /^(?:(?:SLWD|SLD)\dP|(?:ANWD|CMWDL|CMWDR)1P)\d{4}[A-Z]{2}N/.test(String(sku || ''));
+    }
+
+    // จำนวนบานแต่ละประเภทต่อ 1 ชุด · null = สินค้านี้เก็บบานไม่ได้
+    function layout(sku) {
+        var f = family(sku), base = LAYOUT[f];
+        if (!base) return null;
+        var out = {};
+        Object.keys(base).forEach(function (k) { out[k] = base[k]; });
+        if (hasNet(sku)) out.net = (f === 'SLWD4P' || f === 'SLD4P') ? 2 : 1;
+        return Object.keys(out).length ? out : null;
     }
 
     function positions(sku) {
@@ -60,6 +85,9 @@
             + '.pp-mark{font-size:1.1rem;line-height:1;color:#475569}'
             + '.pp-tile input{width:100%;max-width:70px;text-align:center;font-size:1.05rem;padding:6px 2px;margin-top:auto}'
             + '.pp-extra{font-size:.7rem;color:var(--muted-strong,#64748b);line-height:1.25}'
+            + '.pp-netrow{display:flex;gap:8px;align-items:stretch;margin-top:8px}'
+            + '.pp-tile.net{flex:0 0 150px;min-height:0;background-image:repeating-linear-gradient(0deg,rgba(100,116,139,.18) 0 1px,transparent 1px 6px),repeating-linear-gradient(90deg,rgba(100,116,139,.18) 0 1px,transparent 1px 6px)}'
+            + '.pp-netnote{font-size:.74rem;color:var(--muted-strong,#64748b);align-self:center}'
             + '@media (max-width:420px){.pp-photo{flex-basis:100%;display:flex;gap:8px;align-items:center;text-align:left}.pp-photo img,.pp-photo .pp-nophoto{width:72px}}';
         var st = document.createElement('style');
         st.id = 'pp-css';
@@ -83,10 +111,21 @@
                 + (inner == null ? '<div class="pp-extra">—</div>' : inner)
                 + '</div>';
         }).join('');
+        // บานมุ้ง (รุ่นที่มีมุ้ง): ช่องแยกใต้ภาพบาน — มุ้งไม่มีตำแหน่งซ้าย/ขวา
+        var lay = layout(sku) || {};
+        var netHtml = '';
+        if (lay.net) {
+            var netInner = tileFn('net', TILE.net);
+            netHtml = '<div class="pp-netrow"><div class="pp-tile net' + (netInner == null ? ' off' : '') + '">'
+                + '<div class="pp-name">🕸️ บานมุ้ง</div>'
+                + '<div class="pp-side">ชุดละ ' + lay.net + ' บาน</div>'
+                + (netInner == null ? '<div class="pp-extra">—</div>' : netInner)
+                + '</div><div class="pp-netnote">มุ้งใช้ได้ทุกตำแหน่ง ไม่ต้องดูซ้าย/ขวา</div></div>';
+        }
         return '<div class="pp">'
             + '<div class="pp-photo" data-pp-img="' + esc(sku) + '"><div class="pp-nophoto">🖼️</div><span>รูปสินค้า</span></div>'
             + '<div class="pp-main"><div class="pp-cap">' + (caption || 'มองจากรูปสินค้า ซ้าย → ขวา · ใส่จำนวนตรงบานที่ตรงกัน') + '</div>'
-            + '<div class="pp-frame" style="grid-template-columns:repeat(' + pos.length + ',minmax(0,1fr))">' + tiles + '</div></div>'
+            + '<div class="pp-frame" style="grid-template-columns:repeat(' + pos.length + ',minmax(0,1fr))">' + tiles + '</div>' + netHtml + '</div>'
             + '</div>';
     }
 
@@ -109,5 +148,6 @@
         });
     }
 
-    window.PanelPicker = { positions: positions, html: html, loadPhotos: loadPhotos, TILE: TILE };
+    window.PanelPicker = { positions: positions, html: html, loadPhotos: loadPhotos, TILE: TILE,
+        family: family, hasNet: hasNet, layout: layout };
 })();

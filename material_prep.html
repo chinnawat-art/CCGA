@@ -1913,8 +1913,8 @@
         let panelLocMap = {};        // 'SKU|panel_type' -> ช่องเก็บบาน
         let orderCustomSizeMap = {}; // orderId -> { w, h } ขนาดตามลูกค้า (งานสั่งขนาดพิเศษ 07/11/2569)
         let customCutMap = {};       // orderId -> { รหัสวัสดุ: { cut, base, sure } } ขนาดที่ต้องตัดลง
-        const PREP_PANEL_LABEL = { fixed: 'บานตาย (กลาง)', slide: 'บานเลื่อน', slide_left: 'บานเลื่อนซ้าย', slide_right: 'บานเลื่อนขวา', fixed_left: 'บาน 1 ตายซ้าย', slide_plain: 'บาน 2 เลื่อนฝั่งจับเรียบ', slide_handle: 'บาน 3 เลื่อนฝั่งจับล็อค', fixed_right: 'บาน 4 ตายขวา' };
-        const PREP_PANEL_ORDER = ['slide_left', 'fixed', 'slide_right', 'fixed_left', 'slide_plain', 'slide_handle', 'fixed_right', 'slide'];
+        const PREP_PANEL_LABEL = { fixed: 'บานตาย (กลาง)', slide: 'บานเลื่อน', slide_left: 'บานเลื่อนซ้าย', slide_right: 'บานเลื่อนขวา', fixed_left: 'บาน 1 ตายซ้าย', slide_plain: 'บาน 2 เลื่อนฝั่งจับเรียบ', slide_handle: 'บาน 3 เลื่อนฝั่งจับล็อค', fixed_right: 'บาน 4 ตายขวา', net: 'บานมุ้ง' };
+        const PREP_PANEL_ORDER = ['slide_left', 'fixed', 'slide_right', 'fixed_left', 'slide_plain', 'slide_handle', 'fixed_right', 'slide', 'net'];
         // ─── วัสดุใน BOM ที่ไม่ได้ตัดสต็อกตอนเริ่มผลิต (ยอดในระบบไม่พอ → ต้องติ๊กออก) ───
         // แสดงในการ์ด/ใบเบิกให้พนักงานรู้ว่าต้องหยิบ · อ่านอย่างเดียว ไม่ตัดสต็อก ไม่นับในการกดจ่าย
         const bomCache = {}; // sku -> [{ code, qty }]

@@ -887,13 +887,18 @@ function openComponentsModal(order, comps, backupOption = null, panelOption = nu
             .map(i => ({ type: i.dataset.pu, qty: Math.max(0, Math.min(parseInt(i.value, 10) || 0, Number(i.max) || 0)) }))
             .filter(p => p.qty > 0);
         const applyPanelUse = () => {
-            const reduce = {};
-            getPanelsUsed().forEach(p => {
-                const rec = (panelOption && panelOption.recipes[p.type]) || {};
-                Object.entries(rec).forEach(([part, q]) => { reduce[part] = (reduce[part] || 0) + q * p.qty; });
-            });
+            const used = getPanelsUsed();
+            // บานมุ้ง = BOM ต่อชุด × บานมุ้งที่ใช้ ÷ บานมุ้งต่อชุด (ตรงกับฐานข้อมูล) · บานกระจก = สูตรต่อบาน × จำนวน
+            const netPer = (((panelOption && panelOption.layout && panelOption.layout.net) || 1) * ((panelOption && panelOption.sets) || 1));
             normalizedComps.forEach(c => {
-                c.need = Math.max(0, (parseInt(c.base_need) || 0) - (reduce[c.part] || 0));
+                const base = parseInt(c.base_need) || 0;
+                let red = 0;
+                used.forEach(p => {
+                    const rec = (panelOption && panelOption.recipes[p.type]) || {};
+                    if (!(c.part in rec)) return;
+                    red += p.type === 'net' ? Math.floor(base * p.qty / netPer) : rec[c.part] * p.qty;
+                });
+                c.need = Math.max(0, base - red);
                 const el = list.querySelector(`[data-need-key="${CSS.escape(c.row_key)}"]`);
                 if (el) el.innerHTML = c.need === c.base_need ? String(c.need)
                     : `<s style="opacity:.5">${c.base_need}</s> → ${c.need}`;
@@ -1507,25 +1512,25 @@ window.qcReject = qcReject;
 // ═══ เตือน "มีบานเก็บในสต๊อกบาน" (ขั้นที่ 2 · เจ้าของขอ 04/11/2569) ═══════════
 // งานรอผลิต/กำลังผลิตที่ SKU ตรงกับบานในสต๊อกบาน → บอกว่าใช้บานไหนได้ และต้องทำเพิ่มอะไร
 // (ขั้นนี้เตือนอย่างเดียว ยังไม่ลดการตัดวัสดุ)
-const PANEL_LAYOUT = {
-    SLWD2P: { slide_left: 1, slide_right: 1 }, SLD2P: { slide_left: 1, slide_right: 1 },
-    SLWD3P: { slide_left: 1, fixed: 1, slide_right: 1 },
-    SLWD4P: { fixed_left: 1, fixed_right: 1, slide_handle: 1, slide_plain: 1 },
-    SLD4P: { fixed_left: 1, fixed_right: 1, slide_handle: 1, slide_plain: 1 }
-};
-const PANEL_LABEL = { fixed: 'บานตาย (กลาง)', slide: 'บานเลื่อน', slide_left: 'บานเลื่อนซ้าย', slide_right: 'บานเลื่อนขวา', fixed_left: 'บาน 1 ตายซ้าย', slide_plain: 'บาน 2 เลื่อนฝั่งจับเรียบ', slide_handle: 'บาน 3 เลื่อนฝั่งจับล็อค', fixed_right: 'บาน 4 ตายขวา' };
-const PANEL_ORDER = ['slide_left', 'fixed', 'slide_right', 'fixed_left', 'slide_plain', 'slide_handle', 'fixed_right', 'slide'];
+// จำนวนบานต่อชุด + บานมุ้ง อยู่ใน panel-picker.js (ตรงกับ panel_family / panel_layout ในฐานข้อมูล)
+function panelFamilyOf(sku) { return window.PanelPicker ? PanelPicker.family(sku) : ''; }
+function panelLayoutOf(sku) { return window.PanelPicker ? PanelPicker.layout(sku) : null; }
+const PANEL_LABEL = { fixed: 'บานตาย (กลาง)', slide: 'บานเลื่อน', slide_left: 'บานเลื่อนซ้าย', slide_right: 'บานเลื่อนขวา', fixed_left: 'บาน 1 ตายซ้าย', slide_plain: 'บาน 2 เลื่อนฝั่งจับเรียบ', slide_handle: 'บาน 3 เลื่อนฝั่งจับล็อค', fixed_right: 'บาน 4 ตายขวา', net: 'บานมุ้ง' };
+const PANEL_ORDER = ['slide_left', 'fixed', 'slide_right', 'fixed_left', 'slide_plain', 'slide_handle', 'fixed_right', 'slide', 'net'];
 let panelStockBySku = {};   // product_code → { panel_type: { qty, loc } }
 
 // 'SLWD-ขวางบน-ขาว-52.7' → 'ขวางบน' (ตรงกับ bom_part_name ในฐานข้อมูล)
 function bomPartName(code) {
-    return String(code || '').replace(/^(SLWD|SLD)-/, '').replace(/-(ขาว|ดำ|เขียว|ใส|ชาดำ|ฝ้า)(?=-|$)/g, '').replace(/-[\d.]+(x[\d.]+)?$/, '');
+    const s = String(code || '');
+    // รหัสบานกระทุ้ง/บานเปิด: 'ALU-UNION-NET-B-34.7' → 'ALU-UNION-NET' · 'HW-NETHINGE-W' → 'HW-NETHINGE'
+    if (/^(ALU|HW|GLS)-/.test(s)) return s.replace(/-[\d.]+(x[\d.]+)?$/, '').replace(/-[A-Z]$/, '');
+    return s.replace(/^(SLWD|SLD)-/, '').replace(/-(ขาว|ดำ|เขียว|ใส|ชาดำ|ฝ้า)(?=-|$)/g, '').replace(/-[\d.]+(x[\d.]+)?$/, '');
 }
 
 let panelRecipesByFamily = null;   // family → { panel_type: { part: qty } }
 async function getPanelUseOption(order) {
-    const fam = (String(order.product_code || '').match(/^(SLWD|SLD)\dP/) || [])[0];
-    const layout = PANEL_LAYOUT[fam];
+    const fam = panelFamilyOf(order.product_code);
+    const layout = panelLayoutOf(order.product_code);
     const stock = panelStockBySku[order.product_code];
     if (!layout || !stock) return null;
     if (hasCustomSize(order)) return null;   // บานเก็บเป็นขนาด SKU ใช้กับงานขนาดพิเศษไม่ได้
@@ -1542,7 +1547,7 @@ async function getPanelUseOption(order) {
     const types = PANEL_ORDER.filter(t => layout[t] && stock[t] && stock[t].qty > 0)
         .map(t => ({ type: t, max: Math.min(layout[t] * sets, stock[t].qty), have: stock[t].qty, loc: stock[t].loc, need: layout[t] * sets }));
     if (!types.length) return null;
-    return { types, recipes: panelRecipesByFamily[fam] || {}, sku: order.product_code };
+    return { types, recipes: panelRecipesByFamily[fam] || {}, sku: order.product_code, layout, sets };
 }
 
 function renderPanelUseSection(opt) {
@@ -1583,7 +1588,7 @@ async function loadPanelStockForHints() {
 function panelUsableNow(o) {
     if (o.tracking_status !== STATUS_PENDING || hasCustomSize(o)) return false;
     const stock = panelStockBySku[o.product_code];
-    const layout = PANEL_LAYOUT[(String(o.product_code || '').match(/^(SLWD|SLD)\dP/) || [])[0]];
+    const layout = panelLayoutOf(o.product_code);
     return !!(stock && layout && Object.keys(layout).some(t => stock[t] && stock[t].qty > 0));
 }
 
@@ -1597,8 +1602,7 @@ function panelHintHtml(o) {
     }
     if (o.tracking_status !== STATUS_PENDING || hasCustomSize(o)) return '';
     const stock = panelStockBySku[o.product_code];
-    const fam = (String(o.product_code || '').match(/^(SLWD|SLD)\dP/) || [])[0];
-    const layout = PANEL_LAYOUT[fam];
+    const layout = panelLayoutOf(o.product_code);
     if (!stock || !layout) return '';
     const sets = Math.max(1, parseInt(o.quantity, 10) || 1);
     const use = [], make = [];
@@ -1614,7 +1618,7 @@ function panelHintHtml(o) {
     return `<div class="card-panels">
         <div class="card-panels-label">🪟 มีบานเก็บในสต๊อกบาน ใช้กับงานนี้ได้</div>
         <div>✅ ใช้ได้: <b>${use.join(' · ')}</b></div>
-        <div>🔨 ต้องทำ: <b>กรอบ${make.length ? ' + ' + make.join(' + ') : 'อย่างเดียว'}</b></div>
+        <div>🔨 ต้องทำ: <b>${Object.keys(layout).every(t => t === 'net') ? 'ตัวบาน + กรอบ (ยกเว้นมุ้ง)' : 'กรอบ' + (make.length ? ' + ' + make.join(' + ') : 'อย่างเดียว')}</b></div>
         ${sameSku > 1 ? `<div class="card-panels-warn">⚠️ มีงาน SKU นี้รออยู่ ${sameSku} ใบ ใช้บานชุดเดียวกัน</div>` : ''}
         <div class="card-panels-note">กด "เริ่มผลิต" แล้วใส่จำนวนบานเก็บที่จะใช้ · ระบบตัดวัสดุน้อยลงและหักบานจากสต๊อกบานให้เอง</div>
     </div>`;
