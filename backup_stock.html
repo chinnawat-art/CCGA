@@ -993,6 +993,71 @@
             from { opacity: 0; transform: translateY(5px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        /* ── มือถือ: ตารางสต็อกสำรอง + รายการรออนุมัติ เป็นการ์ดทีละรายการ (เจ้าของขอ 12/11/2569 แบบหน้าสต็อกวัสดุ) ── */
+        @media (max-width: 640px) {
+            .page-wrapper { padding: 0.75rem 0.6rem; }
+            .header { padding: 1rem; margin-bottom: 1rem; }
+            .management-container { padding: 0.75rem; border-radius: 16px; }
+            .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; margin-bottom: 1rem; }
+            .stat-card { padding: 0.8rem 0.7rem; }
+            .stat-card h3 { font-size: 0.78rem; }
+            .stat-card .value { font-size: 1.6rem; }
+            .section-tabs { gap: 0.25rem; overflow-x: auto; }
+            .section-tab { padding-left: 0.5rem; padding-right: 0.5rem; white-space: nowrap; flex: 1; }
+            .toolbar > .search-input { flex: 1 1 100%; }
+            .approval-panel { padding: 0.75rem; }
+            .approval-header { flex-wrap: wrap; gap: 0.6rem; }
+
+            #panel-stock .table-card { background: transparent; border: 0; }
+            #panel-stock .table-responsive { overflow: visible; }
+            #panel-stock .table-card .stock-table, #approvalSection .approval-table { min-width: 0; }
+            #panel-stock .table-card .stock-table thead, #approvalSection .approval-table thead { display: none; }
+            #panel-stock .table-card .stock-table, #panel-stock .table-card .stock-table tbody, #approvalSection .approval-table, #approvalSection .approval-table tbody { display: block; }
+            #panel-stock .table-card .stock-table tbody tr, #approvalSection .approval-table tbody tr {
+                display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 0.75rem; row-gap: 0.45rem;
+                border: 1px solid var(--border); border-radius: 14px; padding: 0.8rem; margin-bottom: 0.7rem;
+                background: var(--bg-card-strong);
+            }
+            #panel-stock .table-card .stock-table tbody td, #approvalSection .approval-table tbody td { display: block; padding: 0 !important; border: 0; text-align: left !important; min-width: 0; background: transparent !important; white-space: normal !important; overflow-wrap: anywhere; }
+            #panel-stock .table-card .stock-table tbody td[colspan], #approvalSection .approval-table tbody td[colspan] { grid-column: 1 / -1; text-align: center !important; padding: 1.5rem 0 !important; }
+            #panel-stock .table-card .stock-table tbody td:not([colspan])::before, #approvalSection .approval-table tbody td:not([colspan])::before { display: block; font-size: 0.72rem; color: var(--muted); margin-bottom: 0.15rem; }
+            #panel-stock .table-card .stock-table .product-name, #panel-stock .table-card .stock-table .product-code, #panel-stock .table-card .stock-table .stock-note { white-space: normal; overflow-wrap: anywhere; }
+
+            /* สต็อกสำรอง: รหัส·สถานะ / ชื่อ / คงเหลือ·ปรับ / ช่องเก็บ·ขนาด / แจ้งเตือน·หมายเหตุ */
+            #panel-stock .table-card .stock-table tbody tr { grid-template-areas: "code status" "name name" "qty adj" "loc size" "reorder note"; }
+            #panel-stock .table-card .stock-table tbody td:nth-child(1)  { grid-area: code; }
+            #panel-stock .table-card .stock-table tbody td:nth-child(2)  { grid-area: name; }
+            #panel-stock .table-card .stock-table tbody td:nth-child(3)  { grid-area: loc; }
+            #panel-stock .table-card .stock-table tbody td:nth-child(4)  { grid-area: qty; display: flex; align-items: baseline; gap: 0.35rem; }
+            #panel-stock .table-card .stock-table tbody td:nth-child(5)  { display: none; }
+            #panel-stock .table-card .stock-table tbody td:nth-child(6)  { grid-area: size; text-align: right !important; }
+            #panel-stock .table-card .stock-table tbody td:nth-child(7)  { grid-area: reorder; }
+            #panel-stock .table-card .stock-table tbody td:nth-child(8)  { grid-area: note; text-align: right !important; }
+            #panel-stock .table-card .stock-table tbody td:nth-child(9)  { grid-area: adj; justify-self: end; }
+            #panel-stock .table-card .stock-table tbody td:nth-child(10) { grid-area: status; justify-self: end; }
+            #panel-stock .table-card .stock-table tbody td:not([colspan]):nth-child(3)::before { content: 'ช่องเก็บ'; }
+            #panel-stock .table-card .stock-table tbody td:not([colspan]):nth-child(4)::before { content: 'สำรองคงเหลือ'; display: inline; margin: 0; }
+            #panel-stock .table-card .stock-table tbody td:not([colspan]):nth-child(6)::before { content: 'ขนาด'; }
+            #panel-stock .table-card .stock-table tbody td:not([colspan]):nth-child(7)::before { content: 'แจ้งเตือนเมื่อเหลือ'; }
+            #panel-stock .table-card .stock-table tbody td:not([colspan]):nth-child(8)::before { content: 'หมายเหตุ'; }
+            #panel-stock .table-card .stock-table tbody td:not([colspan]):nth-child(9)::before { content: 'ปรับจำนวน'; text-align: right; }
+            #panel-stock .table-card .stock-table .qty-value { font-size: 1.35rem; }
+
+            /* รออนุมัติ: เลขออเดอร์·สถานะ / SKU / รายการ / จำนวนออเดอร์·สำรองมี / ปุ่มอนุมัติ */
+            #approvalSection .approval-table tbody tr { grid-template-areas: "ord status" "sku sku" "name name" "oq bq" "act act"; }
+            #approvalSection .approval-table tbody td:nth-child(1) { grid-area: ord; font-weight: 600; overflow-wrap: anywhere; }
+            #approvalSection .approval-table tbody td:nth-child(2) { grid-area: sku; overflow-wrap: anywhere; }
+            #approvalSection .approval-table tbody td:nth-child(3) { grid-area: name; }
+            #approvalSection .approval-table tbody td:nth-child(4) { grid-area: oq; }
+            #approvalSection .approval-table tbody td:nth-child(5) { grid-area: bq; text-align: right !important; }
+            #approvalSection .approval-table tbody td:nth-child(6) { grid-area: status; justify-self: end; }
+            #approvalSection .approval-table tbody td:nth-child(7) { grid-area: act; }
+            #approvalSection .approval-table tbody td:nth-child(7) .btn-approve { width: 100%; }
+            #approvalSection .approval-table tbody td:not([colspan]):nth-child(1)::before { content: 'เลขออเดอร์'; }
+            #approvalSection .approval-table tbody td:not([colspan]):nth-child(2)::before { content: 'SKU'; }
+            #approvalSection .approval-table tbody td:not([colspan]):nth-child(4)::before { content: 'จำนวนออเดอร์'; }
+            #approvalSection .approval-table tbody td:not([colspan]):nth-child(5)::before { content: 'สต็อกสำรองมี'; }
+        }
     </style>
     <link rel="stylesheet" href="mobile-fit.css?v=20261112-1">
 </head>
