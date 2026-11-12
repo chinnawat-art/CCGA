@@ -18,6 +18,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
   <script src="auth.js?v=20261106-1"></script>
+  <script src="sound-settings.js?v=20261112-2"></script>
   <link rel="stylesheet" href="theme.css">
   <script src="theme.js" defer></script>
   <style>
@@ -276,7 +277,7 @@
     .role-aprd { color: #a7f3d0; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); }
     .role-admin { color: #f472b6; background: rgba(236, 72, 153, 0.15); border: 1px solid rgba(236, 72, 153, 0.3); }
 
-    .member-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; padding-top:14px; border-top:1px solid rgba(148,163,184,0.1); }
+    .member-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; margin-top:16px; padding-top:14px; border-top:1px solid rgba(148,163,184,0.1); }
     .btn-delete { color:#f87171; border-color:rgba(248,113,113,.35); background:rgba(239,68,68,.06); }
     .btn-delete:hover { background:rgba(239,68,68,.16); border-color:#f87171; }
     
@@ -658,6 +659,7 @@
               
               <div class="member-actions">
                 ${isCeo ? '' : `<button class="btn btn-delete" onclick="deleteUser('${user.id}',this)">🗑️ ลบสมาชิก</button>`}
+                <button class="btn" data-name="${displayName}" onclick="SoundPrefs.open('${user.id}', this.dataset.name)" title="เลือกเสียงแจ้งเตือนหน้าฝ่ายผลิตของบัญชีนี้">🎵 ตั้งเสียง</button>
                 <button class="btn btn-primary" onclick="savePermissions('${user.id}',this)">💾 บันทึกสิทธิ์</button>
               </div>
             </article>
@@ -781,6 +783,7 @@
     });
 
     loadMembers();
+    if (window.SoundPrefs) SoundPrefs.init(db);   // ปุ่ม 🎵 ตั้งเสียงของแต่ละสมาชิก (sound-settings.js)
   </script>
 </body>
 </html>

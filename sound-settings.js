@@ -3,6 +3,7 @@
 // 3 เหตุการณ์: ออเดอร์ใหม่เข้า · เริ่มผลิต · ผลิตสำเร็จ  (ย้อนกลับใช้เสียงเดิมของระบบ)
 // ค่าเก็บในตาราง user_sound_settings (1 คน 1 แถว) · ไฟล์เสียงเก็บใน bucket user-sounds/<รหัสผู้ใช้>/...
 // ใช้ร่วมกับ production.js: ฟังก์ชันเสียงเดิมเรียก SoundPrefs.play(event) ก่อน ถ้าคืน true = เล่นเสียงที่ตั้งไว้แล้ว
+// หน้าจัดการสมาชิก: CEO / คนที่มีสิทธิ์หน้านั้น ตั้งเสียงให้บัญชีอื่นได้ด้วย SoundPrefs.open(userId, ชื่อ)
 (function () {
     'use strict';
 
@@ -30,12 +31,25 @@
         file: { label: '📁 ไฟล์เสียงที่อัปโหลด' }
     };
 
+    // เสียงเดิมของระบบ (ตรงกับ production.js) ใช้ตอนกด ▶ ทดลอง ของ "เสียงเดิม"
+    var DEFAULT_NOTES = {
+        new_order: PRESETS.chime.n,
+        start: [[523.25, 0, .15, .75, 'triangle'], [783.99, .1, .35, .95, 'triangle']],
+        done: [[523.25, 0, .1, .65, 'triangle'], [659.25, .08, .1, .75, 'triangle'], [783.99, .16, .15, .85, 'triangle'], [1046.5, .26, .45, .95, 'sine']]
+    };
+
     var db = null, uid = null, email = '';
     var settings = { volume: 1, events: {} };   // events[key] = { sound, repeat, file: { path, name } }
     var buffers = {};                            // event key → AudioBuffer ของไฟล์ที่อัปโหลด
     var loaded = false;
 
-    function ctx() { return typeof getAudioContext === 'function' ? getAudioContext() : null; }
+    var ownCtx = null;
+    function ctx() {
+        if (typeof getAudioContext === 'function') return getAudioContext();   // หน้าฝ่ายผลิต ใช้ตัวเดียวกับเสียงเดิม
+        if (!ownCtx) { var C = window.AudioContext || window.webkitAudioContext; if (C) ownCtx = new C(); }
+        if (ownCtx && ownCtx.state === 'suspended') ownCtx.resume();
+        return ownCtx;
+    }
     function evCfg(key) { return (settings.events && settings.events[key]) || { sound: 'default', repeat: 1 }; }
     function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 
@@ -64,11 +78,11 @@
         osc.connect(g); g.connect(c.destination);
         osc.start(at); osc.stop(at + 1.7);
     }
-    function length(sound, buf) {
+    function length(sound, buf, key) {
         if (sound === 'alarm') return 1.7;
         if (sound === 'file') return buf ? buf.duration : 0;
-        var p = PRESETS[sound];
-        return p && p.n ? Math.max.apply(null, p.n.map(function (n) { return n[1] + n[2]; })) : 0;
+        var n = sound === 'default' ? DEFAULT_NOTES[key] : (PRESETS[sound] && PRESETS[sound].n);
+        return n ? Math.max.apply(null, n.map(function (x) { return x[1] + x[2]; })) : 0;
     }
     function speakText(text, times, vol) {
         if (!('speechSynthesis' in window)) return false;
@@ -84,7 +98,8 @@
     }
 
     // เล่นเสียงตามค่าที่ระบุ (ใช้ทั้งตอนแจ้งเตือนจริงและปุ่ม ▶ ทดลอง)
-    function playCfg(key, cfg, buf, vol) {
+    // withDefault = true: "เสียงเดิม" ก็เล่นจากที่นี่ (ปุ่มทดลอง) · ตอนแจ้งเตือนจริงปล่อยให้ production.js เล่นเอง
+    function playCfg(key, cfg, buf, vol, withDefault) {
         var sound = cfg.sound || 'default';
         var times = Math.min(3, Math.max(1, parseInt(cfg.repeat, 10) || 1));
         if (sound === 'none') return true;
@@ -98,10 +113,10 @@
         var at = c.currentTime + 0.02;
         if (sound === 'file') {
             if (!buf) return false;   // ไฟล์ยังโหลดไม่เสร็จ/โหลดไม่ได้ → ใช้เสียงเดิมแทน
-        } else if (!PRESETS[sound] || sound === 'default') {
+        } else if (sound === 'default' ? !(withDefault && DEFAULT_NOTES[key]) : !PRESETS[sound]) {
             return false;
         }
-        var gap = length(sound, buf) + 0.25;
+        var gap = length(sound, buf, key) + 0.25;
         for (var i = 0; i < times; i++) {
             var t = at + i * gap;
             if (sound === 'file') {
@@ -112,7 +127,7 @@
             } else if (sound === 'alarm') {
                 playSweep(c, t, vol);
             } else {
-                playNotes(c, PRESETS[sound].n, t, vol);
+                playNotes(c, sound === 'default' ? DEFAULT_NOTES[key] : PRESETS[sound].n, t, vol);
             }
         }
         return true;
@@ -136,13 +151,14 @@
         });
     }
 
-    async function loadFileBuffer(key) {
-        var f = evCfg(key).file;
+    async function loadFileBuffer(key, conf, into) {
+        var f = ((conf || settings).events || {})[key];
+        f = f && f.file;
         if (!f || !f.path) return;
         try {
             var res = await db.storage.from(BUCKET).download(f.path);
             if (res.error || !res.data) throw res.error || new Error('ไม่พบไฟล์');
-            buffers[key] = await decode(await res.data.arrayBuffer());
+            (into || buffers)[key] = await decode(await res.data.arrayBuffer());
         } catch (e) {
             console.warn('โหลดไฟล์เสียงไม่ได้ (' + key + '):', e);
         }
@@ -170,6 +186,8 @@
 
     // ─── หน้าต่างตั้งเสียง ─────────────────────────────
     var draft = null;   // { volume, events: { key: { sound, repeat, file, newFile, newBuf } } }
+    var edit = null;    // บัญชีที่กำลังตั้ง { uid, label, settings, buffers, self }
+    function normalize(v) { var o = Object.assign({ volume: 1, events: {} }, v || {}); o.events = o.events || {}; return o; }
 
     function injectStyle() {
         if (document.getElementById('sndStyle')) return;
@@ -208,7 +226,7 @@
         var vol = Math.round((draft.volume == null ? 1 : draft.volume) * 100);
         m.innerHTML = '<div class="snd-box" role="dialog" aria-modal="true" aria-label="ตั้งเสียงแจ้งเตือน">'
             + '<h3>🎵 ตั้งเสียงแจ้งเตือน</h3>'
-            + '<div class="snd-who">ตั้งเฉพาะบัญชี <b>' + esc(email || '-') + '</b> · เข้าบัญชีนี้เครื่องไหนก็ได้เสียงเดียวกัน · บัญชีอื่นไม่เปลี่ยน</div>'
+            + '<div class="snd-who">' + (edit.self ? 'ตั้งเฉพาะบัญชีของคุณ' : 'ตั้งให้บัญชี') + ' <b>' + esc(edit.label || '-') + '</b> · เข้าบัญชีนี้เครื่องไหนก็ได้เสียงเดียวกัน · บัญชีอื่นไม่เปลี่ยน · ใช้กับหน้าฝ่ายผลิต</div>'
             + '<div class="snd-vol">🔈 ความดัง <input type="range" min="10" max="100" step="5" value="' + vol + '" id="sndVol"> <b id="sndVolTxt">' + vol + '%</b></div>'
             + EVENTS.map(function (e) {
                 var c = draft.events[e.key];
@@ -237,7 +255,7 @@
 
     function msg(t) { var el = document.getElementById('sndMsg'); if (el) el.textContent = t; }
 
-    function open() {
+    async function open(targetUid, targetLabel) {
         injectStyle();
         var m = document.getElementById('sndModal');
         if (!m) {
@@ -255,15 +273,29 @@
         }
         if (!uid) { alert('ยังโหลดข้อมูลผู้ใช้ไม่เสร็จ ลองใหม่อีกครั้ง'); return; }
         ctx();   // ปลดล็อกเสียงด้วยการกดปุ่มนี้
-        draft = { volume: settings.volume == null ? 1 : settings.volume, events: {} };
+        if (!targetUid || targetUid === uid) {
+            edit = { uid: uid, label: email, settings: settings, buffers: buffers, self: true };
+        } else {
+            // ตั้งให้บัญชีอื่น (หน้าจัดการสมาชิก) — โหลดค่าของคนนั้นก่อน
+            var r = await db.from('user_sound_settings').select('settings').eq('user_id', targetUid).maybeSingle();
+            if (r.error) {
+                alert(/user_sound_settings|relation|schema cache/i.test(r.error.message || '') ? 'ระบบตั้งเสียงยังไม่พร้อม (ต้องรัน SQL ก่อน)' : 'โหลดค่าเสียงไม่ได้: ' + r.error.message);
+                return;
+            }
+            edit = { uid: targetUid, label: targetLabel || '', settings: normalize(r.data && r.data.settings), buffers: {}, self: false };
+            var es = edit.settings, eb = edit.buffers;
+            EVENTS.forEach(function (e) { if ((es.events[e.key] || {}).sound === 'file') loadFileBuffer(e.key, es, eb); });
+        }
+        var cur = edit.settings;
+        draft = { volume: cur.volume == null ? 1 : cur.volume, events: {} };
         EVENTS.forEach(function (e) {
-            var c = evCfg(e.key);
+            var c = (cur.events && cur.events[e.key]) || { sound: 'default', repeat: 1 };
             draft.events[e.key] = { sound: c.sound || 'default', repeat: c.repeat || 1, file: c.file || null, newFile: null, newBuf: null };
         });
         render();
         m.classList.add('show');
     }
-    function close() { var m = document.getElementById('sndModal'); if (m) m.classList.remove('show'); draft = null; }
+    function close() { var m = document.getElementById('sndModal'); if (m) m.classList.remove('show'); draft = null; edit = null; }
 
     function onChange(e) {
         var box = e.target.closest('[data-ev]');
@@ -301,16 +333,9 @@
             var key = t.dataset.test, c = draft.events[key];
             ctx();
             var vol = draft.volume == null ? 1 : draft.volume;
-            if (c.sound === 'default') { playDefault(key); return; }
-            var ok = playCfg(key, c, c.newBuf || buffers[key], vol);
-            if (!ok) msg(c.sound === 'file' ? 'ยังไม่มีไฟล์เสียง — เลือกไฟล์ก่อน' : c.sound === 'speak' ? '❌ เครื่องนี้พูดภาษาไทยไม่ได้ — เลือกเสียงอื่น' : 'เล่นเสียงไม่ได้');
+            var ok = playCfg(key, c, c.newBuf || edit.buffers[key], vol, true);
+            if (!ok) msg(c.sound === 'file' ? (c.file && c.file.path ? 'กำลังโหลดไฟล์เสียง ลองกดใหม่อีกครั้ง' : 'ยังไม่มีไฟล์เสียง — เลือกไฟล์ก่อน') : c.sound === 'speak' ? '❌ เครื่องนี้พูดภาษาไทยไม่ได้ — เลือกเสียงอื่น' : 'เล่นเสียงไม่ได้');
         }
-    }
-
-    function playDefault(key) {
-        var fn = { new_order: 'playNotificationSound', start: 'playStartProductionSound', done: 'playSuccessSound' }[key];
-        var saved = loaded; loaded = false;   // ข้ามค่าที่ตั้ง ให้เล่นเสียงเดิม
-        try { if (typeof window[fn] === 'function') window[fn](true); } finally { loaded = saved; }
     }
 
     function extOf(f) {
@@ -326,7 +351,8 @@
             if (c0.sound === 'file' && !c0.newFile && !(c0.file && c0.file.path)) { msg('❌ ' + EVENTS[i].label + ': เลือกไฟล์เสียงก่อน หรือเปลี่ยนเป็นเสียงอื่น'); return; }
         }
         btn.disabled = true; msg('กำลังบันทึก...');
-        var oldPaths = EVENTS.map(function (e) { var f = evCfg(e.key).file; return f && f.path; }).filter(Boolean);
+        var target = edit, oldEv = (target.settings && target.settings.events) || {};
+        var oldPaths = EVENTS.map(function (e) { var f = oldEv[e.key] && oldEv[e.key].file; return f && f.path; }).filter(Boolean);
         try {
             var next = { volume: draft.volume, events: {} };
             var newBufs = {};
@@ -336,7 +362,7 @@
                 if (c.sound === 'file') {
                     if (c.newFile) {
                         var ext = extOf(c.newFile);
-                        var path = uid + '/' + key + '-' + Date.now() + '.' + ext;
+                        var path = target.uid + '/' + key + '-' + Date.now() + '.' + ext;
                         var up = await db.storage.from(BUCKET).upload(path, c.newFile, { contentType: MIME[ext] || c.newFile.type || 'audio/mpeg', upsert: false });
                         if (up.error) throw up.error;
                         item.file = { path: path, name: c.newFile.name };
@@ -347,7 +373,7 @@
                 }
                 next.events[key] = item;
             }
-            var r = await db.from('user_sound_settings').upsert({ user_id: uid, settings: next, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+            var r = await db.from('user_sound_settings').upsert({ user_id: target.uid, settings: next, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
             if (r.error) throw r.error;
 
             // ลบไฟล์เก่าที่ไม่ใช้แล้ว (ลบไม่ได้ก็ไม่เป็นไร)
@@ -355,13 +381,17 @@
             var drop = oldPaths.filter(function (p) { return keep.indexOf(p) < 0; });
             if (drop.length) db.storage.from(BUCKET).remove(drop).catch(function () {});
 
-            settings = next;
-            EVENTS.forEach(function (e) {
-                if (newBufs[e.key]) buffers[e.key] = newBufs[e.key];
-                if (next.events[e.key].sound !== 'file') delete buffers[e.key];
-            });
+            if (target.self) {   // บัญชีตัวเอง → ใช้เสียงใหม่ทันที
+                settings = next;
+                EVENTS.forEach(function (e) {
+                    if (newBufs[e.key]) buffers[e.key] = newBufs[e.key];
+                    if (next.events[e.key].sound !== 'file') delete buffers[e.key];
+                });
+            }
+            var who = target.self ? '' : ' ให้ ' + target.label + ' ';
             close();
-            if (typeof showToast === 'function') showToast('🎵 บันทึกเสียงแจ้งเตือนแล้ว', 'success');
+            if (typeof showToast === 'function') showToast('🎵 บันทึกเสียงแจ้งเตือน' + who + 'แล้ว', 'success');
+            else alert('🎵 บันทึกเสียงแจ้งเตือน' + who + 'แล้ว' + (target.self ? '' : '\n(มีผลเมื่อคนนั้นเปิดหรือรีเฟรชหน้าฝ่ายผลิต)'));
         } catch (e) {
             var m = String((e && e.message) || e);
             msg(/user_sound_settings|relation|bucket|not found|schema cache/i.test(m)
