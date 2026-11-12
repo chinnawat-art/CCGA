@@ -62,6 +62,15 @@
         .btn-ghost { background:transparent; border:1px solid var(--border-strong,#cbd5e1); color: var(--text-main,#0f172a); }
         .btn:disabled { opacity:.5; cursor:default; }
         .hint { font-size:.8rem; color: var(--muted-strong,#64748b); margin-top:7px; }
+        .btn-scan { background: var(--surface,#fff); color: var(--text-main,#0f172a); border:2px solid #6366f1; padding:10px 14px; }
+        .found-note { font-size:.85rem; margin-top:10px; padding:9px 12px; border-radius:10px; background: rgba(99,102,241,.08); border:1px solid rgba(99,102,241,.25); }
+        #scanOverlay { display:none; position:fixed; inset:0; z-index:10050; background:rgba(2,6,23,.88); flex-direction:column; align-items:center; justify-content:center; padding:16px; }
+        #scanOverlay .scan-box { width:min(520px,100%); background: var(--surface,#fff); color: var(--text-main,#0f172a); border-radius:16px; padding:12px; }
+        #scanView { width:100%; min-height:240px; border-radius:12px; overflow:hidden; background:#000; }
+        #scanView video { width:100% !important; height:auto !important; }
+        #scanMsg { font-size:.9rem; margin:10px 2px; text-align:center; }
+        #scanOverlay .btn { width:100%; }
+        @media (max-width:420px) { .search .btn { padding:12px 12px; } }
         .order { border:1px solid var(--border-strong,#e2e8f0); border-radius:13px; padding:12px; margin-top:10px; }
         .order.pick { border-color:#6366f1; box-shadow:0 0 0 2px rgba(99,102,241,.25); }
         .prod { font-size:1.25rem; font-weight:700; }
@@ -150,10 +159,18 @@
         <div class="card">
             <h2>1. หาออเดอร์ที่ตีกลับ</h2>
             <div class="search">
-                <input id="q" type="text" placeholder="สแกน/พิมพ์ เลขพัสดุ · เลขที่ผลิต (เช่น 498/29) · เลขออเดอร์" autocomplete="off">
+                <input id="q" type="text" placeholder="เลขพัสดุ · เลขที่ผลิต · เลขออเดอร์ · SKU" autocomplete="off">
+                <button id="btnScan" class="btn btn-scan" type="button" title="สแกนลาเบลด้วยกล้องมือถือ">📷 สแกน</button>
                 <button id="btnSearch" class="btn btn-main">🔍 ค้นหา</button>
             </div>
-            <div class="hint">ใช้เครื่องสแกนบาร์โค้ดยิงที่ลาเบลหน้ากล่องได้เลย (เลขต้องตรงทั้งเลข)</div>
+            <div class="hint">ยิงเครื่องสแกนที่ลาเบลหน้ากล่อง หรือกด <b>📷 สแกน</b> ใช้กล้องมือถือ · เลขพัสดุ/เลขที่ผลิต/เลขออเดอร์ต้องตรงทั้งเลข · ค้นด้วย <b>SKU</b> (พิมพ์แค่ขึ้นต้นก็ได้ เช่น SLWD2P1512) จะขึ้นเฉพาะใบที่ส่งออกไปแล้ว ล่าสุดก่อน</div>
+            <div id="scanOverlay" role="dialog" aria-modal="true" aria-label="สแกนลาเบลด้วยกล้อง">
+                <div class="scan-box">
+                    <div id="scanView"></div>
+                    <div id="scanMsg">กำลังเปิดกล้อง...</div>
+                    <button id="btnScanClose" class="btn btn-scan" type="button">✕ ปิดกล้อง</button>
+                </div>
+            </div>
             <div id="results"></div>
         </div>
 
@@ -307,15 +324,33 @@
         const box = document.getElementById('results');
         if (!q) { box.innerHTML = ''; return; }
         box.innerHTML = '<div class="empty">กำลังค้นหา...</div>';
+        const cols = 'id,order_number,production_number,tracking_number,product_code,product_name,quantity,platform,buyer_name,tracking_status,order_date,is_test';
         const { data, error } = await db.from('stock_orders')
-            .select('id,order_number,production_number,tracking_number,product_code,product_name,quantity,platform,buyer_name,tracking_status,order_date,is_test')
+            .select(cols)
             .or(`tracking_number.eq.${q},order_number.eq.${q},production_number.eq.${q}`)
             .order('order_date', { ascending: false })
             .limit(20);
         if (error) { box.innerHTML = '<div class="empty">❌ ค้นหาไม่สำเร็จ: ' + esc(error.message) + '</div>'; return; }
         foundOrders = data || [];
+        // ไม่เจอเลขตรง ๆ → ลองเป็น SKU (พิมพ์เต็มหรือแค่ขึ้นต้น) · เฉพาะใบที่ส่งออกไปแล้ว = บันทึกตีกลับได้
+        let skuMode = false, skuMore = false;
+        const sku = q.toUpperCase().replace(/[%_]/g, '');
+        if (!foundOrders.length && /^[A-Z]{2,}[A-Z0-9]*\d/.test(sku) && sku.length >= 4) {
+            const { data: bySku, error: skuErr } = await db.from('stock_orders')
+                .select(cols)
+                .ilike('product_code', sku + '%')
+                .in('tracking_status', RETURNABLE)
+                .order('order_date', { ascending: false })
+                .limit(31);
+            if (skuErr) { box.innerHTML = '<div class="empty">❌ ค้นหาไม่สำเร็จ: ' + esc(skuErr.message) + '</div>'; return; }
+            skuMode = true;
+            skuMore = (bySku || []).length > 30;
+            foundOrders = (bySku || []).slice(0, 30);
+        }
         if (!foundOrders.length) {
-            box.innerHTML = '<div class="empty">ไม่พบออเดอร์ "' + esc(q) + '"<br><small>ลองพิมพ์เลขที่ผลิต เช่น 498/29 หรือเลขออเดอร์เต็ม ๆ</small></div>';
+            box.innerHTML = '<div class="empty">ไม่พบออเดอร์ "' + esc(q) + '"<br><small>' + (skuMode
+                ? 'ไม่มีใบ SKU นี้ที่ส่งออกไปแล้ว (ตรวจเสร็จรอจัดส่ง / กำลังจัดส่ง / จัดส่งสำเร็จ)'
+                : 'ลองพิมพ์เลขที่ผลิต เช่น 498/29 เลขออเดอร์เต็ม ๆ หรือ SKU') + '</small></div>';
             return;
         }
         // เคยตีกลับกี่ครั้ง
@@ -323,7 +358,11 @@
         const { data: prev } = await db.from('order_returns').select('order_id').in('order_id', foundOrders.map(o => o.id));
         (prev || []).forEach(r => { counts[r.order_id] = (counts[r.order_id] || 0) + 1; });
 
-        box.innerHTML = foundOrders.map(o => {
+        const note = skuMode
+            ? '<div class="found-note">🔎 ค้นด้วย SKU <b>' + esc(sku) + '</b> · พบ ' + foundOrders.length + (skuMore ? '+ ' : ' ') + 'ใบที่ส่งออกไปแล้ว (ล่าสุดก่อน)'
+              + '<br>เลือกใบที่ตรงกับกล่อง — ดูชื่อลูกค้า / เลขพัสดุ / วันที่' + (skuMore ? '<br>แสดง 30 ใบล่าสุด · พิมพ์ SKU ให้ยาวขึ้นเพื่อให้แคบลง' : '') + '</div>'
+            : '';
+        box.innerHTML = note + foundOrders.map(o => {
             const ok = RETURNABLE.includes(o.tracking_status);
             return '<div class="order" id="o_' + o.id + '">'
                 + '<div class="prod">🧾 ' + esc(o.production_number || 'ไม่มีเลขที่ผลิต') + (o.is_test ? ' <span class="pill warn">🧪 ใบทดลอง</span>' : '') + '</div>'
@@ -337,7 +376,65 @@
                       : '<span class="no">บันทึกตีกลับไม่ได้ — สถานะ "' + esc(o.tracking_status) + '" ยังไม่ได้ส่งออกไป หรือบันทึกไปแล้ว</span>')
                 + '</div></div>';
         }).join('');
-        if (foundOrders.length === 1 && RETURNABLE.includes(foundOrders[0].tracking_status)) openForm(foundOrders[0].id);
+        // ค้นด้วย SKU อาจเป็นคนละกล่อง → ให้พนักงานเลือกเอง ไม่เปิดฟอร์มให้อัตโนมัติ
+        if (!skuMode && foundOrders.length === 1 && RETURNABLE.includes(foundOrders[0].tracking_status)) openForm(foundOrders[0].id);
+    }
+
+    // ── สแกนลาเบลด้วยกล้องมือถือ (เจ้าของขอ 12/11/2569) ─────────────────
+    // ใช้ html5-qrcode (อ่านบาร์โค้ดเลขพัสดุ Code 128 + QR) · โหลดตอนกดปุ่มครั้งแรกเท่านั้น
+    const SCAN_LIB = 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';
+    let scanner = null, scanLibPromise = null, scanDone = false;
+    function loadScanLib() {
+        if (window.Html5Qrcode) return Promise.resolve();
+        if (!scanLibPromise) scanLibPromise = new Promise((ok, bad) => {
+            const el = document.createElement('script');
+            el.src = SCAN_LIB;
+            el.onload = ok;
+            el.onerror = () => { scanLibPromise = null; bad(new Error('โหลดตัวสแกนไม่สำเร็จ เช็คอินเทอร์เน็ตแล้วลองใหม่')); };
+            document.head.appendChild(el);
+        });
+        return scanLibPromise;
+    }
+    async function openScanner() {
+        const ov = document.getElementById('scanOverlay'), msg = document.getElementById('scanMsg');
+        if (ov.parentElement !== document.body) document.body.appendChild(ov);   // กันกรอบการ์ดบังกล้อง
+        ov.style.display = 'flex';
+        msg.textContent = 'กำลังเปิดกล้อง...';
+        scanDone = false;
+        try {
+            await loadScanLib();
+            if (ov.style.display === 'none') return;   // กดปิดก่อนโหลดเสร็จ
+            const F = window.Html5QrcodeSupportedFormats;
+            scanner = new Html5Qrcode('scanView', {
+                formatsToSupport: [F.CODE_128, F.CODE_39, F.CODE_93, F.EAN_13, F.QR_CODE, F.DATA_MATRIX],
+                experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+                verbose: false
+            });
+            await scanner.start({ facingMode: 'environment' },
+                { fps: 10, qrbox: (w, h) => ({ width: Math.floor(w * 0.9), height: Math.max(80, Math.floor(Math.min(w, h) * 0.5)) }) },
+                text => onScanned(text), () => {});
+            msg.textContent = 'เล็งบาร์โค้ดเลขพัสดุ (หรือ QR) บนลาเบลหน้ากล่องให้อยู่ในกรอบ';
+        } catch (e) {
+            const m = String((e && (e.message || e.name)) || e);
+            msg.textContent = /Permission|NotAllowed/i.test(m)
+                ? '❌ ยังไม่ได้อนุญาตให้ใช้กล้อง — กดอนุญาตกล้องในเบราว์เซอร์ แล้วกด 📷 สแกน ใหม่'
+                : '❌ เปิดกล้องไม่ได้: ' + m;
+        }
+    }
+    async function closeScanner() {
+        document.getElementById('scanOverlay').style.display = 'none';
+        const sc = scanner;
+        scanner = null;
+        try { if (sc) { if (sc.isScanning) await sc.stop(); sc.clear(); } } catch (e) { /* ปิดกล้องไม่ได้ก็ไม่เป็นไร */ }
+    }
+    async function onScanned(text) {
+        const v = String(text || '').trim();
+        if (!v || scanDone) return;
+        scanDone = true;
+        if (navigator.vibrate) navigator.vibrate(80);
+        await closeScanner();
+        document.getElementById('q').value = v;
+        searchOrders();
     }
 
     // ── 2) ฟอร์มบันทึก ─────────────────────────────────────────────
@@ -869,6 +966,8 @@
 
         const q = document.getElementById('q');
         document.getElementById('btnSearch').addEventListener('click', searchOrders);
+        document.getElementById('btnScan').addEventListener('click', openScanner);
+        document.getElementById('btnScanClose').addEventListener('click', closeScanner);
         q.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); searchOrders(); } });
         q.focus();
 
