@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#6366f1">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-180.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Alu ERP">
+    <script src="pwa.js?v=20260918-2" defer></script>
+    <title>ตัดกระจกส่วนเกิน | Glass Recut</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="auth.js?v=20261113-1"></script>
+    <script src="glass-recut-engine.js?v=20261113-1"></script>
+    <link rel="stylesheet" href="theme.css">
+    <script src="theme.js" defer></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin:0; font-family:'Kanit',sans-serif;
+               background: var(--bg-body,#f1f5f9); color: var(--text-main,#0f172a); }
+        .shell { max-width:1040px; margin:0 auto; padding:16px 14px 110px; }
+        .back { color: var(--muted-strong,#64748b); text-decoration:none; font-size:.92rem; }
+        h1 { font-size:1.35rem; margin:10px 0 2px; }
+        h2 { font-size:1.05rem; margin:0 0 10px; }
+        .sub { color: var(--muted-strong,#64748b); font-size:.88rem; margin:0 0 14px; line-height:1.55; }
+        .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:9px; margin-bottom:14px; }
+        .kpi { background: var(--surface,#fff); border:1px solid var(--border-strong,#e2e8f0);
+               border-radius:14px; padding:11px 8px; text-align:center; }
+        .kpi b { display:block; font-size:1.4rem; line-height:1.25; color:#2563eb; }
+        .kpi span { font-size:.74rem; color: var(--muted-strong,#64748b); }
+        .card { background: var(--surface,#fff); border:1px solid var(--border-strong,#e2e8f0);
+                border-radius:15px; padding:14px; margin-bottom:12px; }
+        .tabs { display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap; }
+        .tab { padding:9px 16px; border-radius:11px; border:1px solid var(--border-strong,#cbd5e1); cursor:pointer;
+               font:600 .92rem 'Kanit',sans-serif; background: var(--surface,#fff); color: var(--text-main,#0f172a); }
+        .tab.on { background:#2563eb; border-color:#2563eb; color:#fff; }
+        .tab .n { display:inline-block; min-width:20px; padding:0 6px; margin-left:4px; border-radius:99px;
+                  background:rgba(255,255,255,.25); font-size:.78rem; }
+        .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+        .toolbar select, .toolbar input { font-family:inherit; font-size:.92rem; padding:9px 11px;
+               border:1px solid var(--border-strong,#cbd5e1); border-radius:11px;
+               background: var(--surface,#fff); color: var(--text-main,#0f172a); }
+        .btn { padding:7px 11px; border:1px solid var(--border-strong,#cbd5e1); border-radius:10px; cursor:pointer;
+               font:600 .85rem 'Kanit',sans-serif; background:transparent; color: var(--text-main,#0f172a); }
+        .btn:disabled { opacity:.5; cursor:not-allowed; }
+        .btn-main { background: linear-gradient(135deg,#3b82f6,#2563eb); color:#fff; border:0; padding:10px 16px; font-size:.95rem; }
+        .btn-ok { background:#16a34a; color:#fff; border:0; }
+        .btn-bad { color:#dc2626; border-color:#fca5a5; }
+        .meta { font-size:.82rem; color: var(--muted-strong,#64748b); line-height:1.5; }
+        .pill { display:inline-block; padding:2px 10px; border-radius:99px; font-size:.78rem; font-weight:700;
+                background: rgba(37,99,235,.14); color:#2563eb; }
+        .pill.grn { background: rgba(22,163,74,.14); color:#16a34a; }
+        .pill.amb { background: rgba(217,119,6,.15); color:#d97706; }
+        .pill.red { background: rgba(220,38,38,.13); color:#dc2626; }
+        .pill.gry { background: rgba(100,116,139,.15); color: var(--muted-strong,#64748b); }
+        .loc { display:inline-block; padding:0 7px; border-radius:6px; background:#0f766e; color:#fff; font-weight:700; font-size:.78rem; }
+        .src { border:1px solid var(--border-strong,#e2e8f0); border-radius:14px; padding:12px; margin-bottom:12px; }
+        .src-head { display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:flex-start;
+                    padding-bottom:8px; border-bottom:1px dashed var(--border-strong,#e2e8f0); }
+        .src-size { font-size:1.15rem; font-weight:700; }
+        .line { display:flex; gap:14px; align-items:flex-start; padding:10px 0; border-bottom:1px dashed var(--border-strong,#e2e8f0); flex-wrap:wrap; }
+        .line:last-child { border-bottom:0; padding-bottom:0; }
+        .line.off { opacity:.45; }
+        .line .chk { width:22px; height:22px; margin-top:4px; accent-color:#2563eb; flex:0 0 auto; }
+        .line .pic { flex:0 0 auto; }
+        .line .pic svg { display:block; max-width:100%; height:auto; }
+        .line .info { flex:1 1 240px; min-width:0; }
+        .outs { margin:4px 0 0; padding:0; list-style:none; }
+        .outs li { font-size:.88rem; padding:2px 0; }
+        .outs b { font-size:.95rem; }
+        .sheets { display:flex; align-items:center; gap:6px; margin-top:8px; flex-wrap:wrap; }
+        .sheets input { width:80px; font:700 1rem 'Kanit',sans-serif; text-align:center; padding:7px 6px;
+                        border:1px solid var(--border-strong,#cbd5e1); border-radius:10px;
+                        background: var(--surface,#fff); color: var(--text-main,#0f172a); }
+        .empty { text-align:center; padding:26px 12px; color: var(--muted-strong,#64748b); }
+        .warn { color:#dc2626; font-size:.82rem; font-weight:600; }
+        .bar { position:fixed; left:0; right:0; bottom:0; z-index:50; background: var(--surface,#fff);
+               border-top:1px solid var(--border-strong,#e2e8f0); box-shadow:0 -8px 24px rgba(0,0,0,.08);
+               padding:10px 14px; display:none; }
+        .bar-in { max-width:1040px; margin:0 auto; display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+        .job { border:1px solid var(--border-strong,#e2e8f0); border-radius:14px; padding:12px; margin-bottom:12px; }
+        .job-head { display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:flex-start; }
+        .job-no { font-size:1.1rem; font-weight:700; }
+        .job-actions { display:flex; gap:6px; flex-wrap:wrap; }
+        .jl { display:flex; gap:12px; padding:10px 0; border-top:1px dashed var(--border-strong,#e2e8f0); margin-top:10px; flex-wrap:wrap; }
+        .jl .pic svg { display:block; max-width:100%; height:auto; }
+        .done-form { margin-top:10px; border:2px solid #16a34a; border-radius:12px; padding:10px; background: rgba(22,163,74,.05); }
+        .done-form .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:6px 0; font-size:.9rem; }
+        .done-form input { width:76px; font:700 .95rem 'Kanit',sans-serif; text-align:center; padding:6px;
+                           border:1px solid var(--border-strong,#cbd5e1); border-radius:9px;
+                           background: var(--surface,#fff); color: var(--text-main,#0f172a); }
+        details.set { margin-bottom:12px; }
+        details.set summary { cursor:pointer; font-weight:600; }
+        .set-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:8px 14px; margin-top:10px; }
+        .set-grid label { display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:.88rem; }
+        .set-grid input { width:80px; font:600 .92rem 'Kanit',sans-serif; text-align:center; padding:6px;
+                          border:1px solid var(--border-strong,#cbd5e1); border-radius:9px;
+                          background: var(--surface,#fff); color: var(--text-main,#0f172a); }
+        .left-row { display:flex; justify-content:space-between; gap:10px; padding:6px 2px; font-size:.86rem;
+                    border-bottom:1px solid var(--border-strong,#e2e8f0); }
+        .left-row:last-child { border-bottom:0; }
+        .toast { position:fixed; left:50%; bottom:80px; transform:translateX(-50%);
+                background:#0f172a; color:#fff; padding:12px 20px; border-radius:13px;
+                font-size:.92rem; z-index:9999; box-shadow:0 12px 30px rgba(0,0,0,.3);
+                max-width:calc(100vw - 32px); text-align:center; white-space:pre-line; }
+        #printArea { display:none; }
+        @media print {
+            @page { size: A4; margin: 10mm; }
+            body { background:#fff !important; color:#000 !important; }
+            .shell, .bar, .toast, #user-display-area, nav, header, .navbar, .menu-btn, .theme-toggle-button { display:none !important; }
+            #printArea { display:block !important; font-family:'Kanit',sans-serif; color:#000; }
+            #printArea h1 { font-size:18pt; margin:0 0 2mm; }
+            #printArea .pm { font-size:10pt; margin:0 0 4mm; }
+            #printArea .pl { border:1px solid #000; border-radius:3mm; padding:3mm; margin-bottom:4mm; page-break-inside:avoid; display:flex; gap:5mm; }
+            #printArea .pl svg { width:70mm; height:auto; }
+            #printArea table { border-collapse:collapse; font-size:11pt; margin-top:2mm; }
+            #printArea td, #printArea th { border:1px solid #000; padding:1.2mm 2.5mm; text-align:left; }
+            #printArea .sign { display:flex; gap:20mm; margin-top:10mm; font-size:11pt; }
+        }
+    </style>
+    <link rel="stylesheet" href="mobile-fit.css?v=20261112-1">
+</head>
+<body>
+    <div class="shell">
+        <a href="stock_management.html" class="back">← กลับหน้าจัดการสต็อก</a>
+        <h1>✂️ ตัดกระจกส่วนเกิน</h1>
+        <p class="sub">ระบบหากระจกขนาดที่มีเกินความต้องการ แล้วแนะนำให้ตัดเป็นขนาดที่ใช้บ่อยและใกล้หมด (สีเดียวกัน · หน้าต่าง+ประตูตัดข้ามกันได้ · บานกระทุ้ง/บานเปิดตัดแยก)<br>
+            ความต้องการคิดจากออเดอร์จริงย้อนหลัง × สูตรวัสดุ · ยอดสต็อกเปลี่ยนเมื่อกด <b>✅ ตัดเสร็จ</b> เท่านั้น</p>
+
+        <div id="user-display-area"></div>
+
+        <div class="kpis">
+            <div class="kpi"><b id="kExcess" style="color:#d97706">-</b><span>แผ่นที่เกิน (แผ่น)</span></div>
+            <div class="kpi"><b id="kNeed" style="color:#dc2626">-</b><span>ขนาดใช้บ่อยที่ใกล้หมด</span></div>
+            <div class="kpi"><b id="kPlan" style="color:#16a34a">-</b><span>แนะนำให้ตัด (แผ่น)</span></div>
+            <div class="kpi"><b id="kPending">-</b><span>ใบสั่งตัดรอตัด</span></div>
+        </div>
+
+        <div class="tabs">
+            <button type="button" class="tab on" data-tab="sug">💡 แนะนำ</button>
+            <button type="button" class="tab" data-tab="jobs">📋 ใบสั่งตัด <span class="n" id="nPending">0</span></button>
+        </div>
+
+        <!-- ───────── แท็บแนะนำ ───────── -->
+        <div id="tabSug">
+            <details class="card set" id="setBox">
+                <summary>⚙️ เกณฑ์การคิด <span class="meta" id="setSummary"></span></summary>
+                <div class="set-grid">
+                    <label>ดูออเดอร์ย้อนหลัง (วัน) <input type="number" min="7" max="365" data-set="histDays"></label>
+                    <label>เก็บไว้ให้พอใช้ (วัน) <input type="number" min="1" max="720" data-set="keepDays"></label>
+                    <label>เก็บไว้ไม่ต่ำกว่า (แผ่น) <input type="number" min="0" max="500" data-set="minKeep"></label>
+                    <label>ตัดเติมให้พอใช้ (วัน) <input type="number" min="1" max="720" data-set="targetDays"></label>
+                    <label>รุ่นใหม่ขายไม่ถึง (วัน) ยังไม่แตะ <input type="number" min="0" max="365" data-set="newDays"></label>
+                    <label>ใช้เนื้อกระจกไม่ต่ำกว่า (%) <input type="number" min="30" max="100" data-set="minUtil"></label>
+                </div>
+                <div class="toolbar" style="margin-top:10px;margin-bottom:0;">
+                    <button type="button" class="btn btn-main" id="btnSetApply">🔄 คิดใหม่</button>
+                    <button type="button" class="btn" id="btnSetReset">ใช้ค่าเริ่มต้น</button>
+                    <span class="meta">ตั้งค่าเก็บในเครื่องนี้ · ตัวอย่าง: ขายวันละ 0.2 แผ่น เก็บ 90 วัน = 18 แผ่น ที่เกินจากนี้ถือว่าเกิน</span>
+                </div>
+            </details>
+
+            <div class="card">
+                <div class="toolbar">
+                    <select id="fColor"><option value="">ทุกสี</option></select>
+                    <select id="fGroup">
+                        <option value="">ทุกกลุ่ม</option>
+                        <option value="SLIDE">บานเลื่อน (หน้าต่าง+ประตู)</option>
+                        <option value="GLS">บานกระทุ้ง/บานเปิด</option>
+                    </select>
+                    <button type="button" class="btn" id="btnAll">☑️ เลือกทั้งหมด</button>
+                    <button type="button" class="btn" id="btnNone">⬜ ไม่เลือกเลย</button>
+                </div>
+                <div id="sugList"><div class="empty">กำลังโหลด...</div></div>
+            </div>
+
+            <div class="card">
+                <h2>📦 แผ่นที่ยังเกิน แต่ยังไม่มีขนาดที่ควรตัดให้</h2>
+                <p class="meta" style="margin:-4px 0 8px;">ขนาดเล็กกว่าในสีเดียวกันมีพอใช้แล้ว หรือตัดแล้วเหลือเศษเยอะเกิน — เก็บไว้ก่อน</p>
+                <div id="leftList"><div class="empty">-</div></div>
+            </div>
+        </div>
+
+        <!-- ───────── แท็บใบสั่งตัด ───────── -->
+        <div id="tabJobs" style="display:none;">
+            <div class="card">
+                <div class="toolbar">
+                    <select id="fStatus">
+                        <option value="pending">⏳ รอตัด</option>
+                        <option value="done">✅ ตัดเสร็จ</option>
+                        <option value="cancelled">❌ ยกเลิก</option>
+                        <option value="">ทั้งหมด</option>
+                    </select>
+                    <button type="button" class="btn" id="btnReload">🔄 โหลดใหม่</button>
+                </div>
+                <div id="jobList"><div class="empty">กำลังโหลด...</div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bar" id="bar"><div class="bar-in">
+        <div><b id="barText">-</b><div class="meta" id="barSub"></div></div>
+        <button type="button" class="btn btn-main" id="btnCreate">✂️ สร้างใบสั่งตัด</button>
+    </div></div>
+
+    <div id="printArea"></div>
+
+<script>
+    const G = window.GlassRecut;
+    const SET_KEY = 'ccga.glassRecut.settings';
+    let db = null, canAct = false;
+    let items = [], demand = [], demandDays = null, jobs = [], stats = [], byCode = {};
+    let sugs = [], leftovers = [];
+    let busy = false;
+
+    function esc(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+    }
+    function toast(msg, ms) {
+        const t = document.createElement('div');
+        t.className = 'toast'; t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), ms || 3200);
+    }
+    function fmtDate(v) {
+        return v ? new Date(v).toLocaleString('th-TH', { hour12:false, day:'2-digit', month:'short', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '-';
+    }
+    function num(n) { return Number(n || 0).toLocaleString('th-TH'); }
+    function settings() {
+        let s = {};
+        try { s = JSON.parse(localStorage.getItem(SET_KEY) || '{}') || {}; } catch (e) { s = {}; }
+        return Object.assign({}, G.DEFAULTS, s);
+    }
+    function saveSettings(s) { try { localStorage.setItem(SET_KEY, JSON.stringify(s)); } catch (e) {} }
+    // ชื่อสั้นของกระจก: "หน้าต่าง เขียว 97.5×44.6"
+    function label(code) {
+        const p = G.parse(code);
+        if (!p) return code;
+        return p.kind + ' ' + p.color + ' ' + G.sizeText(p);
+    }
+    function sizeOf(code) { const p = G.parse(code); return p ? G.sizeText(p) : code; }
+    function kindOf(code) { const p = G.parse(code); return p ? p.kind : ''; }
+    function daysText(x) {
+        if (!x || !(x.daily > 0)) return 'ไม่มีออเดอร์ใช้ในช่วงนี้';
+        const d = x.qty / x.daily;
+        return 'ใช้ ~' + (Math.round(x.daily * 30 * 10) / 10) + ' แผ่น/เดือน · มีพอ ' + (d >= 999 ? '999+' : Math.floor(d)) + ' วัน';
+    }
+
+    // ───────── โหลดข้อมูล (ทีละ 1,000 แถว) ─────────
+    async function fetchAll(build) {
+        const out = [];
+        for (let from = 0; from < 20000; from += 1000) {
+            const { data, error } = await build().range(from, from + 999);
+            if (error) throw error;
+            out.push(...(data || []));
+            if (!data || data.length < 1000) break;
+        }
+        return out;
+    }
+    async function loadItems() {
+        items = await fetchAll(() => db.from('stock_items')
+            .select('id, product_code, product_name, quantity, storage_location')
+            .eq('category', 'glass').order('product_code'));
+    }
+    async function loadDemand(days) {
+        demand = await fetchAll(() => db.rpc('rpc_glass_demand', { p_days: days }).order('product_code'));
+        demandDays = days;
+    }
+    async function loadJobs() {
+        const { data, error } = await db.from('glass_recut_jobs').select('*')
+            .order('created_at', { ascending: false }).limit(300);
+        if (error) throw error;
+        jobs = data || [];
+    }
+
+    async function loadAll() {
+        const s = settings();
+        document.getElementById('sugList').innerHTML = '<div class="empty">กำลังโหลดยอดกระจกและออเดอร์ย้อนหลัง...</div>';
+        try {
+            await Promise.all([loadItems(), loadDemand(s.histDays), loadJobs()]);
+        } catch (e) {
+            const msg = esc(e.message || e);
+            document.getElementById('sugList').innerHTML = '<div class="empty">❌ โหลดข้อมูลไม่สำเร็จ: ' + msg
+                + (/rpc_glass_demand|glass_recut_jobs|schema cache/.test(msg) ? '<br><small>ฐานข้อมูลยังไม่ได้ติดตั้งระบบตัดกระจก (glass-recut-step1.sql)</small>' : '') + '</div>';
+            document.getElementById('jobList').innerHTML = '<div class="empty">-</div>';
+            return;
+        }
+        compute();
+        renderJobs();
+    }
+
+    // ───────── คิดแผนแนะนำ ─────────
+    function compute() {
+        const s = settings();
+        document.getElementById('sugList').innerHTML = '<div class="empty">กำลังคิดผังตัด...</div>';
+        setTimeout(() => {
+            const pending = jobs.filter(j => j.status === 'pending');
+            stats = G.analyze(items, demand, pending, s);
+            byCode = {};
+            stats.forEach(x => { byCode[x.code] = x; });
+            const p = G.plan(stats, s);
+            sugs = p.suggestions.map((x, i) => Object.assign(x, { idx: i, on: false }));
+            leftovers = p.leftovers;
+            fillColors();
+            renderSettings();
+            renderSugs();
+            renderKpis();
+        }, 30);
+    }
+
+    function fillColors() {
+        const sel = document.getElementById('fColor');
+        const cur = sel.value;
+        const colors = [...new Set(stats.map(x => x.color))].sort();
+        sel.innerHTML = '<option value="">ทุกสี</option>' + colors.map(c => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join('');
+        sel.value = colors.includes(cur) ? cur : '';
+    }
+
+    function renderSettings() {
+        const s = settings();
+        document.querySelectorAll('[data-set]').forEach(i => { i.value = s[i.dataset.set]; });
+        document.getElementById('setSummary').textContent = '· ย้อนหลัง ' + s.histDays + ' วัน · เก็บ ' + s.keepDays + ' วัน (≥' + s.minKeep
+            + ' แผ่น) · เติมให้พอ ' + s.targetDays + ' วัน · ใช้เนื้อ ≥' + s.minUtil + '%';
+    }
+
+    function renderKpis() {
+        const pend = jobs.filter(j => j.status === 'pending').length;
+        document.getElementById('kExcess').textContent = num(stats.reduce((a, x) => a + x.excess, 0));
+        document.getElementById('kNeed').textContent = num(stats.filter(x => x.need > 0).length);
+        document.getElementById('kPlan').textContent = num(sugs.reduce((a, x) => a + x.maxSheets, 0));
+        document.getElementById('kPending').textContent = num(pend);
+        document.getElementById('nPending').textContent = pend;
+    }
+
+    function shownSugs() {
+        const c = document.getElementById('fColor').value, g = document.getElementById('fGroup').value;
+        return sugs.filter(x => (!c || x.color === c) && (!g || x.group === g));
+    }
+
+    function renderSugs() {
+        const box = document.getElementById('sugList');
+        const list = shownSugs();
+        if (!list.length) {
+            box.innerHTML = '<div class="empty">' + (sugs.length ? 'ไม่มีรายการตามที่เลือก' : '✅ ตอนนี้ไม่มีกระจกที่ควรตัด<br><small>ขนาดที่เกินไม่มีขนาดเล็กกว่าที่ต้องการ หรือขนาดที่ใช้บ่อยมีพอแล้ว</small>') + '</div>';
+        } else {
+            const bySrc = [];
+            const idx = {};
+            list.forEach(x => {
+                if (!(x.source in idx)) { idx[x.source] = bySrc.length; bySrc.push({ src: x.source, lines: [] }); }
+                bySrc[idx[x.source]].lines.push(x);
+            });
+            box.innerHTML = bySrc.map(g => {
+                const st = byCode[g.src] || {};
+                const total = g.lines.reduce((a, l) => a + l.maxSheets, 0);
+                return '<div class="src"><div class="src-head"><div>'
+                    + '<div class="src-size">ตัดจาก ' + esc(label(g.src)) + ' ซม.</div>'
+                    + '<div class="meta">' + esc(g.src) + (st.loc ? ' · <span class="loc">📍 ' + esc(st.loc) + '</span>' : '') + '</div>'
+                    + '<div class="meta">มี <b>' + num(st.qty) + '</b> แผ่น · ' + esc(daysText(st)) + ' · เก็บไว้ ' + num(st.keep) + ' แผ่น'
+                    + (st.reserved ? ' · จองในใบอื่น ' + num(st.reserved) : '') + '</div></div>'
+                    + '<div style="text-align:right"><span class="pill amb">เกิน ' + num(st.excess) + ' แผ่น</span>'
+                    + '<div class="meta" style="margin-top:4px;">แนะนำตัด ' + num(total) + ' แผ่น · ' + g.lines.length + ' แบบ</div>'
+                    + (canAct ? '<button type="button" class="btn" style="margin-top:6px;" data-pick="' + esc(g.src) + '">☑️ เลือกทั้งแผ่นนี้</button>' : '')
+                    + '</div></div>'
+                    + g.lines.map(lineHtml).join('')
+                    + '</div>';
+            }).join('');
+        }
+        const lb = document.getElementById('leftList');
+        const c = document.getElementById('fColor').value, gg = document.getElementById('fGroup').value;
+        const left = leftovers.filter(l => (!c || l.color === c) && (!gg || (byCode[l.code] || {}).group === gg));
+        lb.innerHTML = left.length ? left.map(l => {
+            const st = byCode[l.code] || {};
+            return '<div class="left-row"><div><b>' + esc(label(l.code)) + '</b><div class="meta">' + esc(daysText(st)) + '</div></div>'
+                + '<div style="text-align:right;white-space:nowrap;">มี ' + num(l.qty) + ' · ยังเกิน <b>' + num(l.sheets) + '</b></div></div>';
+        }).join('') : '<div class="empty">ไม่มี</div>';
+        updateBar();
+    }
+
+    function lineHtml(x) {
+        const outs = x.outputs.map(o => {
+            const t = byCode[o.code] || {};
+            return '<li>✂️ <b>' + esc(sizeOf(o.code)) + '</b> <span class="meta">' + esc(kindOf(o.code)) + '</span> × ' + o.per_sheet + ' ชิ้น/แผ่น'
+                + ' <span class="meta">→ ได้ <b class="tot" data-per="' + o.per_sheet + '">' + num(o.per_sheet * x.sheets) + '</b> ชิ้น'
+                + ' · ตอนนี้มี ' + num(t.qty) + (t.daily > 0 ? ' · ใช้ ~' + (Math.round(t.daily * 30 * 10) / 10) + '/เดือน' : '') + '</span></li>';
+        }).join('');
+        return '<div class="line' + (x.on ? '' : ' off') + '" data-idx="' + x.idx + '">'
+            + (canAct ? '<input type="checkbox" class="chk" data-chk="' + x.idx + '"' + (x.on ? ' checked' : '') + ' aria-label="เลือกแผนนี้">' : '')
+            + '<div class="pic">' + G.svg(x.a, x.b, x.rects, { width: 200 }) + '</div>'
+            + '<div class="info"><div><span class="pill grn">ใช้เนื้อกระจก ' + Math.round(x.util * 100) + '%</span></div>'
+            + '<ul class="outs">' + outs + '</ul>'
+            + '<div class="sheets"><span>ตัด</span>'
+            + (canAct ? '<input type="number" min="1" step="1" inputmode="numeric" data-sheets="' + x.idx + '" value="' + x.sheets + '">'
+                      : '<b>' + x.sheets + '</b>')
+            + '<span>แผ่น</span><span class="meta">(แนะนำ ' + x.maxSheets + ')</span></div>'
+            + '<div class="warn" data-warn="' + x.idx + '"></div>'
+            + '</div></div>';
+    }
+
+    // ตรวจว่าแผ่นต้นทางพอ (รวมทุกแผนของแผ่นเดียวกันที่เลือกไว้)
+    function checkSources() {
+        const used = {};
+        sugs.filter(x => x.on).forEach(x => { used[x.source] = (used[x.source] || 0) + x.sheets; });
+        const bad = {};
+        Object.keys(used).forEach(src => {
+            const st = byCode[src] || {};
+            const free = (st.qty || 0) - (st.reserved || 0);
+            if (used[src] > free) bad[src] = 'แผ่นนี้ใช้ได้ ' + free + ' แผ่น แต่เลือกไว้รวม ' + used[src] + ' แผ่น';
+        });
+        return bad;
+    }
+
+    function updateBar() {
+        const bar = document.getElementById('bar');
+        const tabSug = document.getElementById('tabSug').style.display !== 'none';
+        const on = sugs.filter(x => x.on);
+        const tg = document.getElementById('themeToggleButton');
+        if (!canAct || !tabSug || !sugs.length) { bar.style.display = 'none'; if (tg) tg.style.bottom = ''; return; }
+        bar.style.display = 'block';
+        if (tg) tg.style.bottom = (bar.offsetHeight + 12) + 'px';   // ปุ่มโหมดสว่าง/มืด ไม่ทับแถบล่าง
+        const sheets = on.reduce((a, x) => a + x.sheets, 0);
+        const pieces = on.reduce((a, x) => a + x.outputs.reduce((b, o) => b + o.per_sheet * x.sheets, 0), 0);
+        document.getElementById('barText').textContent = on.length ? 'เลือก ' + on.length + ' แผน · ใช้ ' + num(sheets) + ' แผ่น → ได้ ' + num(pieces) + ' ชิ้น' : 'ยังไม่ได้เลือกแผน';
+        const bad = checkSources();
+        document.querySelectorAll('[data-warn]').forEach(el => {
+            const x = sugs[Number(el.dataset.warn)];
+            el.textContent = x && x.on && bad[x.source] ? '⚠️ ' + bad[x.source] : '';
+        });
+        const nBad = Object.keys(bad).length, tooMany = on.length > 100;
+        document.getElementById('barSub').textContent = nBad ? '⚠️ มี ' + nBad + ' แผ่นที่เลือกเกินยอด — แก้จำนวนก่อน'
+            : tooMany ? '⚠️ ใบสั่งตัด 1 ใบได้ไม่เกิน 100 แผน — เลือกน้อยลง หรือแบ่งทำหลายใบ'
+            : on.length ? 'ยอดยังไม่เปลี่ยนจนกว่าจะกด ✅ ตัดเสร็จ ในใบสั่งตัด' : 'ติ๊กแผนที่จะตัด หรือกด "เลือกทั้งแผ่นนี้" ที่หัวการ์ด';
+        document.getElementById('btnCreate').disabled = !on.length || nBad > 0 || tooMany || busy;
+    }
+
+    async function createJob() {
+        const on = sugs.filter(x => x.on && x.sheets > 0);
+        if (!on.length) return;
+        if (Object.keys(checkSources()).length) { toast('มีแผ่นที่เลือกเกินยอด — แก้จำนวนก่อน'); return; }
+        if (on.length > 100) { toast('ใบสั่งตัด 1 ใบได้ไม่เกิน 100 แผน'); return; }
+        const sum = on.map(x => '• ' + label(x.source) + ' ' + x.sheets + ' แผ่น → '
+            + x.outputs.map(o => sizeOf(o.code) + ' ×' + (o.per_sheet * x.sheets)).join(', ')).join('\n');
+        const note = prompt('สร้างใบสั่งตัด ' + on.length + ' รายการ\n\n' + (sum.length > 900 ? sum.slice(0, 900) + '\n…' : sum)
+            + '\n\nหมายเหตุ (ไม่บังคับ) แล้วกด OK เพื่อสร้างใบ:', '');
+        if (note === null) return;
+        const lines = on.map(x => ({
+            source: x.source, sheets: x.sheets,
+            outputs: x.outputs.map(o => ({ code: o.code, per_sheet: o.per_sheet })),
+            sheet: { a: x.a, b: x.b }, util: Math.round(x.util * 1000) / 10,
+            layout: x.rects.map(r => ({ x: +r.x.toFixed(3), y: +r.y.toFixed(3), w: r.w, h: r.h, code: r.code }))
+        }));
+        busy = true; updateBar();
+        const { data, error } = await db.rpc('rpc_glass_recut_create', { p_lines: lines, p_note: note.trim() || null });
+        busy = false;
+        if (error) { toast('❌ ' + error.message, 7000); updateBar(); return; }
+        toast('✅ สร้างใบ ' + data.job_no + ' แล้ว — พิมพ์ใบให้ช่างตัดได้เลย', 4500);
+        await loadJobs();
+        document.getElementById('fStatus').value = 'pending';
+        compute();
+        renderJobs();
+        switchTab('jobs');
+    }
+
+    // ───────── ใบสั่งตัด ─────────
+    const STATUS = { pending: ['⏳ รอตัด', 'amb'], done: ['✅ ตัดเสร็จ', 'grn'], cancelled: ['❌ ยกเลิก', 'gry'] };
+    function jobLineHtml(l, i, j) {
+        const done = j.status === 'done' && Array.isArray(j.done_lines) ? j.done_lines[i] : null;
+        const sh = l.sheet || G.parse(l.source) || {};
+        const outs = (l.outputs || []).map(o => {
+            const got = done ? ((done.outputs || []).find(d => d.code === o.code) || {}).qty : null;
+            return '<li>✂️ <b>' + esc(sizeOf(o.code)) + '</b> <span class="meta">' + esc(kindOf(o.code)) + '</span> × ' + o.per_sheet + '/แผ่น = '
+                + (o.per_sheet * l.sheets) + ' ชิ้น' + (done ? ' <span class="pill grn">ได้จริง ' + num(got || 0) + '</span>' : '') + '</li>';
+        }).join('');
+        return '<div class="jl"><div class="pic">' + (Array.isArray(l.layout) && sh.a ? G.svg(sh.a, sh.b, l.layout, { width: 170 }) : '') + '</div>'
+            + '<div class="info" style="flex:1 1 220px;"><div><b>' + esc(label(l.source)) + '</b> × <b>' + l.sheets + '</b> แผ่น'
+            + (done ? ' <span class="pill grn">ใช้จริง ' + num(done.sheets_used) + '</span>' : '') + '</div>'
+            + '<div class="meta">' + esc(l.source) + ((byCode[l.source] || {}).loc ? ' · <span class="loc">📍 ' + esc(byCode[l.source].loc) + '</span>' : '') + '</div>'
+            + '<ul class="outs">' + outs + '</ul></div></div>';
+    }
+
+    function renderJobs() {
+        const f = document.getElementById('fStatus').value;
+        const list = jobs.filter(j => !f || j.status === f);
+        const box = document.getElementById('jobList');
+        if (!list.length) { box.innerHTML = '<div class="empty">ไม่มีใบสั่งตัด' + (f === 'pending' ? 'ที่รอตัด' : '') + '</div>'; return; }
+        box.innerHTML = list.map(j => {
+            const st = STATUS[j.status] || [j.status, 'gry'];
+            const lines = Array.isArray(j.lines) ? j.lines : [];
+            const sheets = lines.reduce((a, l) => a + (Number(l.sheets) || 0), 0);
+            return '<div class="job" data-job="' + j.id + '"><div class="job-head"><div>'
+                + '<div class="job-no">' + esc(j.job_no) + ' <span class="pill ' + st[1] + '">' + st[0] + '</span></div>'
+                + '<div class="meta">สร้าง ' + fmtDate(j.created_at) + ' · ' + esc(j.created_by || '-') + ' · ' + lines.length + ' รายการ ' + num(sheets) + ' แผ่น</div>'
+                + (j.note ? '<div class="meta">📝 ' + esc(j.note) + '</div>' : '')
+                + (j.status === 'done' ? '<div class="meta">✅ ตัดเสร็จ ' + fmtDate(j.done_at) + ' · ' + esc(j.done_by || '-') + '</div>' : '')
+                + (j.status === 'cancelled' ? '<div class="meta">❌ ยกเลิก ' + fmtDate(j.cancelled_at) + ' · ' + esc(j.cancelled_by || '-') + (j.cancel_reason ? ' · ' + esc(j.cancel_reason) : '') + '</div>' : '')
+                + '</div><div class="job-actions">'
+                + '<button type="button" class="btn" data-print="' + j.id + '">🖨️ พิมพ์</button>'
+                + (canAct && j.status === 'pending' ? '<button type="button" class="btn btn-ok" data-done="' + j.id + '">✅ ตัดเสร็จ</button>'
+                    + '<button type="button" class="btn btn-bad" data-cancel="' + j.id + '">❌ ยกเลิกใบ</button>' : '')
+                + '</div></div>'
+                + lines.map((l, i) => jobLineHtml(l, i, j)).join('')
+                + '<div class="done-slot"></div></div>';
+        }).join('');
+    }
+
+    function openDone(id) {
+        const j = jobs.find(x => x.id === id);
+        const card = document.querySelector('[data-job="' + id + '"]');
+        if (!j || !card) return;
+        const slot = card.querySelector('.done-slot');
+        if (slot.innerHTML) { slot.innerHTML = ''; return; }
+        slot.innerHTML = '<div class="done-form"><b>✅ บันทึกที่ตัดได้จริง</b>'
+            + '<div class="meta">ใส่จำนวนจริง — ถ้าแตกหรือตัดไม่ครบ ให้ลดจำนวนลง (ใส่เกินแผนไม่ได้) · แผ่นที่ไม่ได้ใช้ใส่ 0</div>'
+            + j.lines.map((l, i) => '<div style="margin-top:8px;padding-top:6px;border-top:1px dashed var(--border-strong,#e2e8f0);">'
+                + '<div class="row"><b>' + esc(label(l.source)) + '</b> ใช้ไป <input type="number" min="0" max="' + l.sheets + '" step="1" inputmode="numeric" data-used="' + i + '" value="' + l.sheets + '"> แผ่น <span class="meta">(แผน ' + l.sheets + ')</span></div>'
+                + l.outputs.map(o => '<div class="row" style="padding-left:14px;">✂️ ' + esc(sizeOf(o.code)) + ' <span class="meta">' + esc(kindOf(o.code)) + '</span> ได้ '
+                    + '<input type="number" min="0" step="1" inputmode="numeric" data-line="' + i + '" data-code="' + esc(o.code) + '" data-per="' + o.per_sheet + '" value="' + (o.per_sheet * l.sheets) + '"> ชิ้น'
+                    + ' <span class="meta" data-max="' + i + '">(สูงสุด ' + (o.per_sheet * l.sheets) + ')</span></div>').join('')
+                + '</div>').join('')
+            + '<div class="row" style="justify-content:flex-end;margin-top:10px;"><button type="button" class="btn" data-close="1">ปิด</button>'
+            + '<button type="button" class="btn btn-ok" data-save="' + id + '">💾 บันทึก ตัดเสร็จ (ปรับยอดสต็อก)</button></div></div>';
+        // เปลี่ยนจำนวนแผ่นที่ใช้ → ปรับจำนวนชิ้นตามให้
+        slot.querySelectorAll('[data-used]').forEach(inp => inp.addEventListener('input', () => {
+            const i = inp.dataset.used, u = Math.max(0, parseInt(inp.value, 10) || 0);
+            slot.querySelectorAll('[data-line="' + i + '"]').forEach(o => { o.value = u * Number(o.dataset.per); });
+            slot.querySelectorAll('[data-max="' + i + '"]').forEach((m, k) => {
+                const o = slot.querySelectorAll('[data-line="' + i + '"]')[k];
+                m.textContent = '(สูงสุด ' + (u * Number(o.dataset.per)) + ')';
+            });
+        }));
+    }
+
+    async function saveDone(id, btn) {
+        const j = jobs.find(x => x.id === id);
+        const card = document.querySelector('[data-job="' + id + '"]');
+        if (!j || !card) return;
+        const done = [];
+        const isInt = v => /^\d+$/.test(String(v).trim());
+        for (let i = 0; i < j.lines.length; i++) {
+            const l = j.lines[i];
+            const uEl = card.querySelector('[data-used="' + i + '"]');
+            if (!isInt(uEl.value)) { toast('จำนวนแผ่นต้องเป็นเลข 0 ขึ้นไป'); uEl.focus(); return; }
+            const used = parseInt(uEl.value, 10);
+            if (used > l.sheets) { toast(label(l.source) + ': ใช้ได้ไม่เกิน ' + l.sheets + ' แผ่น'); uEl.focus(); return; }
+            const outs = [];
+            for (const o of card.querySelectorAll('[data-line="' + i + '"]')) {
+                if (!isInt(o.value)) { toast('จำนวนชิ้นต้องเป็นเลข 0 ขึ้นไป'); o.focus(); return; }
+                const q = parseInt(o.value, 10), max = used * Number(o.dataset.per);
+                if (q > max) { toast(sizeOf(o.dataset.code) + ': ได้ไม่เกิน ' + max + ' ชิ้น'); o.focus(); return; }
+                outs.push({ code: o.dataset.code, qty: q });
+            }
+            done.push({ sheets_used: used, outputs: outs });
+        }
+        const totalUsed = done.reduce((a, d) => a + d.sheets_used, 0);
+        if (!totalUsed) { toast('ยังไม่ได้ใช้แผ่นไหนเลย — ถ้าไม่ตัดแล้วให้กด ❌ ยกเลิกใบ'); return; }
+        const txt = j.lines.map((l, i) => '• ' + label(l.source) + ' −' + done[i].sheets_used + ' แผ่น\n'
+            + done[i].outputs.filter(o => o.qty > 0).map(o => '   + ' + sizeOf(o.code) + ' ' + o.qty + ' ชิ้น').join('\n')).join('\n');
+        if (!confirm('ยืนยันตัดเสร็จ ' + j.job_no + ' — ระบบจะปรับยอดสต็อกทันที\n\n' + (txt.length > 1200 ? txt.slice(0, 1200) + '\n…' : txt))) return;
+        btn.disabled = true;
+        const { data, error } = await db.rpc('rpc_glass_recut_complete', { p_id: id, p_done: done });
+        if (error) { btn.disabled = false; toast('❌ ' + error.message, 7000); return; }
+        toast('✅ ' + data.job_no + ' ตัดเสร็จ · ใช้ ' + data.sheets + ' แผ่น ได้ ' + data.pieces + ' ชิ้น · ปรับยอดแล้ว', 5000);
+        await Promise.all([loadItems(), loadJobs()]);
+        compute();
+        renderJobs();
+    }
+
+    async function cancelJob(id) {
+        const j = jobs.find(x => x.id === id);
+        if (!j) return;
+        const r = prompt('ยกเลิกใบ ' + j.job_no + ' (ยังไม่ได้ตัด ยอดไม่เปลี่ยน)\nเหตุผล:', '');
+        if (r === null) return;
+        const { error } = await db.rpc('rpc_glass_recut_cancel', { p_id: id, p_reason: r.trim() || null });
+        if (error) { toast('❌ ' + error.message, 6000); return; }
+        toast('ยกเลิกใบ ' + j.job_no + ' แล้ว');
+        await loadJobs();
+        compute();
+        renderJobs();
+    }
+
+    function printJob(id) {
+        const j = jobs.find(x => x.id === id);
+        if (!j) return;
+        const lines = Array.isArray(j.lines) ? j.lines : [];
+        const sheets = lines.reduce((a, l) => a + (Number(l.sheets) || 0), 0);
+        document.getElementById('printArea').innerHTML = '<h1>✂️ ใบสั่งตัดกระจก ' + esc(j.job_no) + '</h1>'
+            + '<div class="pm">สร้าง ' + fmtDate(j.created_at) + ' โดย ' + esc(j.created_by || '-') + ' · ' + lines.length + ' รายการ ' + sheets + ' แผ่น'
+            + (j.note ? ' · หมายเหตุ: ' + esc(j.note) : '') + ' · หน่วย ซม. · ตัดตรงทะลุแผ่นทีละเส้น</div>'
+            + lines.map((l, i) => {
+                const sh = l.sheet || G.parse(l.source) || {};
+                const loc = (byCode[l.source] || {}).loc;
+                return '<div class="pl"><div>' + (Array.isArray(l.layout) && sh.a ? G.svg(sh.a, sh.b, l.layout, { width: 260, print: true }) : '') + '</div>'
+                    + '<div style="flex:1"><div style="font-size:13pt;font-weight:700;">' + (i + 1) + '. เบิก ' + esc(label(l.source)) + ' จำนวน ' + l.sheets + ' แผ่น</div>'
+                    + '<div style="font-size:9.5pt;">' + esc(l.source) + (loc ? ' · ช่อง ' + esc(loc) : '') + '</div>'
+                    + '<table><tr><th>ตัดได้ขนาด</th><th>ต่อแผ่น</th><th>รวม</th><th>ได้จริง</th></tr>'
+                    + l.outputs.map(o => '<tr><td>' + esc(kindOf(o.code)) + ' ' + esc(sizeOf(o.code)) + '</td><td>' + o.per_sheet + '</td><td>' + (o.per_sheet * l.sheets) + '</td><td style="min-width:18mm"></td></tr>').join('')
+                    + '</table><div style="font-size:10pt;margin-top:2mm;">ใช้แผ่นจริง ______ แผ่น · แตก/เสีย ______ ชิ้น</div></div></div>';
+            }).join('')
+            + '<div class="sign"><div>ผู้ตัด ______________________</div><div>ผู้ตรวจ ______________________</div><div>วันที่ ____________</div></div>';
+        setTimeout(() => window.print(), 50);
+    }
+
+    function switchTab(t) {
+        document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+        document.getElementById('tabSug').style.display = t === 'sug' ? '' : 'none';
+        document.getElementById('tabJobs').style.display = t === 'jobs' ? '' : 'none';
+        updateBar();
+    }
+
+    window.addEventListener('auth-ready', () => {
+        db = window.auth && window.auth.supabase;
+        if (!db) { document.getElementById('sugList').innerHTML = '<div class="empty">❌ เชื่อมต่อฐานข้อมูลไม่ได้</div>'; return; }
+        const perms = window.auth.pagePermissions || [];
+        canAct = window.auth.role === 'Ceo' || perms.some(p => p.page_key === 'action_glass_recut' && p.can_access === true);
+        if (!canAct) document.querySelector('.sub').insertAdjacentHTML('beforeend', '<br><span class="pill gry">👁️ ดูอย่างเดียว — สร้างใบ/กดตัดเสร็จ ต้องมีสิทธิ์ "✂️ ตัดกระจกส่วนเกิน"</span>');
+        renderSettings();
+        loadAll();
+
+        document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+        document.getElementById('fColor').addEventListener('change', renderSugs);
+        document.getElementById('fGroup').addEventListener('change', renderSugs);
+        document.getElementById('fStatus').addEventListener('change', renderJobs);
+        document.getElementById('btnReload').addEventListener('click', async () => { await loadAll(); });
+        document.getElementById('btnAll').addEventListener('click', () => { shownSugs().forEach(x => { x.on = true; }); renderSugs(); });
+        document.getElementById('btnNone').addEventListener('click', () => { shownSugs().forEach(x => { x.on = false; }); renderSugs(); });
+        document.getElementById('btnCreate').addEventListener('click', createJob);
+        document.getElementById('btnSetApply').addEventListener('click', async () => {
+            const s = settings();
+            for (const i of document.querySelectorAll('[data-set]')) {
+                const v = Number(i.value);
+                if (!Number.isFinite(v) || v < Number(i.min) || v > Number(i.max)) { toast('ค่าต้องอยู่ระหว่าง ' + i.min + '–' + i.max); i.focus(); return; }
+                s[i.dataset.set] = Math.round(v);
+            }
+            saveSettings(s);
+            if (s.histDays !== demandDays) {
+                document.getElementById('sugList').innerHTML = '<div class="empty">กำลังโหลดออเดอร์ย้อนหลัง ' + s.histDays + ' วัน...</div>';
+                try { await loadDemand(s.histDays); } catch (e) { toast('❌ ' + e.message, 6000); return; }
+            }
+            compute();
+        });
+        document.getElementById('btnSetReset').addEventListener('click', async () => {
+            try { localStorage.removeItem(SET_KEY); } catch (e) {}
+            renderSettings();
+            if (G.DEFAULTS.histDays !== demandDays) { try { await loadDemand(G.DEFAULTS.histDays); } catch (e) { toast('❌ ' + e.message); return; } }
+            compute();
+        });
+
+        const sugBox = document.getElementById('sugList');
+        sugBox.addEventListener('change', e => {
+            const c = e.target.closest('[data-chk]');
+            if (c) {
+                const x = sugs[Number(c.dataset.chk)];
+                x.on = c.checked;
+                c.closest('.line').classList.toggle('off', !x.on);
+                updateBar();
+            }
+        });
+        sugBox.addEventListener('click', e => {
+            const b = e.target.closest('[data-pick]');
+            if (!b) return;
+            const mine = shownSugs().filter(x => x.source === b.dataset.pick);
+            const allOn = mine.every(x => x.on);
+            mine.forEach(x => { x.on = !allOn; });
+            renderSugs();
+        });
+        sugBox.addEventListener('input', e => {
+            const s = e.target.closest('[data-sheets]');
+            if (!s) return;
+            const x = sugs[Number(s.dataset.sheets)];
+            const n = parseInt(s.value, 10);
+            x.sheets = Number.isInteger(n) && n > 0 ? n : 0;
+            s.closest('.line').querySelectorAll('.tot').forEach(t => { t.textContent = num(Number(t.dataset.per) * x.sheets); });
+            updateBar();
+        });
+
+        document.getElementById('jobList').addEventListener('click', e => {
+            const b = e.target.closest('button');
+            if (!b) return;
+            if (b.dataset.print) printJob(Number(b.dataset.print));
+            if (b.dataset.done) openDone(Number(b.dataset.done));
+            if (b.dataset.cancel) cancelJob(Number(b.dataset.cancel));
+            if (b.dataset.save) saveDone(Number(b.dataset.save), b);
+            if (b.dataset.close) b.closest('.done-slot').innerHTML = '';
+        });
+    });
+</script>
+</body>
+</html>
