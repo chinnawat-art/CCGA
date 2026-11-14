@@ -1,0 +1,3935 @@
+{
+ "version": "dxf-48-1",
+ "source_pdf": "กระจกกระทุ้ง.dxf (ส่งออกจาก SketchUp · 21 ต.ค. 69)",
+ "how_made": "อ่านเส้นตรงในไฟล์ DXF แล้วประกอบเป็นสี่เหลี่ยม \"ชิ้นกระจก\" โดยไม่เดาขนาดล่วงหน้า → แบ่งเป็นผังด้วยช่องว่างตามแกนตั้ง → แปลงเป็น แถบ→ซอย (และ \"แบ่งแผ่น\" สำหรับผังที่ตัด 3 ขั้น) · ขนาดตัดในผังเป็นขนาดจริงตามไฟล์ ยังไม่ยุบ — แอปจะเสนอ \"รวมเป็นสต๊อกเดียว\" ให้ในหน้าพรีวิว",
+ "sheet_sizes": [
+  {
+   "w_in": 120,
+   "h_in": 72
+  },
+  {
+   "w_in": 120,
+   "h_in": 84
+  }
+ ],
+ "pieces": [
+  {
+   "key": "297x1091",
+   "a_mm": 297,
+   "b_mm": 1091,
+   "name": "29.7×109.1",
+   "in_patterns": [
+    "GA01",
+    "GA03",
+    "GA13",
+    "GA14",
+    "GA15",
+    "GA16",
+    "GA17",
+    "GA18",
+    "GA19",
+    "GA20",
+    "GA21",
+    "GB10",
+    "GB11",
+    "GB12",
+    "GB22"
+   ]
+  },
+  {
+   "key": "297x1390",
+   "a_mm": 297,
+   "b_mm": 1390,
+   "name": "29.7×139",
+   "in_patterns": [
+    "GA13"
+   ]
+  },
+  {
+   "key": "297x1391",
+   "a_mm": 297,
+   "b_mm": 1391,
+   "name": "29.7×139.1",
+   "in_patterns": [
+    "GA07",
+    "GA08",
+    "GA09",
+    "GA14",
+    "GA15",
+    "GA22",
+    "GA23",
+    "GB07",
+    "GB08",
+    "GB09",
+    "GB19",
+    "GB20",
+    "GB21"
+   ]
+  },
+  {
+   "key": "297x1691",
+   "a_mm": 297,
+   "b_mm": 1691,
+   "name": "29.7×169.1",
+   "in_patterns": [
+    "GA04",
+    "GA06",
+    "GA10",
+    "GA11",
+    "GB04",
+    "GB05",
+    "GB16",
+    "GB18"
+   ]
+  },
+  {
+   "key": "297x1891",
+   "a_mm": 297,
+   "b_mm": 1891,
+   "name": "29.7×189.1",
+   "in_patterns": [
+    "GA03",
+    "GA19",
+    "GA20",
+    "GA21",
+    "GB01",
+    "GB02",
+    "GB10",
+    "GB11",
+    "GB12",
+    "GB13",
+    "GB14",
+    "GB15",
+    "GB22",
+    "GB23",
+    "GB24"
+   ]
+  },
+  {
+   "key": "297x1893",
+   "a_mm": 297,
+   "b_mm": 1893,
+   "name": "29.7×189.3",
+   "in_patterns": [
+    "GA01"
+   ]
+  },
+  {
+   "key": "299x1691",
+   "a_mm": 299,
+   "b_mm": 1691,
+   "name": "29.9×169.1",
+   "in_patterns": [
+    "GA04"
+   ]
+  },
+  {
+   "key": "397x1091",
+   "a_mm": 397,
+   "b_mm": 1091,
+   "name": "39.7×109.1",
+   "in_patterns": [
+    "GA02",
+    "GA14",
+    "GA17",
+    "GA19",
+    "GA20",
+    "GA21",
+    "GA22",
+    "GA23",
+    "GA24",
+    "GB04",
+    "GB05",
+    "GB06",
+    "GB10",
+    "GB11",
+    "GB12",
+    "GB16",
+    "GB17",
+    "GB18",
+    "GB23"
+   ]
+  },
+  {
+   "key": "397x1391",
+   "a_mm": 397,
+   "b_mm": 1391,
+   "name": "39.7×139.1",
+   "in_patterns": [
+    "GA07",
+    "GA08",
+    "GA09",
+    "GA14",
+    "GA23",
+    "GB07",
+    "GB08",
+    "GB09",
+    "GB19",
+    "GB20",
+    "GB21"
+   ]
+  },
+  {
+   "key": "397x1691",
+   "a_mm": 397,
+   "b_mm": 1691,
+   "name": "39.7×169.1",
+   "in_patterns": [
+    "GA04",
+    "GA05",
+    "GA11",
+    "GA16",
+    "GA17",
+    "GA18",
+    "GB05",
+    "GB16",
+    "GB17"
+   ]
+  },
+  {
+   "key": "397x1891",
+   "a_mm": 397,
+   "b_mm": 1891,
+   "name": "39.7×189.1",
+   "in_patterns": [
+    "GA19",
+    "GA20",
+    "GA21",
+    "GA22",
+    "GA23",
+    "GA24",
+    "GB02",
+    "GB04",
+    "GB05",
+    "GB06",
+    "GB10",
+    "GB11",
+    "GB12",
+    "GB14"
+   ]
+  },
+  {
+   "key": "397x1893",
+   "a_mm": 397,
+   "b_mm": 1893,
+   "name": "39.7×189.3",
+   "in_patterns": [
+    "GA02"
+   ]
+  },
+  {
+   "key": "497x1091",
+   "a_mm": 497,
+   "b_mm": 1091,
+   "name": "49.7×109.1",
+   "in_patterns": [
+    "GA02",
+    "GA03",
+    "GA15",
+    "GA18",
+    "GA21",
+    "GB12",
+    "GB23",
+    "GB24"
+   ]
+  },
+  {
+   "key": "497x1391",
+   "a_mm": 497,
+   "b_mm": 1391,
+   "name": "49.7×139.1",
+   "in_patterns": [
+    "GA09",
+    "GA15",
+    "GA24",
+    "GB09",
+    "GB20",
+    "GB21"
+   ]
+  },
+  {
+   "key": "497x1691",
+   "a_mm": 497,
+   "b_mm": 1691,
+   "name": "49.7×169.1",
+   "in_patterns": [
+    "GA05",
+    "GA06",
+    "GA12",
+    "GA13",
+    "GA14",
+    "GA15",
+    "GB06",
+    "GB17",
+    "GB18"
+   ]
+  },
+  {
+   "key": "497x1891",
+   "a_mm": 497,
+   "b_mm": 1891,
+   "name": "49.7×189.1",
+   "in_patterns": [
+    "GA03",
+    "GB03",
+    "GB13",
+    "GB14",
+    "GB15",
+    "GB22",
+    "GB23",
+    "GB24"
+   ]
+  },
+  {
+   "key": "497x1893",
+   "a_mm": 497,
+   "b_mm": 1893,
+   "name": "49.7×189.3",
+   "in_patterns": [
+    "GA02"
+   ]
+  }
+ ],
+ "near_size_groups": [
+  {
+   "name": "29.7×189.1 / 29.7×189.3",
+   "keys": [
+    "297x1891",
+    "297x1893"
+   ]
+  },
+  {
+   "name": "39.7×189.1 / 39.7×189.3",
+   "keys": [
+    "397x1891",
+    "397x1893"
+   ]
+  },
+  {
+   "name": "29.7×139.1 / 29.7×139",
+   "keys": [
+    "297x1391",
+    "297x1390"
+   ]
+  },
+  {
+   "name": "49.7×189.1 / 49.7×189.3",
+   "keys": [
+    "497x1891",
+    "497x1893"
+   ]
+  },
+  {
+   "name": "29.7×169.1 / 29.9×169.1",
+   "keys": [
+    "297x1691",
+    "299x1691"
+   ]
+  }
+ ],
+ "patterns": [
+  {
+   "code": "GA01",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวตั้ง",
+    "strips": [
+     {
+      "size_mm": 1893,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1893"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1893"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1893"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1893"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1893"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1893"
+       }
+      ]
+     },
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GA02",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวตั้ง",
+    "strips": [
+     {
+      "size_mm": 1893,
+      "cuts": [
+       {
+        "size_mm": 497,
+        "piece_key": "497x1893"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1893"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1893"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1893"
+       }
+      ]
+     },
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GA03",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวตั้ง",
+    "strips": [
+     {
+      "size_mm": 1891,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1891"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1891"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1891"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GA04",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวตั้ง",
+    "strips": [
+     {
+      "size_mm": 1691,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 299,
+        "piece_key": "299x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       }
+      ]
+     },
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1691,
+        "piece_key": "297x1691"
+       }
+      ]
+     },
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1691,
+        "piece_key": "297x1691"
+       }
+      ]
+     },
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1691,
+        "piece_key": "297x1691"
+       }
+      ]
+     },
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1691,
+        "piece_key": "397x1691"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GA05",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวตั้ง",
+    "strips": [
+     {
+      "size_mm": 1691,
+      "cuts": [
+       {
+        "size_mm": 497,
+        "piece_key": "497x1691"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1691"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1691"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1691"
+       }
+      ]
+     },
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1691,
+        "piece_key": "397x1691"
+       }
+      ]
+     },
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1691,
+        "piece_key": "397x1691"
+       }
+      ]
+     },
+     {
+      "size_mm": 497,
+      "cuts": [
+       {
+        "size_mm": 1691,
+        "piece_key": "497x1691"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)",
+    "ไฟล์ DXF วาดเส้นไม่ครบ ระบบเดาชิ้น 49.7×169.1 ให้ (เจ้าของยืนยันแล้ว 21 ต.ค. 69)"
+   ]
+  },
+  {
+   "code": "GA06",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวตั้ง",
+    "strips": [
+     {
+      "size_mm": 1691,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1691"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1691"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1691"
+       }
+      ]
+     },
+     {
+      "size_mm": 497,
+      "cuts": [
+       {
+        "size_mm": 1691,
+        "piece_key": "497x1691"
+       }
+      ]
+     },
+     {
+      "size_mm": 497,
+      "cuts": [
+       {
+        "size_mm": 1691,
+        "piece_key": "497x1691"
+       }
+      ]
+     },
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1691,
+        "piece_key": "297x1691"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GA07",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "split": "แนวตั้ง",
+    "sections": [
+     {
+      "size_mm": 1391,
+      "direction": "แนวตั้ง",
+      "strips": [
+       {
+        "size_mm": 1391,
+        "cuts": [
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "size_mm": 1585,
+      "direction": "แนวนอน",
+      "strips": [
+       {
+        "size_mm": 397,
+        "cuts": [
+         {
+          "size_mm": 1391,
+          "piece_key": "397x1391"
+         }
+        ]
+       },
+       {
+        "size_mm": 1391,
+        "cuts": [
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 397,
+          "piece_key": "397x1391"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)",
+    "ผังแบ่งแผ่น (ตัด 3 ขั้น) — ตัดแบ่งที่ 139.1 ซม. แล้วแต่ละฝั่งเป็น แถบ→ซอย"
+   ]
+  },
+  {
+   "code": "GA08",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "split": "แนวตั้ง",
+    "sections": [
+     {
+      "size_mm": 1391,
+      "direction": "แนวตั้ง",
+      "strips": [
+       {
+        "size_mm": 1391,
+        "cuts": [
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 397,
+          "piece_key": "397x1391"
+         },
+         {
+          "size_mm": 397,
+          "piece_key": "397x1391"
+         },
+         {
+          "size_mm": 397,
+          "piece_key": "397x1391"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "size_mm": 1588,
+      "direction": "แนวนอน",
+      "strips": [
+       {
+        "size_mm": 397,
+        "cuts": [
+         {
+          "size_mm": 1391,
+          "piece_key": "397x1391"
+         }
+        ]
+       },
+       {
+        "size_mm": 1391,
+        "cuts": [
+         {
+          "size_mm": 397,
+          "piece_key": "397x1391"
+         },
+         {
+          "size_mm": 397,
+          "piece_key": "397x1391"
+         },
+         {
+          "size_mm": 397,
+          "piece_key": "397x1391"
+         },
+         {
+          "size_mm": 397,
+          "piece_key": "397x1391"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)",
+    "ผังแบ่งแผ่น (ตัด 3 ขั้น) — ตัดแบ่งที่ 139.1 ซม. แล้วแต่ละฝั่งเป็น แถบ→ซอย",
+    "ไฟล์ DXF วาดเส้นไม่ครบ ระบบเดาชิ้น 29.7×139.1 ให้ (เจ้าของยืนยันแล้ว 21 ต.ค. 69)"
+   ]
+  },
+  {
+   "code": "GA09",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "split": "แนวตั้ง",
+    "sections": [
+     {
+      "size_mm": 1391,
+      "direction": "แนวตั้ง",
+      "strips": [
+       {
+        "size_mm": 1391,
+        "cuts": [
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 497,
+          "piece_key": "497x1391"
+         },
+         {
+          "size_mm": 497,
+          "piece_key": "497x1391"
+         },
+         {
+          "size_mm": 497,
+          "piece_key": "497x1391"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "size_mm": 1588,
+      "direction": "แนวนอน",
+      "strips": [
+       {
+        "size_mm": 397,
+        "cuts": [
+         {
+          "size_mm": 1391,
+          "piece_key": "397x1391"
+         }
+        ]
+       },
+       {
+        "size_mm": 1391,
+        "cuts": [
+         {
+          "size_mm": 497,
+          "piece_key": "497x1391"
+         },
+         {
+          "size_mm": 497,
+          "piece_key": "497x1391"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)",
+    "ผังแบ่งแผ่น (ตัด 3 ขั้น) — ตัดแบ่งที่ 139.1 ซม. แล้วแต่ละฝั่งเป็น แถบ→ซอย"
+   ]
+  },
+  {
+   "code": "GA10",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวนอน",
+    "strips": [
+     {
+      "size_mm": 1691,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GA11",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวนอน",
+    "strips": [
+     {
+      "size_mm": 1691,
+      "cuts": [
+       {
+        "size_mm": 397,
+        "piece_key": "397x1691"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1691"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1691"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1691"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1691"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GA12",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวนอน",
+    "strips": [
+     {
+      "size_mm": 1691,
+      "cuts": [
+       {
+        "size_mm": 497,
+        "piece_key": "497x1691"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1691"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1691"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1691"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1691"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1691"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GA13",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวตั้ง",
+    "strips": [
+     {
+      "size_mm": 1390,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1390"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1390"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1390"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1390"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1390"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1390"
+       }
+      ]
+     },
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       }
+      ]
+     },
+     {
+      "size_mm": 497,
+      "cuts": [
+       {
+        "size_mm": 1691,
+        "piece_key": "497x1691"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GA14",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวตั้ง",
+    "strips": [
+     {
+      "size_mm": 1391,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1391"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1391"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1391"
+       }
+      ]
+     },
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       }
+      ]
+     },
+     {
+      "size_mm": 497,
+      "cuts": [
+       {
+        "size_mm": 1691,
+        "piece_key": "497x1691"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GA15",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวตั้ง",
+    "strips": [
+     {
+      "size_mm": 1391,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1391"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1391"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1391"
+       }
+      ]
+     },
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       }
+      ]
+     },
+     {
+      "size_mm": 497,
+      "cuts": [
+       {
+        "size_mm": 1691,
+        "piece_key": "497x1691"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GA16",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวตั้ง",
+    "strips": [
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       }
+      ]
+     },
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       }
+      ]
+     },
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1691,
+        "piece_key": "397x1691"
+       }
+      ]
+     },
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1691,
+        "piece_key": "397x1691"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GA17",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวตั้ง",
+    "strips": [
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       }
+      ]
+     },
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       }
+      ]
+     },
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1691,
+        "piece_key": "397x1691"
+       }
+      ]
+     },
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1691,
+        "piece_key": "397x1691"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GA18",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวตั้ง",
+    "strips": [
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       }
+      ]
+     },
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       }
+      ]
+     },
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1691,
+        "piece_key": "397x1691"
+       }
+      ]
+     },
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1691,
+        "piece_key": "397x1691"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GA19",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวนอน",
+    "strips": [
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1091,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 1891,
+        "piece_key": "297x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1091,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 1891,
+        "piece_key": "397x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GA20",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวนอน",
+    "strips": [
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1091,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 1891,
+        "piece_key": "297x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1091,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 1891,
+        "piece_key": "397x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GA21",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวนอน",
+    "strips": [
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1091,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 1891,
+        "piece_key": "297x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1091,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 1891,
+        "piece_key": "397x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GA22",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวนอน",
+    "strips": [
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1091,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 1891,
+        "piece_key": "397x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 1391,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GA23",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวนอน",
+    "strips": [
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1091,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 1891,
+        "piece_key": "397x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 1391,
+      "cuts": [
+       {
+        "size_mm": 397,
+        "piece_key": "397x1391"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1391"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1391"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1391"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1391"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GA24",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 72,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวนอน",
+    "strips": [
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1091,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 1891,
+        "piece_key": "397x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 1391,
+      "cuts": [
+       {
+        "size_mm": 497,
+        "piece_key": "497x1391"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1391"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1391"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1391"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1391"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1391"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GB01",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวนอน",
+    "strips": [
+     {
+      "size_mm": 1891,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1891"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1891"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1891"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1891"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1891"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1891"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1891"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1891"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1891"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1891"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GB02",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวนอน",
+    "strips": [
+     {
+      "size_mm": 1891,
+      "cuts": [
+       {
+        "size_mm": 397,
+        "piece_key": "397x1891"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1891"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1891"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1891"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1891"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1891"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1891"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1891"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GB03",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวนอน",
+    "strips": [
+     {
+      "size_mm": 1891,
+      "cuts": [
+       {
+        "size_mm": 497,
+        "piece_key": "497x1891"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1891"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1891"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1891"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1891"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1891"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GB04",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวนอน",
+    "strips": [
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1891,
+        "piece_key": "397x1891"
+       },
+       {
+        "size_mm": 1091,
+        "piece_key": "397x1091"
+       }
+      ]
+     },
+     {
+      "size_mm": 1691,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GB05",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวนอน",
+    "strips": [
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1891,
+        "piece_key": "397x1891"
+       },
+       {
+        "size_mm": 1091,
+        "piece_key": "397x1091"
+       }
+      ]
+     },
+     {
+      "size_mm": 1691,
+      "cuts": [
+       {
+        "size_mm": 397,
+        "piece_key": "397x1691"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1691"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1691"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1691"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1691"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1691"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GB06",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวนอน",
+    "strips": [
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1891,
+        "piece_key": "397x1891"
+       },
+       {
+        "size_mm": 1091,
+        "piece_key": "397x1091"
+       }
+      ]
+     },
+     {
+      "size_mm": 1691,
+      "cuts": [
+       {
+        "size_mm": 497,
+        "piece_key": "497x1691"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1691"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1691"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1691"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1691"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1691"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GB07",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวนอน",
+    "strips": [
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1391,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 1391,
+        "piece_key": "297x1391"
+       }
+      ]
+     },
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1391,
+        "piece_key": "397x1391"
+       },
+       {
+        "size_mm": 1391,
+        "piece_key": "397x1391"
+       }
+      ]
+     },
+     {
+      "size_mm": 1391,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GB08",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวนอน",
+    "strips": [
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1391,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 1391,
+        "piece_key": "297x1391"
+       }
+      ]
+     },
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1391,
+        "piece_key": "397x1391"
+       },
+       {
+        "size_mm": 1391,
+        "piece_key": "397x1391"
+       }
+      ]
+     },
+     {
+      "size_mm": 1391,
+      "cuts": [
+       {
+        "size_mm": 397,
+        "piece_key": "397x1391"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1391"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1391"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1391"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1391"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1391"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GB09",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวนอน",
+    "strips": [
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1391,
+        "piece_key": "297x1391"
+       },
+       {
+        "size_mm": 1391,
+        "piece_key": "297x1391"
+       }
+      ]
+     },
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1391,
+        "piece_key": "397x1391"
+       },
+       {
+        "size_mm": 1391,
+        "piece_key": "397x1391"
+       }
+      ]
+     },
+     {
+      "size_mm": 1391,
+      "cuts": [
+       {
+        "size_mm": 497,
+        "piece_key": "497x1391"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1391"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1391"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1391"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1391"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1391"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GB10",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวนอน",
+    "strips": [
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1091,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 1891,
+        "piece_key": "397x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1091,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 1891,
+        "piece_key": "297x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1091,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 1891,
+        "piece_key": "297x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GB11",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวนอน",
+    "strips": [
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1091,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 1891,
+        "piece_key": "397x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1091,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 1891,
+        "piece_key": "297x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1091,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 1891,
+        "piece_key": "297x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)",
+    "ไฟล์ DXF วาดเส้นไม่ครบ ระบบเดาชิ้น 29.7×109.1 ให้ (เจ้าของยืนยันแล้ว 21 ต.ค. 69)"
+   ]
+  },
+  {
+   "code": "GB12",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวนอน",
+    "strips": [
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1091,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 1891,
+        "piece_key": "397x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1091,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 1891,
+        "piece_key": "297x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1091,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 1891,
+        "piece_key": "297x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GB13",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวตั้ง",
+    "strips": [
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1891,
+        "piece_key": "297x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1891,
+        "piece_key": "297x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 497,
+      "cuts": [
+       {
+        "size_mm": 1891,
+        "piece_key": "497x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 1891,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1891"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1891"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1891"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1891"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1891"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1891"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1891"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GB14",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวตั้ง",
+    "strips": [
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1891,
+        "piece_key": "397x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 397,
+      "cuts": [
+       {
+        "size_mm": 1891,
+        "piece_key": "397x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1891,
+        "piece_key": "297x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 1891,
+      "cuts": [
+       {
+        "size_mm": 497,
+        "piece_key": "497x1891"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1891"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1891"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1891"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1891"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GB15",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวตั้ง",
+    "strips": [
+     {
+      "size_mm": 497,
+      "cuts": [
+       {
+        "size_mm": 1891,
+        "piece_key": "497x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1891,
+        "piece_key": "297x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1891,
+        "piece_key": "297x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 1891,
+      "cuts": [
+       {
+        "size_mm": 497,
+        "piece_key": "497x1891"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1891"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1891"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1891"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GB16",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "split": "แนวตั้ง",
+    "sections": [
+     {
+      "size_mm": 1691,
+      "direction": "แนวตั้ง",
+      "strips": [
+       {
+        "size_mm": 1691,
+        "cuts": [
+         {
+          "size_mm": 297,
+          "piece_key": "297x1691"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1691"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1691"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1691"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1691"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1691"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1691"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "size_mm": 1288,
+      "direction": "แนวนอน",
+      "strips": [
+       {
+        "size_mm": 397,
+        "cuts": [
+         {
+          "size_mm": 1091,
+          "piece_key": "397x1091"
+         }
+        ]
+       },
+       {
+        "size_mm": 1691,
+        "cuts": [
+         {
+          "size_mm": 297,
+          "piece_key": "297x1691"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1691"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1691"
+         },
+         {
+          "size_mm": 397,
+          "piece_key": "397x1691"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)",
+    "ผังแบ่งแผ่น (ตัด 3 ขั้น) — ตัดแบ่งที่ 169.1 ซม. แล้วแต่ละฝั่งเป็น แถบ→ซอย"
+   ]
+  },
+  {
+   "code": "GB17",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "split": "แนวตั้ง",
+    "sections": [
+     {
+      "size_mm": 1691,
+      "direction": "แนวตั้ง",
+      "strips": [
+       {
+        "size_mm": 1691,
+        "cuts": [
+         {
+          "size_mm": 497,
+          "piece_key": "497x1691"
+         },
+         {
+          "size_mm": 397,
+          "piece_key": "397x1691"
+         },
+         {
+          "size_mm": 397,
+          "piece_key": "397x1691"
+         },
+         {
+          "size_mm": 397,
+          "piece_key": "397x1691"
+         },
+         {
+          "size_mm": 397,
+          "piece_key": "397x1691"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "size_mm": 1291,
+      "direction": "แนวนอน",
+      "strips": [
+       {
+        "size_mm": 397,
+        "cuts": [
+         {
+          "size_mm": 1091,
+          "piece_key": "397x1091"
+         }
+        ]
+       },
+       {
+        "size_mm": 1691,
+        "cuts": [
+         {
+          "size_mm": 397,
+          "piece_key": "397x1691"
+         },
+         {
+          "size_mm": 397,
+          "piece_key": "397x1691"
+         },
+         {
+          "size_mm": 497,
+          "piece_key": "497x1691"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)",
+    "ผังแบ่งแผ่น (ตัด 3 ขั้น) — ตัดแบ่งที่ 169.1 ซม. แล้วแต่ละฝั่งเป็น แถบ→ซอย"
+   ]
+  },
+  {
+   "code": "GB18",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "split": "แนวตั้ง",
+    "sections": [
+     {
+      "size_mm": 1691,
+      "direction": "แนวตั้ง",
+      "strips": [
+       {
+        "size_mm": 1691,
+        "cuts": [
+         {
+          "size_mm": 497,
+          "piece_key": "497x1691"
+         },
+         {
+          "size_mm": 497,
+          "piece_key": "497x1691"
+         },
+         {
+          "size_mm": 497,
+          "piece_key": "497x1691"
+         },
+         {
+          "size_mm": 497,
+          "piece_key": "497x1691"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "size_mm": 1291,
+      "direction": "แนวนอน",
+      "strips": [
+       {
+        "size_mm": 397,
+        "cuts": [
+         {
+          "size_mm": 1091,
+          "piece_key": "397x1091"
+         }
+        ]
+       },
+       {
+        "size_mm": 1691,
+        "cuts": [
+         {
+          "size_mm": 497,
+          "piece_key": "497x1691"
+         },
+         {
+          "size_mm": 497,
+          "piece_key": "497x1691"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1691"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)",
+    "ผังแบ่งแผ่น (ตัด 3 ขั้น) — ตัดแบ่งที่ 169.1 ซม. แล้วแต่ละฝั่งเป็น แถบ→ซอย"
+   ]
+  },
+  {
+   "code": "GB19",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "split": "แนวตั้ง",
+    "sections": [
+     {
+      "size_mm": 1391,
+      "direction": "แนวตั้ง",
+      "strips": [
+       {
+        "size_mm": 1391,
+        "cuts": [
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "size_mm": 1585,
+      "direction": "แนวนอน",
+      "strips": [
+       {
+        "size_mm": 397,
+        "cuts": [
+         {
+          "size_mm": 1391,
+          "piece_key": "397x1391"
+         }
+        ]
+       },
+       {
+        "size_mm": 297,
+        "cuts": [
+         {
+          "size_mm": 1391,
+          "piece_key": "297x1391"
+         }
+        ]
+       },
+       {
+        "size_mm": 1391,
+        "cuts": [
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 297,
+          "piece_key": "297x1391"
+         },
+         {
+          "size_mm": 397,
+          "piece_key": "397x1391"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)",
+    "ผังแบ่งแผ่น (ตัด 3 ขั้น) — ตัดแบ่งที่ 139.1 ซม. แล้วแต่ละฝั่งเป็น แถบ→ซอย"
+   ]
+  },
+  {
+   "code": "GB20",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "split": "แนวตั้ง",
+    "sections": [
+     {
+      "size_mm": 1391,
+      "direction": "แนวตั้ง",
+      "strips": [
+       {
+        "size_mm": 1391,
+        "cuts": [
+         {
+          "size_mm": 497,
+          "piece_key": "497x1391"
+         },
+         {
+          "size_mm": 397,
+          "piece_key": "397x1391"
+         },
+         {
+          "size_mm": 397,
+          "piece_key": "397x1391"
+         },
+         {
+          "size_mm": 397,
+          "piece_key": "397x1391"
+         },
+         {
+          "size_mm": 397,
+          "piece_key": "397x1391"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "size_mm": 1588,
+      "direction": "แนวนอน",
+      "strips": [
+       {
+        "size_mm": 397,
+        "cuts": [
+         {
+          "size_mm": 1391,
+          "piece_key": "397x1391"
+         }
+        ]
+       },
+       {
+        "size_mm": 297,
+        "cuts": [
+         {
+          "size_mm": 1391,
+          "piece_key": "297x1391"
+         }
+        ]
+       },
+       {
+        "size_mm": 1391,
+        "cuts": [
+         {
+          "size_mm": 397,
+          "piece_key": "397x1391"
+         },
+         {
+          "size_mm": 397,
+          "piece_key": "397x1391"
+         },
+         {
+          "size_mm": 397,
+          "piece_key": "397x1391"
+         },
+         {
+          "size_mm": 397,
+          "piece_key": "397x1391"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)",
+    "ผังแบ่งแผ่น (ตัด 3 ขั้น) — ตัดแบ่งที่ 139.1 ซม. แล้วแต่ละฝั่งเป็น แถบ→ซอย"
+   ]
+  },
+  {
+   "code": "GB21",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "split": "แนวตั้ง",
+    "sections": [
+     {
+      "size_mm": 1391,
+      "direction": "แนวตั้ง",
+      "strips": [
+       {
+        "size_mm": 1391,
+        "cuts": [
+         {
+          "size_mm": 497,
+          "piece_key": "497x1391"
+         },
+         {
+          "size_mm": 497,
+          "piece_key": "497x1391"
+         },
+         {
+          "size_mm": 497,
+          "piece_key": "497x1391"
+         },
+         {
+          "size_mm": 497,
+          "piece_key": "497x1391"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "size_mm": 1491,
+      "direction": "แนวนอน",
+      "strips": [
+       {
+        "size_mm": 397,
+        "cuts": [
+         {
+          "size_mm": 1391,
+          "piece_key": "397x1391"
+         }
+        ]
+       },
+       {
+        "size_mm": 297,
+        "cuts": [
+         {
+          "size_mm": 1391,
+          "piece_key": "297x1391"
+         }
+        ]
+       },
+       {
+        "size_mm": 1391,
+        "cuts": [
+         {
+          "size_mm": 497,
+          "piece_key": "497x1391"
+         },
+         {
+          "size_mm": 497,
+          "piece_key": "497x1391"
+         },
+         {
+          "size_mm": 497,
+          "piece_key": "497x1391"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)",
+    "ผังแบ่งแผ่น (ตัด 3 ขั้น) — ตัดแบ่งที่ 139.1 ซม. แล้วแต่ละฝั่งเป็น แถบ→ซอย"
+   ]
+  },
+  {
+   "code": "GB22",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวตั้ง",
+    "strips": [
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       }
+      ]
+     },
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       },
+       {
+        "size_mm": 297,
+        "piece_key": "297x1091"
+       }
+      ]
+     },
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1891,
+        "piece_key": "297x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 497,
+      "cuts": [
+       {
+        "size_mm": 1891,
+        "piece_key": "497x1891"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GB23",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวตั้ง",
+    "strips": [
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       }
+      ]
+     },
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       },
+       {
+        "size_mm": 397,
+        "piece_key": "397x1091"
+       }
+      ]
+     },
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1891,
+        "piece_key": "297x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 497,
+      "cuts": [
+       {
+        "size_mm": 1891,
+        "piece_key": "497x1891"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  },
+  {
+   "code": "GB24",
+   "sheet": {
+    "w_in": 120,
+    "h_in": 84,
+    "inferred": false
+   },
+   "layout": {
+    "direction": "แนวตั้ง",
+    "strips": [
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       }
+      ]
+     },
+     {
+      "size_mm": 1091,
+      "cuts": [
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       },
+       {
+        "size_mm": 497,
+        "piece_key": "497x1091"
+       }
+      ]
+     },
+     {
+      "size_mm": 297,
+      "cuts": [
+       {
+        "size_mm": 1891,
+        "piece_key": "297x1891"
+       }
+      ]
+     },
+     {
+      "size_mm": 497,
+      "cuts": [
+       {
+        "size_mm": 1891,
+        "piece_key": "497x1891"
+       }
+      ]
+     }
+    ]
+   },
+   "flags": [
+    "ขนาดแผ่นมาจากคอลัมน์ที่ผังอยู่ในไฟล์ DXF (คอลัมน์ซ้าย = 120×72 นิ้ว · คอลัมน์ขวา = 120×84 นิ้ว)"
+   ]
+  }
+ ],
+ "review_needed": [
+  "GA05: 49.7×169.1",
+  "GA08: 29.7×139.1",
+  "GB11: 29.7×109.1"
+ ]
+}

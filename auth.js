@@ -98,6 +98,7 @@ const PERMISSION_PAGE_CATALOG = [
     ['stock_count.html', 'ตรวจนับสต็อก', '🔢'],
     ['backup_stock.html', 'สต็อกสำรอง', '🗄️'],
     ['glass_recut.html', 'ตัดกระจกส่วนเกิน', '✂️'],
+    ['glass_order.html', 'สั่งกระจก', '🧾'],
     ['sku_manage.html', 'จัดการ SKU', '🏷️'],
     ['stock_bom_manage.html', 'จัดการ BOM', '🧩'],
     ['damage_report.html', 'วัสดุเสียหาย', '⚠️'],
@@ -312,7 +313,7 @@ function initPermissionNavigation(role, pagePermissions = []) {
         iconElement.className = 'permission-nav-icon';
         iconElement.textContent = '🪟';
         const labelElement = document.createElement('span');
-        labelElement.textContent = 'สั่งกระจก (Glass Order) ↗';
+        labelElement.textContent = 'สั่งกระจก (แอปเดิม) ↗';
         link.append(iconElement, labelElement);
         panel.appendChild(link);
     }
