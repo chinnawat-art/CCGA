@@ -88,6 +88,7 @@ const PERMISSION_PAGE_CATALOG = [
     ['dashboard.html', 'แดชบอร์ดออเดอร์', '📊'],
     ['executive_dashboard.html', 'แดชบอร์ดผู้บริหาร', '📈'],
     ['executive_dashboard_money.html', 'แดชบอร์ดผู้บริหาร (เงิน)', '💰'],
+    ['sales_dashboard.html', 'สินค้าขายดี', '🏆'],
     ['production.html', 'ฝ่ายผลิต', '🏭'],
     ['production_history.html', 'ประวัติการผลิต', '🕘'],
     ['material_prep.html', 'จัดเตรียมวัสดุ', '📋'],

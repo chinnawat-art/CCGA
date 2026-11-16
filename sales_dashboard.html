@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#6366f1">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-180.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Alu ERP">
+    <script src="pwa.js?v=20260918-2" defer></script>
+    <title>สินค้าขายดี | Best Sellers</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+    <script src="config.js"></script>
+    <script src="auth.js?v=20261116-2"></script>
+    <link rel="stylesheet" href="theme.css">
+    <script src="theme.js" defer></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin:0; font-family:'Kanit',sans-serif;
+               background: var(--bg-body,#f1f5f9); color: var(--text-main,#0f172a); }
+        .shell { max-width:1180px; margin:0 auto; padding:16px 14px 90px; }
+        .back { color: var(--muted-strong,#64748b); text-decoration:none; font-size:.92rem; }
+        h1 { font-size:1.35rem; margin:10px 0 2px; }
+        h2 { font-size:1.05rem; margin:0; }
+        .sub { color: var(--muted-strong,#64748b); font-size:.88rem; margin:0 0 14px; line-height:1.55; }
+        .card { background: var(--surface,#fff); border:1px solid var(--border-color,#e2e8f0);
+                border-radius:15px; padding:14px; margin-bottom:12px; }
+        .card-head { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+        .meta { font-size:.82rem; color: var(--muted-strong,#64748b); line-height:1.5; }
+        .filters { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:8px 10px; }
+        .filters label { display:flex; flex-direction:column; gap:3px; font-size:.78rem; color: var(--muted-strong,#64748b); font-weight:600; }
+        select, input[type="date"], input[type="search"] {
+            font-family:inherit; font-size:.92rem; padding:8px 10px; width:100%;
+            border:1px solid var(--border-color,#cbd5e1); border-radius:10px;
+            background: var(--input-bg,#fff); color: var(--text-main,#0f172a); }
+        select.on, input.on { border-color:#2563eb; box-shadow:0 0 0 2px rgba(37,99,235,.18); }
+        .period { display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; margin-bottom:10px; }
+        .period label { display:flex; flex-direction:column; gap:3px; font-size:.78rem; color: var(--muted-strong,#64748b); font-weight:600; }
+        .period select { min-width:170px; }
+        .seg { display:inline-flex; border:1px solid var(--border-color,#cbd5e1); border-radius:11px; overflow:hidden; }
+        .seg button { border:0; background:transparent; color: var(--text-main,#0f172a); padding:7px 13px; cursor:pointer;
+                      font:600 .86rem 'Kanit',sans-serif; }
+        .seg button.on { background:#2563eb; color:#fff; }
+        .btn { padding:8px 13px; border:1px solid var(--border-color,#cbd5e1); border-radius:10px; cursor:pointer;
+               font:600 .86rem 'Kanit',sans-serif; background:transparent; color: var(--text-main,#0f172a); }
+        .fsum { cursor:pointer; font-weight:600; margin-bottom:8px; }
+        .chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+        .chip { display:inline-flex; gap:6px; align-items:center; padding:3px 10px; border-radius:99px; font-size:.8rem; font-weight:600;
+                background: rgba(37,99,235,.13); color:#2563eb; border:0; cursor:pointer; font-family:inherit; }
+        .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:9px; margin-bottom:12px; }
+        .kpi { background: var(--surface,#fff); border:1px solid var(--border-color,#e2e8f0); border-radius:14px; padding:11px 10px; }
+        .kpi span { font-size:.78rem; color: var(--muted-strong,#64748b); }
+        .kpi b { display:block; font-size:1.5rem; line-height:1.3; color:#2563eb; }
+        .kpi small { font-size:.76rem; font-weight:600; }
+        .up { color:#16a34a; } .down { color:#dc2626; } .flat { color: var(--muted-strong,#64748b); }
+        .chart-box { position:relative; height:280px; }
+        .rank { list-style:none; margin:0; padding:0; }
+        .rank li { display:grid; grid-template-columns:34px 1fr auto; gap:4px 10px; align-items:center;
+                   padding:9px 4px; border-bottom:1px solid var(--border-color,#e2e8f0); cursor:pointer; }
+        .rank li:last-child { border-bottom:0; }
+        .rank li:hover { background: rgba(37,99,235,.05); }
+        .rk { font-weight:700; font-size:1rem; text-align:center; color: var(--muted-strong,#64748b); }
+        .rank li:nth-child(1) .rk { color:#d97706; } .rank li:nth-child(2) .rk { color:#64748b; } .rank li:nth-child(3) .rk { color:#b45309; }
+        .nm { min-width:0; }
+        .nm b { display:block; font-size:.93rem; overflow-wrap:anywhere; }
+        .nm .meta { overflow-wrap:anywhere; }
+        .bar { height:6px; border-radius:99px; background: rgba(37,99,235,.12); margin-top:4px; overflow:hidden; }
+        .bar i { display:block; height:100%; background:#3b82f6; border-radius:99px; }
+        .qty { text-align:right; white-space:nowrap; }
+        .qty b { font-size:1.08rem; }
+        .two { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:12px; }
+        .mini li { cursor:pointer; }
+        .empty { text-align:center; padding:26px 12px; color: var(--muted-strong,#64748b); }
+        @media (max-width:560px) {
+            .period select { min-width:0; flex:1 1 100%; }
+            .chart-box { height:220px; }
+            .kpi b { font-size:1.3rem; }
+        }
+    </style>
+    <link rel="stylesheet" href="mobile-fit.css?v=20261112-1">
+</head>
+<body>
+<div class="shell">
+    <a href="index.html" class="back">← กลับหน้าหลัก</a>
+    <h1>🏆 สินค้าขายดี</h1>
+    <p class="sub">นับจากออเดอร์ทุกใบ ยกเว้นใบที่ยกเลิก · แสดงเป็นจำนวนชิ้นและจำนวนออเดอร์ (ไม่มียอดเงิน) · วันที่ใช้วันที่สั่งซื้อ</p>
+    <div id="user-display-area"></div>
+
+    <div class="card">
+        <div class="period">
+            <label>ช่วงเวลา
+                <select id="fRange">
+                    <option value="today">วันนี้</option>
+                    <option value="yesterday">เมื่อวาน</option>
+                    <option value="7">7 วันล่าสุด</option>
+                    <option value="30" selected>30 วันล่าสุด</option>
+                    <option value="90">90 วันล่าสุด</option>
+                    <option value="month">เดือนนี้</option>
+                    <option value="lastmonth">เดือนที่แล้ว</option>
+                    <option value="year">ปีนี้</option>
+                    <option value="all">ทั้งหมด</option>
+                    <option value="custom">เลือกวันเอง…</option>
+                </select>
+            </label>
+            <label id="customFrom" style="display:none;">ตั้งแต่ <input type="date" id="fFrom"></label>
+            <label id="customTo" style="display:none;">ถึง <input type="date" id="fTo"></label>
+            <button type="button" class="btn" id="btnReload" title="โหลดยอดล่าสุด">🔄 โหลดใหม่</button>
+        </div>
+        <details id="filterBox" open>
+        <summary class="fsum">🔎 ตัวกรอง <span class="meta" id="fCount"></span></summary>
+        <div class="filters">
+            <label>ประเภทสินค้า <select data-f="type"></select></label>
+            <label>จำนวนบาน <select data-f="panels"></select></label>
+            <label>ขนาด (กว้าง x สูง ซม.) <select data-f="size"></select></label>
+            <label>สีกรอบ <select data-f="alu"></select></label>
+            <label>สีกระจก <select data-f="glass"></select></label>
+            <label>ลาย <select data-f="pattern"></select></label>
+            <label>มุ้ง <select data-f="screen"></select></label>
+            <label>แพลตฟอร์ม <select data-f="platform"></select></label>
+            <label>ค้นหา SKU <input type="search" id="fSearch" placeholder="เช่น SLWD2P1205"></label>
+        </div>
+        </details>
+        <div class="chips" id="chips"></div>
+    </div>
+
+    <div class="kpis">
+        <div class="kpi"><span>ขายได้ (ชิ้น)</span><b id="kPieces">-</b><small id="kPiecesCmp"></small></div>
+        <div class="kpi"><span>จำนวนออเดอร์</span><b id="kOrders" style="color:#7c3aed">-</b><small id="kOrdersCmp"></small></div>
+        <div class="kpi"><span>เฉลี่ยต่อวัน (ชิ้น)</span><b id="kAvg" style="color:#16a34a">-</b><small id="kDays" class="flat"></small></div>
+        <div class="kpi"><span>สินค้าที่ขายได้ (แบบ)</span><b id="kSku" style="color:#d97706">-</b><small class="flat">นับตาม SKU</small></div>
+    </div>
+
+    <div class="card">
+        <div class="card-head">
+            <h2>📈 จำนวนที่ขายได้</h2>
+            <div class="seg" id="segBucket">
+                <button type="button" data-b="day" class="on">รายวัน</button>
+                <button type="button" data-b="month">รายเดือน</button>
+                <button type="button" data-b="year">รายปี</button>
+            </div>
+        </div>
+        <div class="chart-box"><canvas id="chart"></canvas></div>
+        <div class="meta" id="chartNote" style="margin-top:6px;"></div>
+    </div>
+
+    <div class="card">
+        <div class="card-head">
+            <h2>🏆 อันดับขายดี</h2>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <label class="meta" style="display:flex;gap:6px;align-items:center;">จัดอันดับตาม
+                    <select id="fGroup" style="width:auto;">
+                        <option value="sku">สินค้า (ราย SKU)</option>
+                        <option value="model">รุ่น (ประเภท + บาน + ขนาด)</option>
+                        <option value="size">ขนาด</option>
+                        <option value="type">ประเภทสินค้า</option>
+                        <option value="color">สีกรอบ + สีกระจก</option>
+                        <option value="alu">สีกรอบ</option>
+                        <option value="glass">สีกระจก</option>
+                        <option value="pattern">ลาย</option>
+                        <option value="screen">มุ้ง</option>
+                        <option value="panels">จำนวนบาน</option>
+                        <option value="platform">แพลตฟอร์ม</option>
+                    </select>
+                </label>
+                <button type="button" class="btn" id="btnMore">ดูทั้งหมด</button>
+            </div>
+        </div>
+        <div class="meta" style="margin:-4px 0 6px;">กดที่รายการเพื่อกรองดูเฉพาะรายการนั้น · ▲▼ = เทียบกับช่วงก่อนหน้าที่ยาวเท่ากัน</div>
+        <ul class="rank" id="rankList"><li class="empty">กำลังโหลด...</li></ul>
+    </div>
+
+    <div class="two">
+        <div class="card"><h2 style="margin-bottom:8px;">🎨 สีกรอบ + สีกระจก</h2><ul class="rank mini" id="miniColor"></ul></div>
+        <div class="card"><h2 style="margin-bottom:8px;">📐 ขนาดขายดี</h2><ul class="rank mini" id="miniSize"></ul></div>
+    </div>
+</div>
+
+<script>
+    const FILTERS = ['type', 'panels', 'size', 'alu', 'glass', 'pattern', 'screen', 'platform'];
+    const FILTER_NAMES = { type: 'ประเภท', panels: 'บาน', size: 'ขนาด', alu: 'สีกรอบ', glass: 'สีกระจก', pattern: 'ลาย', screen: 'มุ้ง', platform: 'แพลตฟอร์ม' };
+    const TH_MONTH = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+    let db = null, rows = [], typeNames = {}, bucket = 'day', showAll = false, chart = null;
+    const sel = {};   // ตัวกรองที่เลือก { type: 'SLWD', ... }
+
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const num = n => Number(n || 0).toLocaleString('th-TH');
+    const todayStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+    function addDays(d, n) { const t = new Date(d + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); }
+    function daysBetween(a, b) { return Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 864e5) + 1; }
+    function thDate(d) { const [y, m, dd] = d.split('-'); return Number(dd) + ' ' + TH_MONTH[Number(m) - 1] + ' ' + String(Number(y) + 543).slice(2); }
+    function bucketLabel(k) {
+        if (bucket === 'year') return String(Number(k) + 543);
+        if (bucket === 'month') { const [y, m] = k.split('-'); return TH_MONTH[Number(m) - 1] + ' ' + String(Number(y) + 543).slice(2); }
+        const [, m, d] = k.split('-'); return Number(d) + ' ' + TH_MONTH[Number(m) - 1];
+    }
+
+    // ───────── แยกรหัสสินค้า: SLWD 2P 12 05 W G X L0 ─────────
+    const SKU_RE = /^([A-Z]+?)(\d)P(\d{2})(\d{2})([A-Z])([A-Z])([NX])L(\d+)$/;
+    function parseRow(r) {
+        const code = r.product_code || '';
+        const m = code.match(SKU_RE);
+        const type = m ? m[1] : (code.match(/^[A-Z]+/) || ['อื่น ๆ'])[0];
+        const pn = m ? Number(m[2]) : (Number(r.slots) || 0);
+        const size = m ? (Number(m[3]) * 10) + ' x ' + (Number(m[4]) * 10)
+            : String(r.product_name || '').match(/(\d{2,3})\s*[xX×]\s*(\d{2,3})/) ? String(r.product_name).match(/(\d{2,3})\s*[xX×]\s*(\d{2,3})/).slice(1).map(Number).join(' x ') : '-';
+        const pNo = m ? Number(m[8]) : (String(r.pattern || '').match(/\d+/) ? Number(String(r.pattern).match(/\d+/)[0]) : null);
+        return {
+            day: r.day, code: code, name: r.product_name || code,
+            type: type, panels: pn ? pn + ' บาน' : '-', size: size,
+            alu: r.aluminum_color || '-', glass: r.glass_color || '-',
+            screen: r.screen_type || '-', pattern: pNo === null ? '-' : (pNo === 0 ? 'ไม่มีลาย' : 'ลาย ' + pNo),
+            platform: r.platform || 'Other', pieces: Number(r.pieces) || 0, orders: Number(r.orders) || 0
+        };
+    }
+    // ชื่อประเภท = คำแรกของชื่อสินค้า (เช่น "หน้าต่างบานเลื่อน") ที่ใช้บ่อยสุดของรหัสนั้น
+    function buildTypeNames() {
+        const c = {};
+        rows.forEach(r => {
+            const w = String(r.name).trim().split(/\s+/)[0].replace(/\d+บาน$/, '') || r.type;
+            c[r.type] = c[r.type] || {}; c[r.type][w] = (c[r.type][w] || 0) + r.pieces;
+        });
+        typeNames = {};
+        Object.keys(c).forEach(t => { typeNames[t] = Object.entries(c[t]).sort((a, b) => b[1] - a[1])[0][0]; });
+    }
+    const typeLabel = t => typeNames[t] ? typeNames[t] + ' (' + t + ')' : t;
+    function skuLabel(r) {
+        return (typeNames[r.type] || r.type) + ' ' + r.panels + ' ' + r.size + ' · กรอบ' + r.alu + ' · กระจก' + r.glass + ' · ' + r.screen + ' · ' + r.pattern;
+    }
+
+    // ───────── โหลดข้อมูล ─────────
+    async function load() {
+        document.getElementById('rankList').innerHTML = '<li class="empty">กำลังโหลด...</li>';
+        try {
+            const out = [];
+            for (let from = 0; from < 100000; from += 1000) {
+                const { data, error } = await db.rpc('rpc_sales_by_day').range(from, from + 999);
+                if (error) throw error;
+                out.push(...(data || []));
+                if (!data || data.length < 1000) break;
+            }
+            rows = out.map(parseRow);
+        } catch (e) {
+            const msg = String(e.message || e);
+            document.getElementById('rankList').innerHTML = '<li class="empty">❌ โหลดข้อมูลไม่สำเร็จ: ' + esc(msg)
+                + (/rpc_sales_by_day|schema cache|function/i.test(msg) ? '<br><small>ฐานข้อมูลยังไม่ได้ติดตั้ง (sales-dashboard-step1.sql)</small>' : '') + '</li>';
+            return;
+        }
+        buildTypeNames();
+        fillFilters();
+        render();
+    }
+
+    // ───────── ช่วงเวลา ─────────
+    function range() {
+        const t = todayStr(), v = document.getElementById('fRange').value;
+        const first = rows.length ? rows.reduce((a, r) => r.day < a ? r.day : a, t) : t;
+        if (v === 'today') return [t, t];
+        if (v === 'yesterday') { const y = addDays(t, -1); return [y, y]; }
+        if (v === 'month') return [t.slice(0, 8) + '01', t];
+        if (v === 'lastmonth') { const s = addDays(t.slice(0, 8) + '01', -1); return [s.slice(0, 8) + '01', s]; }
+        if (v === 'year') return [t.slice(0, 5) + '01-01', t];
+        if (v === 'all') return [first, t];
+        if (v === 'custom') {
+            const a = document.getElementById('fFrom').value || first, b = document.getElementById('fTo').value || t;
+            return a <= b ? [a, b] : [b, a];
+        }
+        const n = Number(v) || 30; return [addDays(t, -(n - 1)), t];
+    }
+
+    // ───────── ตัวกรอง ─────────
+    function match(r, skip) {
+        for (const f of FILTERS) if (f !== skip && sel[f] && r[f] !== sel[f]) return false;
+        const q = document.getElementById('fSearch').value.trim().toUpperCase();
+        if (q && !r.code.includes(q)) return false;
+        return true;
+    }
+    const ORDER = {
+        panels: (a, b) => parseInt(a) - parseInt(b),
+        size: (a, b) => { const p = s => s.split(' x ').map(Number); const [a1, a2] = p(a), [b1, b2] = p(b); return a1 - b1 || a2 - b2; },
+        pattern: (a, b) => (a === 'ไม่มีลาย' ? -1 : b === 'ไม่มีลาย' ? 1 : (parseInt(a.replace(/\D/g, '')) || 0) - (parseInt(b.replace(/\D/g, '')) || 0))
+    };
+    // ตัวเลือกในแต่ละช่อง นับชิ้นตามช่วงเวลา + ตัวกรองอื่นที่เลือกอยู่ (เลือกแล้วไม่เจอรายการว่าง ๆ)
+    function fillFilters() {
+        const [a, b] = range();
+        FILTERS.forEach(f => {
+            const box = document.querySelector('[data-f="' + f + '"]');
+            const cnt = {};
+            rows.forEach(r => { if (r.day >= a && r.day <= b && match(r, f)) cnt[r[f]] = (cnt[r[f]] || 0) + r.pieces; });
+            if (sel[f] && !(sel[f] in cnt)) cnt[sel[f]] = 0;
+            let keys = Object.keys(cnt);
+            keys.sort(ORDER[f] || ((x, y) => cnt[y] - cnt[x] || String(x).localeCompare(String(y), 'th')));
+            box.innerHTML = '<option value="">ทั้งหมด</option>' + keys.map(k => '<option value="' + esc(k) + '"' + (sel[f] === k ? ' selected' : '') + '>'
+                + esc(f === 'type' ? typeLabel(k) : k) + ' (' + num(cnt[k]) + ')</option>').join('');
+            box.classList.toggle('on', !!sel[f]);
+        });
+        document.getElementById('fSearch').classList.toggle('on', !!document.getElementById('fSearch').value.trim());
+        const chips = FILTERS.filter(f => sel[f]).map(f => '<button type="button" class="chip" data-clear="' + f + '">' + esc(FILTER_NAMES[f]) + ': '
+            + esc(f === 'type' ? typeLabel(sel[f]) : sel[f]) + ' ✕</button>');
+        if (chips.length > 1) chips.push('<button type="button" class="chip" data-clear="*" style="background:rgba(220,38,38,.12);color:#dc2626;">ล้างทั้งหมด</button>');
+        document.getElementById('chips').innerHTML = chips.join('');
+        const nOn = FILTERS.filter(f => sel[f]).length + (document.getElementById('fSearch').value.trim() ? 1 : 0);
+        document.getElementById('fCount').textContent = nOn ? '· เลือกอยู่ ' + nOn + ' ช่อง' : '· แตะเพื่อเลือก ประเภท ขนาด สี ลาย มุ้ง แพลตฟอร์ม';
+    }
+
+    // ───────── แสดงผล ─────────
+    function groupKey(r, g) {
+        if (g === 'sku') return r.code;
+        if (g === 'model') return r.type + '|' + r.panels + '|' + r.size;
+        if (g === 'color') return 'กรอบ' + r.alu + ' · กระจก' + r.glass;
+        return r[g];
+    }
+    function groupLabel(k, g, sample) {
+        if (g === 'sku') return { t: skuLabel(sample), s: k };
+        if (g === 'model') { const [t, p, s] = k.split('|'); return { t: (typeNames[t] || t) + ' ' + p + ' ' + s, s: t }; }
+        if (g === 'type') return { t: typeNames[k] || k, s: k };
+        return { t: k, s: '' };
+    }
+    function aggregate(list, g) {
+        const m = {};
+        list.forEach(r => {
+            const k = groupKey(r, g);
+            if (!m[k]) m[k] = { k: k, pieces: 0, orders: 0, sample: r };
+            m[k].pieces += r.pieces; m[k].orders += r.orders;
+        });
+        return Object.values(m).sort((x, y) => y.pieces - x.pieces || y.orders - x.orders || String(x.k).localeCompare(String(y.k)));
+    }
+    function cmpHtml(now, prev) {
+        if (prev === null) return '';
+        if (!prev) return now ? '<span class="up">ใหม่</span>' : '';
+        const d = Math.round((now - prev) / prev * 100);
+        return d > 0 ? '<span class="up">▲ ' + d + '%</span>' : d < 0 ? '<span class="down">▼ ' + Math.abs(d) + '%</span>' : '<span class="flat">เท่าเดิม</span>';
+    }
+    function rankHtml(items, g, prevMap, max, limit, filterKey) {
+        const top = items.length ? items[0].pieces : 0;
+        const total = items.reduce((a, x) => a + x.pieces, 0);
+        if (!items.length) return '<li class="empty">ไม่มียอดขายในช่วงนี้</li>';
+        return items.slice(0, limit).map((x, i) => {
+            const l = groupLabel(x.k, g, x.sample);
+            const pv = prevMap ? (prevMap[x.k] || 0) : null;
+            return '<li data-g="' + g + '" data-k="' + esc(x.k) + '"><div class="rk">' + (i + 1) + '</div>'
+                + '<div class="nm"><b>' + esc(l.t) + '</b>' + (l.s ? '<div class="meta">' + esc(l.s) + '</div>' : '')
+                + '<div class="bar"><i style="width:' + (top ? Math.max(2, x.pieces / top * 100) : 0) + '%"></i></div></div>'
+                + '<div class="qty"><b>' + num(x.pieces) + '</b> ชิ้น<div class="meta">' + num(x.orders) + ' ออเดอร์ · '
+                + (total ? Math.round(x.pieces / total * 1000) / 10 : 0) + '%</div>'
+                + (pv !== null ? '<div class="meta">' + cmpHtml(x.pieces, pv) + ' <span class="flat">ช่วงก่อน ' + num(pv) + '</span></div>' : '') + '</div></li>';
+        }).join('') + (items.length > limit ? '<li class="empty" style="cursor:default;">… อีก ' + num(items.length - limit) + ' รายการ</li>' : '');
+    }
+
+    function render() {
+        fillFilters();
+        const [a, b] = range();
+        const list = rows.filter(r => r.day >= a && r.day <= b && match(r));
+        const days = daysBetween(a, b);
+        const isAll = document.getElementById('fRange').value === 'all';
+        const pa = addDays(a, -days), pb = addDays(a, -1);
+        const prev = isAll ? null : rows.filter(r => r.day >= pa && r.day <= pb && match(r));
+
+        const pieces = list.reduce((s, r) => s + r.pieces, 0), orders = list.reduce((s, r) => s + r.orders, 0);
+        document.getElementById('kPieces').textContent = num(pieces);
+        document.getElementById('kOrders').textContent = num(orders);
+        document.getElementById('kAvg').textContent = (Math.round(pieces / days * 10) / 10).toLocaleString('th-TH');
+        document.getElementById('kDays').textContent = thDate(a) + (a !== b ? ' – ' + thDate(b) : '') + ' · ' + num(days) + ' วัน';
+        document.getElementById('kSku').textContent = num(new Set(list.map(r => r.code)).size);
+        const pP = prev ? prev.reduce((s, r) => s + r.pieces, 0) : null, pO = prev ? prev.reduce((s, r) => s + r.orders, 0) : null;
+        document.getElementById('kPiecesCmp').innerHTML = prev ? cmpHtml(pieces, pP) + ' <span class="flat">ช่วงก่อน ' + num(pP) + '</span>' : '';
+        document.getElementById('kOrdersCmp').innerHTML = prev ? cmpHtml(orders, pO) + ' <span class="flat">ช่วงก่อน ' + num(pO) + '</span>' : '';
+
+        renderChart(list, a, b);
+
+        const g = document.getElementById('fGroup').value;
+        const items = aggregate(list, g);
+        const prevMap = prev ? Object.fromEntries(aggregate(prev, g).map(x => [x.k, x.pieces])) : null;
+        document.getElementById('rankList').innerHTML = rankHtml(items, g, prevMap, 0, showAll ? 100000 : 20);
+        document.getElementById('btnMore').textContent = showAll ? 'ดู 20 อันดับ' : 'ดูทั้งหมด (' + num(items.length) + ')';
+        document.getElementById('miniColor').innerHTML = rankHtml(aggregate(list, 'color'), 'color', null, 0, 8);
+        document.getElementById('miniSize').innerHTML = rankHtml(aggregate(list, 'size'), 'size', null, 0, 8);
+    }
+
+    function renderChart(list, a, b) {
+        const cut = k => bucket === 'year' ? k.slice(0, 4) : bucket === 'month' ? k.slice(0, 7) : k;
+        const sum = {};
+        list.forEach(r => { const k = cut(r.day); sum[k] = (sum[k] || 0) + r.pieces; });
+        // เติมช่วงที่ขายไม่ได้เป็น 0 ให้เห็นวันที่เงียบ
+        const keys = [];
+        let note = '';
+        if (bucket === 'day') {
+            const n = daysBetween(a, b);
+            const start = n > 400 ? addDays(b, -399) : a;
+            if (n > 400) note = 'แสดง 400 วันล่าสุด — ช่วงยาวกว่านี้ลองดูแบบรายเดือน';
+            for (let d = start; d <= b; d = addDays(d, 1)) keys.push(d);
+        } else if (bucket === 'month') {
+            let y = Number(a.slice(0, 4)), m = Number(a.slice(5, 7));
+            const ey = Number(b.slice(0, 4)), em = Number(b.slice(5, 7));
+            while (y < ey || (y === ey && m <= em)) { keys.push(y + '-' + String(m).padStart(2, '0')); m++; if (m > 12) { m = 1; y++; } }
+        } else {
+            for (let y = Number(a.slice(0, 4)); y <= Number(b.slice(0, 4)); y++) keys.push(String(y));
+        }
+        const vals = keys.map(k => sum[k] || 0);
+        const best = vals.length ? Math.max(...vals) : 0;
+        if (best > 0) {
+            const bi = vals.indexOf(best);
+            note = (note ? note + ' · ' : '') + 'สูงสุด ' + bucketLabel(keys[bi]) + ' = ' + num(best) + ' ชิ้น';
+        }
+        document.getElementById('chartNote').textContent = note;
+        const css = getComputedStyle(document.body);
+        const txt = css.getPropertyValue('--muted-strong').trim() || '#64748b';
+        const grid = css.getPropertyValue('--border-color').trim() || 'rgba(100,116,139,.2)';
+        const cfg = {
+            type: 'bar',
+            data: { labels: keys.map(bucketLabel), datasets: [{ label: 'ชิ้น', data: vals, backgroundColor: '#3b82f6', borderRadius: 5, maxBarThickness: 46 }] },
+            options: {
+                responsive: true, maintainAspectRatio: false, animation: false,
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => num(c.parsed.y) + ' ชิ้น' } } },
+                scales: {
+                    x: { ticks: { color: txt, font: { family: 'Kanit' }, maxRotation: 0, autoSkip: true, autoSkipPadding: 8 }, grid: { display: false } },
+                    y: { beginAtZero: true, ticks: { color: txt, font: { family: 'Kanit' }, precision: 0 }, grid: { color: grid } }
+                }
+            }
+        };
+        if (!window.Chart) { document.getElementById('chartNote').textContent = 'โหลดตัววาดกราฟไม่ได้ (เช็คอินเทอร์เน็ต)'; return; }
+        if (chart) { chart.data = cfg.data; chart.options = cfg.options; chart.update(); }
+        else chart = new Chart(document.getElementById('chart'), cfg);
+    }
+
+    window.addEventListener('auth-ready', () => {
+        db = window.auth && window.auth.supabase;
+        if (!db) { document.getElementById('rankList').innerHTML = '<li class="empty">❌ เชื่อมต่อฐานข้อมูลไม่ได้</li>'; return; }
+        if (window.innerWidth < 700) document.getElementById('filterBox').removeAttribute('open');   // มือถือ: พับตัวกรองไว้
+        load();
+        document.getElementById('btnReload').addEventListener('click', load);
+        document.getElementById('fRange').addEventListener('change', e => {
+            const c = e.target.value === 'custom';
+            document.getElementById('customFrom').style.display = c ? '' : 'none';
+            document.getElementById('customTo').style.display = c ? '' : 'none';
+            if (c && !document.getElementById('fFrom').value) {
+                const [a, b] = range(); document.getElementById('fFrom').value = addDays(b, -29); document.getElementById('fTo').value = b;
+            }
+            render();
+        });
+        ['fFrom', 'fTo'].forEach(id => document.getElementById(id).addEventListener('change', render));
+        document.querySelectorAll('[data-f]').forEach(s => s.addEventListener('change', () => { sel[s.dataset.f] = s.value || undefined; render(); }));
+        let t = null;
+        document.getElementById('fSearch').addEventListener('input', () => { clearTimeout(t); t = setTimeout(render, 250); });
+        document.getElementById('fGroup').addEventListener('change', () => { showAll = false; render(); });
+        document.getElementById('btnMore').addEventListener('click', () => { showAll = !showAll; render(); });
+        document.getElementById('segBucket').addEventListener('click', e => {
+            const btn = e.target.closest('[data-b]'); if (!btn) return;
+            bucket = btn.dataset.b;
+            document.querySelectorAll('#segBucket button').forEach(x => x.classList.toggle('on', x === btn));
+            if (bucket !== 'day' && ['today', 'yesterday', '7', '30'].includes(document.getElementById('fRange').value)) {
+                document.getElementById('fRange').value = bucket === 'month' ? 'year' : 'all';
+            }
+            render();
+        });
+        document.getElementById('chips').addEventListener('click', e => {
+            const c = e.target.closest('[data-clear]'); if (!c) return;
+            if (c.dataset.clear === '*') FILTERS.forEach(f => { delete sel[f]; }); else delete sel[c.dataset.clear];
+            render();
+        });
+        // กดรายการในอันดับ → กรองเฉพาะรายการนั้น
+        document.querySelector('.shell').addEventListener('click', e => {
+            const li = e.target.closest('li[data-g]'); if (!li) return;
+            const g = li.dataset.g, k = li.dataset.k;
+            if (g === 'sku') { document.getElementById('fSearch').value = k; }
+            else if (g === 'model') { const [ty, p, s] = k.split('|'); sel.type = ty; sel.panels = p; sel.size = s; }
+            else if (g === 'color') { const r = rows.find(x => groupKey(x, 'color') === k); if (r) { sel.alu = r.alu; sel.glass = r.glass; } }
+            else if (FILTERS.includes(g)) sel[g] = k;
+            render();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    });
+</script>
+</body>
+</html>
