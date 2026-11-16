@@ -533,11 +533,23 @@
             + (pend.length ? (tj.length ? ' · ' : '') + 'รอตัดอยู่ ' + esc(pend.map(j => j.job_no + ' (' + jobSheets(j) + ' แผ่น)').join(', ')) : '');
         let html = '<div class="today-head"><div><div class="today-title">' + title + '</div><div class="meta">' + blText + '</div>'
             + (already ? '<div class="meta">📋 ' + already + ' — แผ่นในใบเหล่านี้ถูกกันไว้แล้ว ใบใหม่ไม่ซ้ำ</div>' : '') + '</div>';
+        if (backlog && backlog.skip_today) {
+            html = '<div class="today-head"><div><div class="today-title">⏸️ วันนี้งดตัดกระจกส่วนเกิน</div>'
+                + '<div class="meta">กดงดโดย ' + esc(backlog.skip_by || '-') + (backlog.skip_reason ? ' · เหตุผล: ' + esc(backlog.skip_reason) : '')
+                + ' · ป้ายเตือนหยุดทุกคนทั้งวัน พรุ่งนี้กลับมาเอง</div><div class="meta">' + blText + '</div></div>'
+                + (canAct ? '<button type="button" class="btn" id="btnUnskip">↩️ ยกเลิกงด (จะตัดวันนี้)</button>' : '') + '</div>';
+            box.className = 'card today wait';
+            box.innerHTML = html;
+            box.style.display = '';
+            return;
+        }
         if (!sugs.length) {
             html += '</div><div class="meta" style="margin-top:6px;">✅ ตอนนี้ไม่มีกระจกที่ควรตัดแล้ว</div>';
         } else if (canAct) {
             html += '<div class="today-ctl"><label>ตัดวันนี้ <input type="number" id="todayCount" min="1" max="500" step="1" inputmode="numeric" value="' + todayTarget() + '"> แผ่น</label>'
-                + '<button type="button" class="btn btn-main" id="btnToday"></button></div></div>'
+                + '<button type="button" class="btn btn-main" id="btnToday"></button>'
+                + (backlog ? '<button type="button" class="btn" id="btnSkip" title="วันนี้มีงานอื่น — หยุดป้ายเตือนของทุกคนจนถึงพรุ่งนี้">⏸️ วันนี้งดตัด</button>' : '')
+                + '</div></div>'
                 + '<div id="todayPickBox"></div>';
         } else {
             html += '<span class="pill gry">สร้างใบต้องมีสิทธิ์ "✂️ ตัดกระจกส่วนเกิน"</span></div><div id="todayPickBox"></div>';
@@ -568,6 +580,19 @@
             + pick.map(p => '<li>• ' + esc(label(p.x.source)) + ' <b>' + p.sheets + '</b> แผ่น → '
                 + esc(p.x.outputs.map(o => kindOf(o.code) + ' ' + sizeOf(o.code) + ' ×' + (o.per_sheet * p.sheets)).join(', ')) + '</li>').join('')
             + '</ul>';
+    }
+    async function skipToday(skip, btn) {
+        let reason = null;
+        if (skip) {
+            reason = prompt('วันนี้งดตัดกระจกส่วนเกิน — ป้ายเตือนจะหยุดทุกคนจนถึงพรุ่งนี้\nเหตุผล (ไม่บังคับ) เช่น มีงานอื่น:', '');
+            if (reason === null) return;
+        } else if (!confirm('ยกเลิกงดตัด — วันนี้จะตัดกระจกส่วนเกิน และป้ายเตือนกลับมา?')) return;
+        btn.disabled = true;
+        const { error } = await db.rpc('rpc_glass_recut_skip_today', { p_skip: skip, p_reason: reason });
+        if (error) { btn.disabled = false; toast('❌ ' + error.message, 6000); return; }
+        toast(skip ? '⏸️ วันนี้งดตัดแล้ว — ป้ายเตือนหยุดทุกคนถึงพรุ่งนี้' : '↩️ ยกเลิกงดแล้ว');
+        await loadBacklog();
+        renderToday();
     }
     async function createTodayJob(btn) {
         if (busy) return;
@@ -812,6 +837,10 @@
         document.getElementById('todayBox').addEventListener('click', e => {
             const b = e.target.closest('#btnToday');
             if (b) createTodayJob(b);
+            const k = e.target.closest('#btnSkip');
+            if (k) skipToday(true, k);
+            const u = e.target.closest('#btnUnskip');
+            if (u) skipToday(false, u);
         });
         document.getElementById('todayBox').addEventListener('input', e => {
             if (e.target.id !== 'todayCount') return;
