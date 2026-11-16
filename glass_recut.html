@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
-    <script src="auth.js?v=20261114-1"></script>
+    <script src="auth.js?v=20261116-1"></script>
     <script src="glass-recut-engine.js?v=20261113-1"></script>
     <link rel="stylesheet" href="theme.css">
     <script src="theme.js" defer></script>
@@ -169,6 +169,7 @@
                     <label>🟢 งานน้อย = ค้างผลิตไม่เกิน (ชิ้น) <input type="number" min="0" max="1000" data-set="lowBacklog"></label>
                     <label>✂️ ใบวันนี้ตัดได้ (แผ่น/วัน) <input type="number" min="1" max="100" data-set="dailySheets"></label>
                 </div>
+                <div class="meta" style="margin-top:6px;">🟢 2 ช่องล่างใช้ร่วมทุกเครื่อง + ใช้กับป้ายเตือน · เลือกว่าเตือนใคร ที่หน้า "จัดการสมาชิก" → ติ๊ก 🔔 เตือนวันงานน้อย</div>
                 <div class="toolbar" style="margin-top:10px;margin-bottom:0;">
                     <button type="button" class="btn btn-main" id="btnSetApply">🔄 คิดใหม่</button>
                     <button type="button" class="btn" id="btnSetReset">ใช้ค่าเริ่มต้น</button>
@@ -247,7 +248,11 @@
     function settings() {
         let s = {};
         try { s = JSON.parse(localStorage.getItem(SET_KEY) || '{}') || {}; } catch (e) { s = {}; }
-        return Object.assign({}, G.DEFAULTS, DAY_DEFAULTS, s);
+        const r = Object.assign({}, G.DEFAULTS, DAY_DEFAULTS, s);
+        // เกณฑ์วันงานน้อย + แผ่นต่อวัน ใช้ค่าในฐานข้อมูล (ทุกเครื่องเหมือนกัน · ป้ายเตือนทุกหน้าใช้ค่านี้)
+        if (backlog && backlog.low_backlog != null) r.lowBacklog = Number(backlog.low_backlog);
+        if (backlog && backlog.daily_sheets != null) r.dailySheets = Number(backlog.daily_sheets);
+        return r;
     }
     function saveSettings(s) { try { localStorage.setItem(SET_KEY, JSON.stringify(s)); } catch (e) {} }
     // ชื่อสั้นของกระจก: "หน้าต่าง เขียว 97.5×44.6"
@@ -757,6 +762,7 @@
         const perms = window.auth.pagePermissions || [];
         canAct = window.auth.role === 'Ceo' || perms.some(p => p.page_key === 'action_glass_recut' && p.can_access === true);
         if (!canAct) document.querySelector('.sub').insertAdjacentHTML('beforeend', '<br><span class="pill gry">👁️ ดูอย่างเดียว — สร้างใบ/กดตัดเสร็จ ต้องมีสิทธิ์ "✂️ ตัดกระจกส่วนเกิน"</span>');
+        if (!canAct) document.querySelectorAll('[data-set="lowBacklog"],[data-set="dailySheets"]').forEach(i => { i.disabled = true; });
         renderSettings();
         loadAll();
 
@@ -778,6 +784,14 @@
                 const v = Number(i.value);
                 if (!Number.isFinite(v) || v < Number(i.min) || v > Number(i.max)) { toast('ค่าต้องอยู่ระหว่าง ' + i.min + '–' + i.max); i.focus(); return; }
                 s[i.dataset.set] = Math.round(v);
+            }
+            const day = settings();
+            if (s.lowBacklog !== day.lowBacklog || s.dailySheets !== day.dailySheets) {
+                if (!canAct) { toast('เกณฑ์วันงานน้อย/แผ่นต่อวัน แก้ได้เฉพาะคนที่มีสิทธิ์ "✂️ ตัดกระจกส่วนเกิน"', 5000); renderSettings(); return; }
+                const { error } = await db.rpc('rpc_glass_recut_set_day', { p_low_backlog: s.lowBacklog, p_daily_sheets: s.dailySheets });
+                if (error) { toast('❌ บันทึกเกณฑ์ไม่สำเร็จ: ' + error.message, 6000); return; }
+                if (backlog) { backlog.low_backlog = s.lowBacklog; backlog.daily_sheets = s.dailySheets; }
+                toast('✅ บันทึกเกณฑ์แล้ว (ใช้ทุกเครื่อง)');
             }
             saveSettings(s);
             if (s.histDays !== demandDays) {

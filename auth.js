@@ -178,6 +178,55 @@ async function checkAuth() {
     window.dispatchEvent(new CustomEvent('auth-ready', {
         detail: { role: userRole, permissions: pagePermissions }
     }));
+
+    showGlassRecutAlert(userRole, pagePermissions, currentPage);
+}
+
+// ─── 🔔 ป้ายเตือน "วันนี้งานน้อย ควรตัดกระจกส่วนเกิน" ───
+// ขึ้นเฉพาะบัญชีที่ติ๊ก 🔔 ในหน้าจัดการสมาชิก (ฐานข้อมูลตรวจซ้ำอีกชั้น · CEO ก็ต้องติ๊กเอง)
+// ถามฐานข้อมูลไม่เกินทุก 10 นาทีต่อแท็บ · กด ✕ = ไม่เตือนอีกจนถึงพรุ่งนี้
+async function showGlassRecutAlert(role, pagePermissions, currentPage) {
+    try {
+        if (currentPage === 'glass_recut.html' || currentPage === 'login.html') return;   // หน้าตัดกระจกมีการ์ดของตัวเองแล้ว
+        const subscribed = pagePermissions.some(p => p.page_key === 'notify_glass_recut_low' && p.can_access === true);
+        if (role !== 'Ceo' && !subscribed) return;   // CEO ไม่ได้โหลดรายการสิทธิ์ → ให้ฐานข้อมูลตัดสิน
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+        const DISMISS = 'ccga.recutAlert.dismissed', CACHE = 'ccga.recutAlert.cache';
+        try { if (localStorage.getItem(DISMISS) === today) return; } catch (e) {}
+        let res = null;
+        try {
+            const c = JSON.parse(sessionStorage.getItem(CACHE) || 'null');
+            if (c && c.day === today && Date.now() - c.t < 10 * 60 * 1000) res = c.res;
+        } catch (e) {}
+        if (!res) {
+            const { data, error } = await supabaseClient.rpc('rpc_glass_recut_alert');
+            if (error) return;   // ยังไม่ได้ติดตั้งฝั่งฐานข้อมูล หรือเน็ตหลุด → เงียบไว้
+            res = data || {};
+            try { sessionStorage.setItem(CACHE, JSON.stringify({ day: today, t: Date.now(), res: res })); } catch (e) {}
+        }
+        if (!res || res.show !== true) return;
+        document.getElementById('glass-recut-alert')?.remove();
+        const canOpen = role === 'Ceo' || pagePermissions.some(p => p.page_key === 'glass_recut.html' && p.can_access === true);
+        const bar = document.createElement('div');
+        bar.id = 'glass-recut-alert';
+        bar.setAttribute('role', 'status');
+        bar.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);width:calc(100% - 24px);max-width:760px;box-sizing:border-box;'
+            + 'display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 14px;padding:10px 14px;border-radius:14px;'
+            + 'background:#15803d;color:#fff;font-family:Kanit,sans-serif;font-size:.92rem;line-height:1.45;z-index:10000;text-align:center;box-shadow:0 10px 28px rgba(0,0,0,.35);';
+        const pcs = Number(res.pieces) || 0, low = Number(res.low_backlog) || 0;
+        bar.innerHTML = '<span>🟢 <b>วันนี้งานน้อย</b> — งานค้างผลิต ' + pcs.toLocaleString('th-TH') + ' ชิ้น (เกณฑ์ ≤ ' + low.toLocaleString('th-TH')
+            + ') · ควรตัดกระจกส่วนเกินวันนี้</span>'
+            + (canOpen ? '<a href="glass_recut.html" style="background:#fff;color:#15803d;font-weight:700;padding:5px 12px;border-radius:9px;text-decoration:none;">✂️ ไปสร้างใบตัด</a>'
+                       : '<span style="opacity:.9;">(บอกคนดูแลตัดกระจก)</span>')
+            + '<button type="button" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.6);border-radius:9px;padding:4px 10px;cursor:pointer;font:inherit;">✕ วันนี้ไม่ต้องเตือน</button>';
+        bar.querySelector('button').addEventListener('click', () => {
+            try { localStorage.setItem(DISMISS, today); } catch (e) {}
+            bar.remove();
+        });
+        document.body.appendChild(bar);
+    } catch (e) {
+        console.warn('glass recut alert:', e);
+    }
 }
 
 function initUI(user, role, pagePermissions = []) {

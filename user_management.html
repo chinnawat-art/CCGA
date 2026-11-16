@@ -17,7 +17,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
-  <script src="auth.js?v=20261114-1"></script>
+  <script src="auth.js?v=20261116-1"></script>
   <script src="sound-settings.js?v=20261112-3"></script>
   <link rel="stylesheet" href="theme.css">
   <script src="theme.js" defer></script>
@@ -132,6 +132,11 @@
     .perm-group.group-data .perm-group-title { color: #6ee7b7; }
     .perm-group.group-data .perm-group-badge { background: rgba(16, 185, 129, 0.18); color: #34d399; }
     
+    .perm-group.group-notify { border-color: rgba(34, 197, 94, 0.3); background: rgba(34, 197, 94, 0.035); }
+    .perm-group.group-notify .perm-group-title { color: #86efac; }
+    .perm-group.group-notify .perm-group-badge { background: rgba(34, 197, 94, 0.18); color: #4ade80; }
+    .perm-group.group-notify .perm-grid { display: grid; grid-template-columns: 1fr; gap: 7px; }
+
     .perm-group.group-sku { border-color: rgba(14, 165, 233, 0.22); background: rgba(14, 165, 233, 0.025); }
     .perm-group.group-sku .perm-group-title { color: #7dd3fc; }
     .perm-group.group-sku .perm-group-badge { background: rgba(14, 165, 233, 0.18); color: #38bdf8; }
@@ -435,6 +440,12 @@
       ['action_confirm_shipped','🚚 ยืนยันส่งของ (กด ส่งแล้ว ในแท็บตรวจเสร็จรอจัดส่ง)']
     ];
 
+    // การแจ้งเตือน: ติ๊กรายคน (CEO ก็เลือกได้ ไม่ได้รับอัตโนมัติ)
+    const NOTIFY_PERMISSIONS = [
+      ['notify_glass_recut_low','🔔 วันนี้งานน้อย ควรตัดกระจกส่วนเกิน (ป้ายขึ้นทุกหน้า)']
+    ];
+    const NOTIFY_KEYS = new Set(NOTIFY_PERMISSIONS.map(([key]) => key));
+
     const DATA_PERMISSIONS = [
       ['data_view_production_pending','⏳ ดูรายการรอผลิต'],
       ['data_view_production_producing','🔨 ดูรายการกำลังผลิต'],
@@ -452,7 +463,8 @@
       ...PAGES.map(item => [...item, 'page']),
       ...ACTIONS.map(item => [...item, 'action']),
       ...DATA_PERMISSIONS.map(item => [...item, 'data']),
-      ...PRODUCTION_SKU_PERMISSIONS.map(item => [...item, 'sku'])
+      ...PRODUCTION_SKU_PERMISSIONS.map(item => [...item, 'sku']),
+      ...NOTIFY_PERMISSIONS.map(item => [...item, 'notify'])
     ];
     const PAGE_KEYS = new Set(PAGES.map(([key]) => key));
 
@@ -462,7 +474,7 @@
 
     // ─── RENDER GROUPED PERMISSIONS ───
     function renderCategoryGroup(prefix, groupKey, groupTitle, groupIcon, items, itemType, selected = new Set(), lockAll = false) {
-      const typeClass = itemType === 'action' ? 'action-permission' : itemType === 'data' ? 'data-permission' : itemType === 'sku' ? 'sku-permission' : '';
+      const typeClass = itemType === 'action' ? 'action-permission' : itemType === 'data' ? 'data-permission' : itemType === 'sku' ? 'sku-permission' : itemType === 'notify' ? 'notify-permission' : '';
       const checkboxesHtml = items.map(([key, label]) => {
         return `
           <label class="permission ${typeClass}" title="${label}">
@@ -500,6 +512,7 @@
         ${renderCategoryGroup(prefix, 'action', 'สิทธิ์ปุ่มคำสั่งและการกระทำ (Actions)', '⚡', ACTIONS, 'action', selected, lockAll)}
         ${renderCategoryGroup(prefix, 'data', 'สิทธิ์ดูข้อมูลฝ่ายผลิต (Data Views)', '🗃️', DATA_PERMISSIONS, 'data', selected, lockAll)}
         ${renderCategoryGroup(prefix, 'sku', 'สิทธิ์มองเห็น SKU สินค้า (SKU Filter)', '🏷️', PRODUCTION_SKU_PERMISSIONS, 'sku', selected, lockAll)}
+        ${renderCategoryGroup(prefix, 'notify', 'การแจ้งเตือน (เลือกว่าระบบจะเตือนใคร)', '🔔', NOTIFY_PERMISSIONS, 'notify', selected, false)}
       `;
     }
 
@@ -635,7 +648,7 @@
         users = edgeUsers;
         document.getElementById('memberList').innerHTML = users.map(user => {
           const selected = new Set(permissionMap.get(user.id) || []);
-          if (user.role === 'Ceo') PERMISSIONS.forEach(([key]) => selected.add(key));
+          if (user.role === 'Ceo') PERMISSIONS.forEach(([key]) => { if (!NOTIFY_KEYS.has(key)) selected.add(key); });
           
           const secondary = user.email || 'อีเมลจะแสดงหลัง Deploy Edge Function';
           const displayName = esc(user.full_name || user.email || 'สมาชิก');
