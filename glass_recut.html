@@ -100,6 +100,11 @@
         .today-head { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center; }
         .today-title { font-size:1.08rem; font-weight:700; }
         .today-list { margin:8px 0 0; padding:0; list-style:none; }
+        .today-ctl { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+        .today-ctl label { display:flex; gap:6px; align-items:center; font-weight:600; }
+        .today-ctl input { width:76px; font:700 1rem 'Kanit',sans-serif; text-align:center; padding:7px 6px;
+                           border:1px solid var(--border-strong,#cbd5e1); border-radius:10px;
+                           background: var(--surface,#fff); color: var(--text-main,#0f172a); }
         .today-list li { font-size:.88rem; padding:3px 0; border-top:1px dashed var(--border-strong,#e2e8f0); }
         details.set { margin-bottom:12px; }
         details.set summary { cursor:pointer; font-weight:600; }
@@ -482,8 +487,13 @@
     function useRate(x) {
         return x.outputs.reduce((a, o) => { const t = byCode[o.code] || {}; return a + (t.need > 0 ? (t.daily || 0) : 0); }, 0);
     }
-    function todayPick() {
-        const cap = Math.max(1, Number(settings().dailySheets) || 20);
+    let todayCount = null;   // จำนวนแผ่นที่เลือกเองในการ์ดวันนี้ (null = ใช้ค่า "แผ่นต่อวัน")
+    function todayTarget() {
+        const n = Number(todayCount);
+        return Number.isInteger(n) && n > 0 ? n : Math.max(1, Number(settings().dailySheets) || 20);
+    }
+    function todayPick(count) {
+        const cap = count || todayTarget();
         const free = {};
         const order = sugs.slice().sort((p, q) => urgency(p) - urgency(q) || useRate(q) - useRate(p) || q.util - p.util);
         const pick = [];
@@ -499,70 +509,94 @@
         }
         return pick;
     }
+    function jobSheets(j) { return (Array.isArray(j.lines) ? j.lines : []).reduce((a, l) => a + (Number(l.sheets) || 0), 0); }
+    function todayJobs() {
+        const d = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+        return jobs.filter(j => j.status !== 'cancelled' && j.created_at
+            && new Date(j.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }) === d);
+    }
     function renderToday() {
         const box = document.getElementById('todayBox');
         const s = settings();
         const pend = jobs.filter(j => j.status === 'pending');
-        let cls = 'wait', html = '';
+        const tj = todayJobs();
+        const tjSheets = tj.reduce((a, j) => a + jobSheets(j), 0);
         const bl = backlog ? Number(backlog.pieces) || 0 : null;
+        const low = backlog && bl <= s.lowBacklog;
         const blText = backlog ? 'งานค้างฝ่ายผลิตตอนนี้ <b>' + num(bl) + '</b> ชิ้น (' + num(backlog.orders) + ' ใบ · รอผลิต ' + num(backlog.pending_pieces)
-            + ' · กำลังผลิต ' + num(backlog.producing_pieces) + ') · เกณฑ์งานน้อย ≤ ' + num(s.lowBacklog) + ' ชิ้น' : '';
-        if (!backlog) {
-            html = '<div class="today-title">📅 ใบตัดวันนี้</div><div class="meta">⚠️ ' + esc(backlogErr || 'นับงานค้างไม่ได้') + '</div>';
-        } else if (pend.length) {
-            html = '<div class="today-title">📅 มีใบรอตัดอยู่ ' + pend.length + ' ใบ (' + esc(pend.map(j => j.job_no).join(', ')) + ')</div>'
-                + '<div class="meta">ตัดใบเดิมให้เสร็จก่อน แล้วระบบจะคิดใบถัดไปจากยอดล่าสุดให้ · ' + blText + '</div>';
-        } else if (bl > s.lowBacklog) {
-            html = '<div class="today-title">🔨 วันนี้งานผลิตยังเยอะ — ยังไม่ต้องตัดกระจกส่วนเกิน</div><div class="meta">' + blText + '</div>';
+            + ' · กำลังผลิต ' + num(backlog.producing_pieces) + ') · เกณฑ์งานน้อย ≤ ' + num(s.lowBacklog) + ' ชิ้น'
+            : '⚠️ ' + esc(backlogErr || 'นับงานค้างไม่ได้');
+        const title = !backlog ? '📅 ใบตัดวันนี้'
+            : low ? '🟢 วันนี้งานน้อย ควรตัดกระจกส่วนเกิน'
+            : '🔨 วันนี้งานผลิตยังเยอะ — ถ้าช่างว่างก็สร้างใบตัดได้';
+        const already = (tj.length ? 'วันนี้สั่งตัดไปแล้ว ' + tj.length + ' ใบ รวม ' + num(tjSheets) + ' แผ่น' : '')
+            + (pend.length ? (tj.length ? ' · ' : '') + 'รอตัดอยู่ ' + esc(pend.map(j => j.job_no + ' (' + jobSheets(j) + ' แผ่น)').join(', ')) : '');
+        let html = '<div class="today-head"><div><div class="today-title">' + title + '</div><div class="meta">' + blText + '</div>'
+            + (already ? '<div class="meta">📋 ' + already + ' — แผ่นในใบเหล่านี้ถูกกันไว้แล้ว ใบใหม่ไม่ซ้ำ</div>' : '') + '</div>';
+        if (!sugs.length) {
+            html += '</div><div class="meta" style="margin-top:6px;">✅ ตอนนี้ไม่มีกระจกที่ควรตัดแล้ว</div>';
+        } else if (canAct) {
+            html += '<div class="today-ctl"><label>ตัดวันนี้ <input type="number" id="todayCount" min="1" max="500" step="1" inputmode="numeric" value="' + todayTarget() + '"> แผ่น</label>'
+                + '<button type="button" class="btn btn-main" id="btnToday"></button></div></div>'
+                + '<div id="todayPickBox"></div>';
         } else {
-            const pick = todayPick();
-            if (!pick.length) {
-                html = '<div class="today-title">🟢 วันนี้งานน้อย แต่ไม่มีกระจกที่ควรตัด</div><div class="meta">' + blText + '</div>';
-            } else {
-                cls = 'go';
-                const sheets = pick.reduce((a, p) => a + p.sheets, 0);
-                const pieces = pick.reduce((a, p) => a + p.x.outputs.reduce((b, o) => b + o.per_sheet * p.sheets, 0), 0);
-                html = '<div class="today-head"><div><div class="today-title">🟢 วันนี้งานน้อย ควรตัดกระจกส่วนเกิน</div>'
-                    + '<div class="meta">' + blText + '</div>'
-                    + '<div style="margin-top:4px;">ใบวันนี้: ใช้ <b>' + num(sheets) + '</b> แผ่น · ' + pick.length + ' แบบ → ได้ <b>' + num(pieces) + '</b> ชิ้น'
-                    + ' <span class="meta">(เลือกขนาดที่ใกล้หมดก่อน)</span></div></div>'
-                    + (canAct ? '<button type="button" class="btn btn-main" id="btnToday">✂️ สร้างใบวันนี้ (' + num(sheets) + ' แผ่น)</button>'
-                              : '<span class="pill gry">สร้างใบต้องมีสิทธิ์ "✂️ ตัดกระจกส่วนเกิน"</span>')
-                    + '</div><ul class="today-list">'
-                    + pick.map(p => '<li>• ' + esc(label(p.x.source)) + ' <b>' + p.sheets + '</b> แผ่น → '
-                        + esc(p.x.outputs.map(o => kindOf(o.code) + ' ' + sizeOf(o.code) + ' ×' + (o.per_sheet * p.sheets)).join(', ')) + '</li>').join('')
-                    + '</ul>';
-            }
+            html += '<span class="pill gry">สร้างใบต้องมีสิทธิ์ "✂️ ตัดกระจกส่วนเกิน"</span></div><div id="todayPickBox"></div>';
         }
-        box.className = 'card today ' + cls;
+        box.className = 'card today ' + (low && !pend.length && !tj.length ? 'go' : 'wait');
         box.innerHTML = html;
         box.style.display = '';
+        renderTodayPick();
+    }
+    // อัปเดตเฉพาะรายการ + ปุ่ม (ตอนพิมพ์จำนวนแผ่น ช่องไม่หลุดโฟกัส)
+    function renderTodayPick() {
+        const el = document.getElementById('todayPickBox');
+        if (!el) return;
+        const tj = todayJobs(), pend = jobs.filter(j => j.status === 'pending');
+        const want = todayTarget();
+        const pick = todayPick(want);
+        const sheets = pick.reduce((a, p) => a + p.sheets, 0);
+        const pieces = pick.reduce((a, p) => a + p.x.outputs.reduce((b, o) => b + o.per_sheet * p.sheets, 0), 0);
+        const btn = document.getElementById('btnToday');
+        if (btn) {
+            btn.textContent = (tj.length || pend.length ? '➕ เพิ่มใบอีก (' : '✂️ สร้างใบวันนี้ (') + num(sheets) + ' แผ่น)';
+            btn.disabled = !sheets || busy;
+        }
+        if (!pick.length) { el.innerHTML = '<div class="meta" style="margin-top:6px;">ไม่มีแผ่นที่ตัดได้เพิ่ม (แผ่นที่เกินถูกกันไว้ในใบรอตัดหมดแล้ว)</div>'; return; }
+        el.innerHTML = '<div style="margin-top:6px;">ใบนี้: ใช้ <b>' + num(sheets) + '</b> แผ่น · ' + pick.length + ' แบบ → ได้ <b>' + num(pieces) + '</b> ชิ้น'
+            + ' <span class="meta">(เลือกขนาดที่ใกล้หมดก่อน' + (sheets < want ? ' · มีให้ตัดแค่ ' + num(sheets) + ' แผ่น' : '') + ')</span></div>'
+            + '<ul class="today-list">'
+            + pick.map(p => '<li>• ' + esc(label(p.x.source)) + ' <b>' + p.sheets + '</b> แผ่น → '
+                + esc(p.x.outputs.map(o => kindOf(o.code) + ' ' + sizeOf(o.code) + ' ×' + (o.per_sheet * p.sheets)).join(', ')) + '</li>').join('')
+            + '</ul>';
     }
     async function createTodayJob(btn) {
         if (busy) return;
+        const want = todayTarget();
         btn.disabled = true;
-        // คิดจากยอดล่าสุดทุกครั้ง: โหลดยอดกระจก + ใบรอตัด + งานค้างใหม่ก่อนสร้าง
+        // คิดจากยอดล่าสุดทุกครั้ง: โหลดยอดกระจก + ใบสั่งตัด + งานค้างใหม่ก่อนสร้าง (ใบรอตัดเดิมถูกกันแผ่นไว้ ใบใหม่ไม่ซ้ำ)
         try { await Promise.all([loadItems(), loadJobs(), loadBacklog()]); }
         catch (e) { toast('❌ โหลดยอดล่าสุดไม่สำเร็จ: ' + (e.message || e), 6000); btn.disabled = false; return; }
         const s = settings();
         const pend = jobs.filter(j => j.status === 'pending');
+        const tj = todayJobs();
         stats = G.analyze(items, demand, pend, s);
         byCode = {}; stats.forEach(x => { byCode[x.code] = x; });
         const p = G.plan(stats, s);
         sugs = p.suggestions.map((x, i) => Object.assign(x, { idx: i, on: false }));
         leftovers = p.leftovers;
         renderSugs(); renderKpis(); renderJobs();
-        if (pend.length) { renderToday(); toast('มีใบรอตัดอยู่แล้ว (' + pend.map(j => j.job_no).join(', ') + ') — ตัดใบเดิมให้เสร็จก่อน', 5000); return; }
-        if (!backlog) { renderToday(); toast('นับงานค้างไม่ได้ — ลองโหลดใหม่', 5000); return; }
-        if ((Number(backlog.pieces) || 0) > s.lowBacklog) { renderToday(); toast('งานผลิตเพิ่งเข้ามา ค้าง ' + backlog.pieces + ' ชิ้น — วันนี้ยังไม่ต้องตัด', 5000); return; }
-        const pick = todayPick();
+        const pick = todayPick(want);
         renderToday();
-        if (!pick.length) { toast('ยอดล่าสุดไม่มีกระจกที่ควรตัดแล้ว'); return; }
+        if (!pick.length) { toast('ยอดล่าสุดไม่มีกระจกที่ตัดได้เพิ่มแล้ว'); return; }
         const sheets = pick.reduce((a, q) => a + q.sheets, 0);
         const sum = pick.map(q => '• ' + label(q.x.source) + ' ' + q.sheets + ' แผ่น → '
             + q.x.outputs.map(o => sizeOf(o.code) + ' ×' + (o.per_sheet * q.sheets)).join(', ')).join('\n');
-        if (!confirm('สร้างใบตัดวันนี้ ' + sheets + ' แผ่น (' + pick.length + ' แบบ)\nงานค้างผลิต ' + backlog.pieces + ' ชิ้น\n\n'
-            + (sum.length > 900 ? sum.slice(0, 900) + '\n…' : sum) + '\n\nยอดสต็อกยังไม่เปลี่ยนจนกว่าจะกด ✅ ตัดเสร็จ')) { renderToday(); return; }
+        const head = (tj.length || pend.length ? 'เพิ่มใบตัดอีก 1 ใบ: ' : 'สร้างใบตัดวันนี้: ') + sheets + ' แผ่น (' + pick.length + ' แบบ)'
+            + (sheets < want ? '\n(เลือกไว้ ' + want + ' แผ่น แต่มีให้ตัดแค่ ' + sheets + ' แผ่น)' : '')
+            + (tj.length ? '\nวันนี้สั่งตัดไปแล้ว ' + tj.length + ' ใบ รวม ' + tj.reduce((a, j) => a + jobSheets(j), 0) + ' แผ่น' : '')
+            + (backlog ? '\nงานค้างผลิต ' + backlog.pieces + ' ชิ้น' : '');
+        if (!confirm(head + '\n\n' + (sum.length > 900 ? sum.slice(0, 900) + '\n…' : sum)
+            + '\n\nยอดสต็อกยังไม่เปลี่ยนจนกว่าจะกด ✅ ตัดเสร็จ')) { renderToday(); return; }
         const lines = pick.map(q => ({
             source: q.x.source, sheets: q.sheets,
             outputs: q.x.outputs.map(o => ({ code: o.code, per_sheet: o.per_sheet })),
@@ -570,11 +604,12 @@
             layout: q.x.rects.map(r => ({ x: +r.x.toFixed(3), y: +r.y.toFixed(3), w: r.w, h: r.h, code: r.code }))
         }));
         busy = true; updateBar();
-        const note = 'ใบวันนี้ (งานน้อย ค้าง ' + backlog.pieces + ' ชิ้น) ' + new Date().toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' });
+        const note = (tj.length ? 'ใบเพิ่มวันนี้' : 'ใบวันนี้') + (backlog ? ' (ค้างผลิต ' + backlog.pieces + ' ชิ้น)' : '') + ' '
+            + new Date().toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' });
         const { data, error } = await db.rpc('rpc_glass_recut_create', { p_lines: lines, p_note: note });
         busy = false;
         if (error) { toast('❌ ' + error.message, 7000); updateBar(); renderToday(); return; }
-        toast('✅ สร้างใบ ' + data.job_no + ' แล้ว — พิมพ์ใบให้ช่างตัดได้เลย', 4500);
+        toast('✅ สร้างใบ ' + data.job_no + ' แล้ว (' + sheets + ' แผ่น) — พิมพ์ใบให้ช่างตัดได้เลย', 4500);
         await loadJobs();
         document.getElementById('fStatus').value = 'pending';
         compute();
@@ -777,6 +812,12 @@
         document.getElementById('todayBox').addEventListener('click', e => {
             const b = e.target.closest('#btnToday');
             if (b) createTodayJob(b);
+        });
+        document.getElementById('todayBox').addEventListener('input', e => {
+            if (e.target.id !== 'todayCount') return;
+            const n = parseInt(e.target.value, 10);
+            todayCount = Number.isInteger(n) && n > 0 ? Math.min(n, 500) : null;
+            renderTodayPick();
         });
         document.getElementById('btnSetApply').addEventListener('click', async () => {
             const s = settings();
