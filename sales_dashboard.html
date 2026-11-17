@@ -42,6 +42,10 @@
         .period { display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; margin-bottom:10px; }
         .period label { display:flex; flex-direction:column; gap:3px; font-size:.78rem; color: var(--muted-strong,#64748b); font-weight:600; }
         .period select { min-width:170px; }
+        .mp { display:flex; flex-direction:column; gap:3px; font-size:.78rem; color: var(--muted-strong,#64748b); font-weight:600; }
+        .mp-row { display:flex; gap:6px; }
+        .period .mp select { min-width:0; }
+        #fMonth { width:138px; } #fYear { width:92px; }
         .dates { display:flex; gap:6px; align-items:flex-end; flex-wrap:wrap; }
         .dates label { display:flex; flex-direction:column; gap:3px; min-width:140px; }
         .dates .nav { padding:8px 11px; min-width:0; flex:0 0 auto; }
@@ -83,6 +87,8 @@
         @media (max-width:560px) {
             .period select { min-width:0; flex:1 1 100%; }
             .period > label { flex:1 1 100%; }
+            .mp { flex:1 1 100%; }
+            .mp-row select, #fMonth, #fYear { flex:1 1 0; width:auto; }
             .dates { flex:1 1 100%; flex-wrap:nowrap; min-width:0; gap:4px; }
             .dates label { min-width:0; flex:1 1 0; }
             .dates input { width:100%; min-width:0; box-sizing:border-box; padding-left:5px; padding-right:3px; font-size:.82rem; }
@@ -117,6 +123,28 @@
                     <option value="custom">กำหนดวันที่เอง</option>
                 </select>
             </label>
+            <div class="mp">
+                <span>เลือกเดือน</span>
+                <div class="mp-row">
+                    <select id="fMonth" aria-label="เดือน">
+                        <option value="">— เดือน —</option>
+                        <option value="01">มกราคม</option>
+                        <option value="02">กุมภาพันธ์</option>
+                        <option value="03">มีนาคม</option>
+                        <option value="04">เมษายน</option>
+                        <option value="05">พฤษภาคม</option>
+                        <option value="06">มิถุนายน</option>
+                        <option value="07">กรกฎาคม</option>
+                        <option value="08">สิงหาคม</option>
+                        <option value="09">กันยายน</option>
+                        <option value="10">ตุลาคม</option>
+                        <option value="11">พฤศจิกายน</option>
+                        <option value="12">ธันวาคม</option>
+                        <option value="all">ทั้งปี</option>
+                    </select>
+                    <select id="fYear" aria-label="ปี (พ.ศ.)"></select>
+                </div>
+            </div>
             <div class="dates">
                 <button type="button" class="btn nav" id="btnPrev" title="เลื่อนไปช่วงก่อนหน้า (ยาวเท่ากัน)">◀</button>
                 <label>ตั้งแต่วันที่ <input type="date" id="fFrom"></label>
@@ -184,7 +212,7 @@
                 <button type="button" class="btn" id="btnMore">ดูทั้งหมด</button>
             </div>
         </div>
-        <div class="meta" style="margin:-4px 0 6px;">กดที่รายการเพื่อกรองดูเฉพาะรายการนั้น · ▲▼ = เทียบกับช่วงก่อนหน้าที่ยาวเท่ากัน</div>
+        <div class="meta" style="margin:-4px 0 6px;">กดที่รายการเพื่อกรองดูเฉพาะรายการนั้น · ▲▼ = เทียบกับ<span id="cmpWhat">ช่วงก่อนหน้าที่ยาวเท่ากัน</span></div>
         <ul class="rank" id="rankList"><li class="empty">กำลังโหลด...</li></ul>
     </div>
 
@@ -198,7 +226,7 @@
     const FILTERS = ['type', 'panels', 'size', 'alu', 'glass', 'pattern', 'screen', 'platform'];
     const FILTER_NAMES = { type: 'ประเภท', panels: 'บาน', size: 'ขนาด', alu: 'สีกรอบ', glass: 'สีกระจก', pattern: 'ลาย', screen: 'มุ้ง', platform: 'แพลตฟอร์ม' };
     const TH_MONTH = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-    let db = null, rows = [], typeNames = {}, bucket = 'day', showAll = false, chart = null;
+    let db = null, rows = [], typeNames = {}, bucket = 'day', showAll = false, chart = null, prevWord = 'ช่วงก่อน';
     const sel = {};   // ตัวกรองที่เลือก { type: 'SLWD', ... }
 
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -291,6 +319,55 @@
         const t = todayStr(), f = firstDay();
         ['fFrom', 'fTo'].forEach(id => { const el = document.getElementById(id); el.min = f; el.max = t; });
         document.getElementById('btnNext').disabled = range()[1] >= t;
+        const k = spanKind(...range());
+        document.getElementById('btnPrev').title = k === 'month' ? 'เดือนก่อนหน้า' : k === 'year' ? 'ปีก่อนหน้า' : 'เลื่อนไปช่วงก่อนหน้า (ยาวเท่ากัน)';
+        document.getElementById('btnNext').title = k === 'month' ? 'เดือนถัดไป' : k === 'year' ? 'ปีถัดไป' : 'เลื่อนไปช่วงถัดไป (ยาวเท่ากัน)';
+        syncMonthPick();
+    }
+    function monthEnd(d) {
+        const y = Number(d.slice(0, 4)), m = Number(d.slice(5, 7));
+        return addDays((m === 12 ? (y + 1) + '-01' : y + '-' + String(m + 1).padStart(2, '0')) + '-01', -1);
+    }
+    // ช่วงนี้คือ "ทั้งเดือน" หรือ "ทั้งปี" ไหม (เดือน/ปีปัจจุบัน นับถึงวันนี้)
+    function spanKind(a, b) {
+        const t = todayStr();
+        if (a.slice(8) === '01' && a.slice(0, 7) === b.slice(0, 7) && (b === monthEnd(a) || b === t)) return 'month';
+        if (a.slice(5) === '01-01' && a.slice(0, 4) === b.slice(0, 4) && (b.slice(5) === '12-31' || b === t)) return 'year';
+        return '';
+    }
+    // ช่วงที่ใช้เทียบ: ทั้งเดือน → เดือนก่อน (เดือนที่ยังไม่จบ = วันที่เดียวกันของเดือนก่อน) · ทั้งปี → ปีก่อน · อื่น ๆ → ช่วงก่อนหน้าที่ยาวเท่ากัน
+    function prevRange(a, b) {
+        const k = spanKind(a, b);
+        if (k === 'month') {
+            const pa = addDays(a, -1).slice(0, 8) + '01', pe = monthEnd(pa);
+            let pb = b === monthEnd(a) ? pe : pa.slice(0, 8) + b.slice(8);
+            if (pb > pe) pb = pe;
+            return [pa, pb];
+        }
+        if (k === 'year') {
+            const y = String(Number(a.slice(0, 4)) - 1);
+            return [y + '-01-01', b.slice(5) === '02-29' ? y + '-02-28' : y + b.slice(4)];
+        }
+        const n = daysBetween(a, b);
+        return [addDays(a, -n), addDays(a, -1)];
+    }
+    // ตัวเลือกเดือน/ปี: ปีตั้งแต่ปีแรกที่มีข้อมูลถึงปีนี้ · โชว์เดือนตามช่วงที่ดูอยู่ · ปิดเดือนที่ยังไม่ถึง/ก่อนมีข้อมูล
+    function syncMonthPick() {
+        const ms = document.getElementById('fMonth'), ys = document.getElementById('fYear'), t = todayStr(), f = firstDay();
+        const want = [];
+        for (let y = Number(t.slice(0, 4)); y >= Number(f.slice(0, 4)); y--) want.push(String(y));
+        if ([...ys.options].map(o => o.value).join() !== want.join()) {
+            ys.innerHTML = want.map(y => '<option value="' + y + '">' + (Number(y) + 543) + '</option>').join('');
+        }
+        const [a, b] = range(), k = spanKind(a, b), has = y => want.includes(y);
+        if (k && has(a.slice(0, 4))) { ys.value = a.slice(0, 4); ms.value = k === 'year' ? 'all' : a.slice(5, 7); }
+        else { ms.value = ''; if (has(b.slice(0, 4))) ys.value = b.slice(0, 4); }
+        ms.classList.toggle('on', !!ms.value); ys.classList.toggle('on', !!ms.value);
+        [...ms.options].forEach(o => {
+            if (!/^\d\d$/.test(o.value)) return;
+            const ym = ys.value + '-' + o.value;
+            o.disabled = ym > t.slice(0, 7) || ym < f.slice(0, 7);
+        });
     }
     function presetRange(v) {
         const t = todayStr();
@@ -379,7 +456,7 @@
                 + '<div class="bar"><i style="width:' + (top ? Math.max(2, x.pieces / top * 100) : 0) + '%"></i></div></div>'
                 + '<div class="qty"><b>' + num(x.pieces) + '</b> ชิ้น<div class="meta">' + num(x.orders) + ' ออเดอร์ · '
                 + (total ? Math.round(x.pieces / total * 1000) / 10 : 0) + '%</div>'
-                + (pv !== null ? '<div class="meta">' + cmpHtml(x.pieces, pv) + ' <span class="flat">ช่วงก่อน ' + num(pv) + '</span></div>' : '') + '</div></li>';
+                + (pv !== null ? '<div class="meta">' + cmpHtml(x.pieces, pv) + ' <span class="flat">' + prevWord + ' ' + num(pv) + '</span></div>' : '') + '</div></li>';
         }).join('') + (items.length > limit ? '<li class="empty" style="cursor:default;">… อีก ' + num(items.length - limit) + ' รายการ</li>' : '');
     }
 
@@ -390,7 +467,10 @@
         const list = rows.filter(r => r.day >= a && r.day <= b && match(r));
         const days = daysBetween(a, b);
         const isAll = document.getElementById('fRange').value === 'all' || a <= firstDay();
-        const pa = addDays(a, -days), pb = addDays(a, -1);
+        const [pa, pb] = prevRange(a, b), kind = spanKind(a, b);
+        prevWord = kind === 'month' ? 'เดือนก่อน' : kind === 'year' ? 'ปีก่อน' : 'ช่วงก่อน';
+        document.getElementById('cmpWhat').textContent = isAll ? 'ช่วงก่อนหน้า (ช่วงนี้ไม่มีข้อมูลก่อนหน้าให้เทียบ)' : kind === 'month' ? (b === monthEnd(a) ? 'เดือนก่อนหน้า' : 'เดือนก่อนหน้า (วันที่ 1–' + Number(b.slice(8)) + ' เหมือนกัน)')
+            : kind === 'year' ? 'ปีก่อนหน้า (ช่วงวันเดียวกัน)' : 'ช่วงก่อนหน้าที่ยาวเท่ากัน';
         const prev = isAll ? null : rows.filter(r => r.day >= pa && r.day <= pb && match(r));
 
         const pieces = list.reduce((s, r) => s + r.pieces, 0), orders = list.reduce((s, r) => s + r.orders, 0);
@@ -400,8 +480,8 @@
         document.getElementById('kDays').textContent = thDate(a) + (a !== b ? ' – ' + thDate(b) : '') + ' · ' + num(days) + ' วัน';
         document.getElementById('kSku').textContent = num(new Set(list.map(r => r.code)).size);
         const pP = prev ? prev.reduce((s, r) => s + r.pieces, 0) : null, pO = prev ? prev.reduce((s, r) => s + r.orders, 0) : null;
-        document.getElementById('kPiecesCmp').innerHTML = prev ? cmpHtml(pieces, pP) + ' <span class="flat">ช่วงก่อน ' + num(pP) + '</span>' : '';
-        document.getElementById('kOrdersCmp').innerHTML = prev ? cmpHtml(orders, pO) + ' <span class="flat">ช่วงก่อน ' + num(pO) + '</span>' : '';
+        document.getElementById('kPiecesCmp').innerHTML = prev ? cmpHtml(pieces, pP) + ' <span class="flat">' + prevWord + ' ' + num(pP) + '</span>' : '';
+        document.getElementById('kOrdersCmp').innerHTML = prev ? cmpHtml(orders, pO) + ' <span class="flat">' + prevWord + ' ' + num(pO) + '</span>' : '';
 
         renderChart(list, a, b);
 
@@ -476,14 +556,33 @@
         }));
         // ◀ ▶ เลื่อนทั้งช่วงไปก่อน/หลัง ทีละความยาวเท่าเดิม (เช่น ดูทีละวัน ทีละ 7 วัน)
         function shift(dir) {
-            const [a, b] = range(), n = daysBetween(a, b), t = todayStr();
-            let na = addDays(a, dir * n), nb = addDays(b, dir * n);
-            if (nb > t) { nb = t; na = addDays(t, -(n - 1)); }
+            const [a, b] = range(), n = daysBetween(a, b), t = todayStr(), k = spanKind(a, b);
+            let na, nb;
+            if (k === 'month') { na = (dir < 0 ? addDays(a, -1) : addDays(monthEnd(a), 1)).slice(0, 8) + '01'; nb = monthEnd(na); }
+            else if (k === 'year') { const y = String(Number(a.slice(0, 4)) + dir); na = y + '-01-01'; nb = y + '-12-31'; }
+            else { na = addDays(a, dir * n); nb = addDays(b, dir * n); if (nb > t) na = addDays(t, -(n - 1)); }
+            if (nb > t) nb = t;
             document.getElementById('fFrom').value = na;
             document.getElementById('fTo').value = nb;
             document.getElementById('fRange').value = 'custom';
             render();
         }
+        // เลือกเดือน/ปี → กรอกวันที่ทั้งเดือน (เดือนนี้ = ถึงวันนี้) · เลือกปีอย่างเดียว = ทั้งปี
+        function pickMonth() {
+            const ms = document.getElementById('fMonth'), y = document.getElementById('fYear').value, t = todayStr();
+            if (!y) return;
+            if (!ms.value) ms.value = 'all';
+            let a = ms.value === 'all' ? y + '-01-01' : y + '-' + ms.value + '-01';
+            if (a > t) { ms.value = 'all'; a = y + '-01-01'; }
+            let b = ms.value === 'all' ? y + '-12-31' : monthEnd(a);
+            if (b > t) b = t;
+            document.getElementById('fFrom').value = a;
+            document.getElementById('fTo').value = b;
+            document.getElementById('fRange').value = ['month', 'lastmonth', 'year'].find(v => presetRange(v).join() === a + ',' + b) || 'custom';
+            render();
+        }
+        document.getElementById('fMonth').addEventListener('change', e => { if (e.target.value) pickMonth(); });
+        document.getElementById('fYear').addEventListener('change', pickMonth);
         document.getElementById('btnPrev').addEventListener('click', () => shift(-1));
         document.getElementById('btnNext').addEventListener('click', () => shift(1));
         document.querySelectorAll('[data-f]').forEach(s => s.addEventListener('change', () => { sel[s.dataset.f] = s.value || undefined; render(); }));
