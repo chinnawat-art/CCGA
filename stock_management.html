@@ -577,6 +577,27 @@
             outline: none;
         }
         .location-editor input:focus { border-bottom-color: var(--primary); }
+        /* ปุ่ม ✓ ปรับจำนวนด่วน (มือถือไม่มีปุ่ม Enter บนแป้นตัวเลข) */
+        .qty-adjust-group .quick-qty-save {
+            width: 30px;
+            height: 28px;
+            margin-left: 2px;
+            border: 0;
+            border-radius: 6px;
+            background: var(--primary);
+            color: white;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 800;
+            line-height: 1;
+            padding: 0;
+        }
+        .qty-adjust-group .quick-qty-save:disabled {
+            background: transparent;
+            color: var(--muted);
+            cursor: default;
+            opacity: 0.35;
+        }
         .location-editor button {
             width: 30px;
             height: 30px;
@@ -1062,6 +1083,8 @@
             #panel-stock .stock-table tbody td { background: transparent !important; }
             #panel-stock .stock-table .product-name, #panel-stock .stock-table .product-code { white-space: normal; overflow-wrap: anywhere; }
             #panel-stock .stock-table .qty-adjust-group input { width: 70px !important; }
+            #panel-stock .stock-table .qty-adjust-group .sign-toggle-btn { min-width: 38px !important; height: 36px !important; }
+            #panel-stock .stock-table .qty-adjust-group .quick-qty-save { width: 40px; height: 36px; font-size: 1.15rem; }
             #panel-stock .table-footer-bar { flex-wrap: wrap; gap: 0.5rem; }
         }
     </style>
@@ -1412,7 +1435,7 @@
     <!-- Toast Notification -->
     <div id="toast"></div>
 
-    <script src="stock_management.js?v=20261106-1"></script>
+    <script src="stock_management.js?v=20261117-1"></script>
 </body>
 
 </html>

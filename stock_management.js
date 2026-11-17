@@ -112,8 +112,25 @@ function scheduleRealtimeRender(delay = 400) {
             scheduleRealtimeRender(1000);
             return;
         }
+        // ตัวเลขที่ใส่ในช่องปรับจำนวนแล้วยังไม่ได้กด ✓ (มือถือ: กดปิดแป้นแล้ว ช่องไม่ได้โฟกัส) อย่าให้หายตอนวาดใหม่
+        const pendingQty = [...tbody.querySelectorAll('.quick-qty-input-new')]
+            .filter(inp => inp.value)
+            .map(inp => ({
+                id: inp.closest('tr') && inp.closest('tr').dataset.id,
+                value: inp.value,
+                minus: inp.parentElement.querySelector('.sign-toggle-btn')?.getAttribute('data-sign') === '-'
+            }));
         renderStockTable();
         updateStatistics();
+        pendingQty.forEach(p => {
+            const tr = [...tbody.querySelectorAll('tr[data-id]')].find(r => r.dataset.id === String(p.id));
+            const inp = tr && tr.querySelector('.quick-qty-input-new');
+            if (!inp) return;
+            inp.value = p.value;
+            const sign = tr.querySelector('.sign-toggle-btn');
+            if (p.minus && sign && !sign.disabled && sign.getAttribute('data-sign') !== '-') toggleSignBtn(sign);
+            markQuickQtyDirty(inp);
+        });
     }, delay);
 }
 
@@ -347,7 +364,8 @@ function buildRow(stock) {
                     ? `<button type="button" class="sign-toggle-btn" onclick="toggleSignBtn(this)" style="background: rgba(16, 185, 129, 0.15); border: none; color: #10b981; min-width: 30px; height: 28px; font-weight: bold; cursor: pointer; border-radius: 5px; font-family: monospace; transition: all 0.2s; font-size: 1rem; display: flex; align-items: center; justify-content: center; line-height: 1;" data-sign="+">+</button>`
                     : `<button type="button" class="sign-toggle-btn" style="background: rgba(16, 185, 129, 0.15); border: none; color: #10b981; min-width: 30px; height: 28px; font-weight: bold; cursor: not-allowed; border-radius: 5px; font-family: monospace; font-size: 1rem; display: flex; align-items: center; justify-content: center; line-height: 1;" data-sign="+" title="CEO ยังไม่ได้ให้สิทธิ์ปรับสต็อกลดลง" disabled>+</button>`
                 }
-                <input class="quick-qty-input-new" type="number" min="1" placeholder="0" onkeydown="handleNewQuickQtyKeyDown(event, '${stock.id}', this)" style="border: none; background: transparent; width: 50px; color: var(--text); font-size: 0.9rem; text-align: center; padding: 0.3rem 0.2rem; outline: none; -moz-appearance: textfield;" title="ใส่จำนวนแล้วกด Enter เพื่อปรับสต็อก">
+                <input class="quick-qty-input-new" type="number" min="1" step="1" inputmode="numeric" enterkeyhint="done" placeholder="0" aria-label="จำนวนที่จะปรับของ ${escAttr(stock.product_name)}" oninput="markQuickQtyDirty(this)" onkeydown="handleNewQuickQtyKeyDown(event, '${stock.id}', this)" style="border: none; background: transparent; width: 50px; color: var(--text); font-size: 0.9rem; text-align: center; padding: 0.3rem 0.2rem; outline: none; -moz-appearance: textfield;" title="ใส่จำนวนแล้วกด ✓ (หรือ Enter) เพื่อปรับสต็อก">
+                <button type="button" class="quick-qty-save" disabled onclick="submitQuickQty('${stock.id}', this.parentElement.querySelector('.quick-qty-input-new'), this)" title="ใส่จำนวนก่อนจึงจะกดได้">✓</button>
             </div>
         </td>
         <td>
@@ -623,32 +641,51 @@ function toggleSignBtn(btn) {
     }
 }
 
+// ปุ่ม ✓ ข้างช่องจำนวน: กดได้เมื่อใส่จำนวนมากกว่า 0
+function markQuickQtyDirty(inputEl) {
+    const btn = inputEl.parentElement && inputEl.parentElement.querySelector('.quick-qty-save');
+    if (!btn) return;
+    const ok = Number(inputEl.value) > 0;
+    btn.disabled = !ok || inputEl.disabled;
+    btn.title = ok ? 'กดเพื่อปรับสต็อก' : 'ใส่จำนวนก่อนจึงจะกดได้';
+}
+
 async function handleNewQuickQtyKeyDown(e, id, inputEl) {
     if (e.key === 'Enter') {
-        const val = inputEl.value.trim();
-        if (!val) return;
-        
-        const qty = parseInt(val);
-        if (isNaN(qty) || qty <= 0) {
-            showToast('⚠️ กรุณากรอกจำนวนตัวเลขที่มากกว่า 0', 'warning');
-            return;
-        }
-        
-        // Find the sign sibling button
-        const group = inputEl.closest('.qty-adjust-group');
-        const toggleBtn = group.querySelector('.sign-toggle-btn');
-        const sign = toggleBtn.getAttribute('data-sign') || '+';
-        
-        let delta = qty;
-        if (sign === '-') {
-            delta = -qty;
-        }
-        
-        inputEl.disabled = true;
+        e.preventDefault();
+        await submitQuickQty(id, inputEl, null);
+    }
+}
+
+// ปรับจำนวนด่วน — กด Enter (คอม) หรือปุ่ม ✓ (มือถือ: แป้นตัวเลข iPhone ไม่มีปุ่ม Enter
+// ปุ่ม "เสร็จสิ้น" แค่ปิดแป้น เดิมเลยบันทึกไม่ได้ — เจ้าของแจ้ง 17/11/2569)
+async function submitQuickQty(id, inputEl, btn) {
+    if (!inputEl || inputEl.disabled) return;
+    const val = inputEl.value.trim();
+    if (!val) return;
+
+    const qty = parseInt(val);
+    if (isNaN(qty) || qty <= 0) {
+        showToast('⚠️ กรุณากรอกจำนวนตัวเลขที่มากกว่า 0', 'warning');
+        return;
+    }
+
+    // Find the sign sibling button
+    const group = inputEl.closest('.qty-adjust-group');
+    const toggleBtn = group.querySelector('.sign-toggle-btn');
+    const sign = toggleBtn.getAttribute('data-sign') || '+';
+    const delta = sign === '-' ? -qty : qty;
+
+    const saveBtn = btn || group.querySelector('.quick-qty-save');
+    inputEl.disabled = true;
+    if (saveBtn) saveBtn.disabled = true;
+    try {
         await quickAdjust(id, delta);
+    } finally {
         inputEl.disabled = false;
         inputEl.value = '';
-        inputEl.focus();
+        markQuickQtyDirty(inputEl);
+        if (!btn && inputEl.isConnected) inputEl.focus();
     }
 }
 
