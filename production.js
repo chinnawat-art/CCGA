@@ -1391,9 +1391,9 @@ function renderOrderCard(o) {
                 })()}</div>
             </div>
         </div>
-        <div style="display:flex;gap:1.2rem;align-items:flex-start;">
-            <div id="imageContainer_${o.id}" style="flex-shrink:0;width:280px;height:280px;order:1;margin-top:-2px;"></div>
-            <div style="flex:1;min-width:0;order:2;display:flex;flex-direction:column;justify-content:flex-start;padding-top:4px;">
+        <div class="card-main">
+            <div id="imageContainer_${o.id}" class="card-img"></div>
+            <div class="card-info">
                 <div>
                     <div class="card-product-name">${esc(o.product_name || '-')}</div>
                     ${o.product_code ? `<div class="card-sku"># ${esc(o.product_code)}</div>` : ''}
@@ -1405,7 +1405,7 @@ function renderOrderCard(o) {
                 <div style="font-size:0.85rem;color:var(--muted);margin-top:auto;padding-top:8px;">👤 ${esc(o.buyer_name || '-')} &nbsp;|&nbsp; #${esc(o.order_number || '-')}</div>
             </div>
         </div>
-        <div style="margin-top:12px;padding:10px 12px;background:rgba(129,140,248,0.12);border:1px solid rgba(129,140,248,0.3);border-radius:8px;font-size:1.05rem;font-weight:700;color:var(--text);display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <div class="card-pn" style="margin-top:12px;padding:10px 12px;background:rgba(129,140,248,0.12);border:1px solid rgba(129,140,248,0.3);border-radius:8px;font-size:1.05rem;font-weight:700;color:var(--text);display:flex;align-items:center;justify-content:space-between;gap:8px;">
             <span>🧾 เลขที่การผลิต:</span>
             <span style="display:flex;align-items:center;justify-content:flex-end;gap:10px;min-width:0;">
                 <span style="font-size:1.55rem;color:var(--text);font-family:monospace;letter-spacing:1px;font-weight:800;text-shadow:0 0 8px var(--primary-glow);">${esc(productionNumberLabel)}</span>

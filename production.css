@@ -1576,3 +1576,31 @@ body::before {
 .cs-table td:nth-child(2), .cs-table td:nth-child(3), .cs-table th:nth-child(2), .cs-table th:nth-child(3) { text-align: right; white-space: nowrap; }
 .cs-table tr.is-unsure td { color: #d97706; }
 .cs-actions { flex-wrap: wrap; }
+
+/* ═══ การ์ดใบงาน: รูป + รายละเอียด (17/11/2569) ═══════════════════════
+   เดิมรูปกว้างตายตัว 280px อยู่ข้างรายละเอียด → การ์ดแคบ (มือถือ / จอเล็กหลายคอลัมน์)
+   รายละเอียดเหลือช่องแคบจนตัวหนังสือเรียงทีละคำ
+   ตอนนี้: การ์ดแคบกว่า 600px → รูปขึ้นบน รายละเอียดเต็มความกว้างด้านล่าง */
+.order-card { container-type: inline-size; }
+.card-main { display: flex; gap: 1.2rem; align-items: flex-start; }
+.card-img { flex-shrink: 0; width: 280px; height: 280px; order: 1; margin-top: -2px; }
+.card-info { flex: 1; min-width: 0; order: 2; display: flex; flex-direction: column; justify-content: flex-start; padding-top: 4px; }
+@container (max-width: 600px) {
+    .card-main { flex-direction: column; align-items: stretch; gap: 0.8rem; }
+    .card-img { width: 100%; max-width: 300px; height: auto; aspect-ratio: 1 / 1; margin: 0 auto; }
+    .card-img:empty { display: none; }
+    /* เลขที่การผลิต: หัวข้อบรรทัดบน เลข + ปุ่มแก้ไขบรรทัดล่าง · ปุ่มคำสั่งขึ้นบรรทัดใหม่ได้ ไม่บีบจนตัวหนังสือหัก */
+    .card-pn { flex-wrap: wrap; }
+    .card-pn > span:first-child { white-space: nowrap; }
+    .card-pn > span:last-child { margin-left: auto; }
+    .card-actions { flex-wrap: wrap; }
+    .card-actions > .btn, .card-actions > .ship-pick { flex: 1 1 auto; white-space: nowrap; }
+}
+/* เบราว์เซอร์เก่าที่ไม่รู้จัก @container: ใช้ความกว้างจอแทน */
+@supports not (container-type: inline-size) {
+    @media (max-width: 700px) {
+        .card-main { flex-direction: column; align-items: stretch; gap: 0.8rem; }
+        .card-img { width: 100%; max-width: 300px; height: auto; aspect-ratio: 1 / 1; margin: 0 auto; }
+        .card-img:empty { display: none; }
+    }
+}
