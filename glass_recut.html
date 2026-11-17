@@ -116,6 +116,28 @@
         .left-row { display:flex; justify-content:space-between; gap:10px; padding:6px 2px; font-size:.86rem;
                     border-bottom:1px solid var(--border-strong,#e2e8f0); }
         .left-row:last-child { border-bottom:0; }
+        /* มูลค่าเป็นเงิน (เห็นเฉพาะ CEO) */
+        .pill.mny { background: rgba(124,58,237,.13); color:#7c3aed; }
+        .money { border-color: rgba(124,58,237,.35); }
+        .money-head { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; align-items:center; }
+        .money-kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:8px; margin:10px 0; }
+        .money-kpis div { border-radius:12px; padding:9px 10px; background: rgba(124,58,237,.07); text-align:center; }
+        .money-kpis b { display:block; font-size:1.3rem; line-height:1.3; color:#7c3aed; }
+        .money-kpis span { font-size:.76rem; color: var(--muted-strong,#64748b); }
+        .money .tbl { overflow-x:auto; }
+        .money table { width:100%; border-collapse:collapse; font-size:.86rem; }
+        .money th, .money td { padding:6px; border-bottom:1px solid var(--border-strong,#e2e8f0); text-align:right; white-space:nowrap; }
+        .money th { font-weight:600; color: var(--muted-strong,#64748b); font-size:.78rem; }
+        .money th:first-child, .money td:first-child { text-align:left; }
+        .money-line { margin-top:8px; font-size:.86rem; color:#7c3aed; font-weight:600; }
+        @media (max-width:560px) {
+            .money-kpis { grid-template-columns:1fr 1fr; }
+            .money-kpis div:last-child { grid-column:1 / -1; }
+            .money-kpis b { font-size:1.12rem; }
+            .money table { font-size:.8rem; }
+            .money th, .money td { padding:5px 3px; }
+            .money th { white-space:normal; line-height:1.25; }
+        }
         .toast { position:fixed; left:50%; bottom:80px; transform:translateX(-50%);
                 background:#0f172a; color:#fff; padding:12px 20px; border-radius:13px;
                 font-size:.92rem; z-index:9999; box-shadow:0 12px 30px rgba(0,0,0,.3);
@@ -152,6 +174,8 @@
             <div class="kpi"><b id="kPlan" style="color:#16a34a">-</b><span>แนะนำให้ตัด (แผ่น)</span></div>
             <div class="kpi"><b id="kPending">-</b><span>ใบสั่งตัดรอตัด</span></div>
         </div>
+
+        <div class="card money" id="moneyBox" style="display:none;"></div>
 
         <div class="card today wait" id="todayBox" style="display:none;"></div>
 
@@ -236,6 +260,7 @@
     let sugs = [], leftovers = [];
     let busy = false;
     let backlog = null, backlogErr = '';   // งานค้างฝ่ายผลิตตอนนี้ (rpc_glass_recut_backlog)
+    let isCeo = false, prices = null, priceNote = '';   // มูลค่าเป็นเงิน — เฉพาะ CEO
 
     function esc(s) {
         return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -313,11 +338,132 @@
         }
     }
 
+    // ───────── มูลค่าเป็นเงิน (เห็นเฉพาะ CEO · เจ้าของขอ 17/11/2569) ─────────
+    // ราคา = ราคาซื้อกระจกแผ่นใหญ่ต่อตารางฟุต จากทะเบียนแผ่นในหน้าสั่งกระจก (glass_sheets) · ขนาดในรหัสกระจกเป็น ซม.
+    // มูลค่าชิ้น = พื้นที่ชิ้น × ราคาต่อตารางฟุตของสีนั้น (ไม่รวมเศษที่ร้านตัดทิ้ง) · สีที่ไม่มีราคา (ฝ้า) ไม่นับเงิน
+    const CM2_PER_SQFT = 929.0304;
+    async function loadPrices() {
+        prices = null; priceNote = '';
+        if (!isCeo) return;
+        try {
+            const [sh, sz] = await Promise.all([
+                db.from('glass_sheets').select('color, thick_mm, price_satang, price_sqft_satang, sheet_size_id, active'),
+                db.from('glass_sheet_sizes').select('id, w_in, h_in')
+            ]);
+            if (sh.error) throw sh.error;
+            if (sz.error) throw sz.error;
+            const dim = {};
+            (sz.data || []).forEach(z => { dim[z.id] = z; });
+            const by = {};
+            (sh.data || []).filter(r => r.active !== false).forEach(r => {
+                let p = Number(r.price_sqft_satang) / 100;
+                if (!(p > 0)) {
+                    const z = dim[r.sheet_size_id], ft2 = z ? Number(z.w_in) * Number(z.h_in) / 144 : 0;
+                    p = ft2 > 0 ? Number(r.price_satang) / 100 / ft2 : 0;
+                }
+                if (!(p > 0)) return;
+                (by[r.color] = by[r.color] || []).push({ p, t: Number(r.thick_mm) || 5 });
+            });
+            const out = {};
+            Object.keys(by).forEach(c => {
+                const five = by[c].filter(x => x.t === 5);
+                const list = (five.length ? five : by[c]).map(x => x.p).sort((a, b) => a - b);
+                out[c] = list[Math.floor((list.length - 1) / 2)];   // ค่ากลาง (ทุกขนาดแผ่นราคาต่อตารางฟุตเท่ากันอยู่แล้ว)
+            });
+            if (Object.keys(out).length) prices = out;
+            else priceNote = 'ยังไม่มีราคาในทะเบียนแผ่นกระจก (หน้าสั่งกระจก)';
+        } catch (e) {
+            priceNote = 'โหลดราคากระจกไม่สำเร็จ: ' + (e.message || e);
+        }
+    }
+    function pieceBaht(code) {
+        const p = G.parse(code);
+        if (!p || !prices || !(prices[p.color] > 0)) return null;
+        return p.a * p.b / CM2_PER_SQFT * prices[p.color];
+    }
+    function baht(n) { return '฿' + Math.round(Number(n) || 0).toLocaleString('th-TH'); }
+    // list = [[รหัส, จำนวน]] → { sum: บาท, noPrice: จำนวนแผ่นที่ไม่มีราคา }
+    function valueOf(list) {
+        let sum = 0, noPrice = 0;
+        list.forEach(([code, q]) => {
+            q = Number(q) || 0;
+            if (q <= 0) return;
+            const v = pieceBaht(code);
+            if (v == null) noPrice += q; else sum += v * q;
+        });
+        return { sum, noPrice };
+    }
+    function moneyTag(code, qty) {
+        if (!prices || !(qty > 0)) return '';
+        return pieceBaht(code) == null ? ' <span class="pill gry">ไม่มีราคา</span>' : ' <span class="pill mny">≈ ' + baht(valueOf([[code, qty]]).sum) + '</span>';
+    }
+    // ใบสั่งตัด: ใช้แผ่นเกินไปเท่าไหร่ → ได้ชิ้นที่ใช้บ่อย (ไม่ต้องสั่งซื้อ) มูลค่าเท่าไหร่ · ตัดเสร็จ = ยอดจริง · รอตัด = ตามแผน
+    function jobValue(j) {
+        const lines = Array.isArray(j.lines) ? j.lines : [];
+        const done = j.status === 'done' && Array.isArray(j.done_lines) ? j.done_lines : null;
+        const src = [], out = [];
+        lines.forEach((l, i) => {
+            const d = done ? (done[i] || {}) : null;
+            src.push([l.source, d ? d.sheets_used : l.sheets]);
+            (l.outputs || []).forEach(o => {
+                out.push([o.code, d ? ((d.outputs || []).find(x => x.code === o.code) || {}).qty : (Number(o.per_sheet) || 0) * (Number(l.sheets) || 0)]);
+            });
+        });
+        return { used: valueOf(src), got: valueOf(out) };
+    }
+    function jobMoneyHtml(j) {
+        if (!prices || j.status === 'cancelled') return '';
+        const v = jobValue(j);
+        return '<div class="money-line">💰 ' + (j.status === 'done' ? 'ตัดได้จริง' : 'ถ้าตัดครบตามใบ') + ': ได้ชิ้นที่ใช้บ่อย ≈ ' + baht(v.got.sum)
+            + ' (ไม่ต้องสั่งซื้อ) · ใช้กระจกส่วนเกินไป ≈ ' + baht(v.used.sum)
+            + (v.got.noPrice || v.used.noPrice ? ' <span class="meta">· สีที่ไม่มีราคาไม่นับ</span>' : '') + '</div>';
+    }
+    function renderMoney() {
+        const box = document.getElementById('moneyBox');
+        if (!isCeo) { box.style.display = 'none'; return; }
+        box.style.display = '';
+        const head = '<div class="money-head"><b>💰 มูลค่ากระจก</b><span class="pill gry">🔒 เห็นเฉพาะ CEO</span></div>';
+        if (!prices) { box.innerHTML = head + '<div class="meta" style="margin-top:6px;">' + esc(priceNote || 'ยังไม่มีราคากระจก') + '</div>'; return; }
+        const colors = {};
+        stats.forEach(x => {
+            const c = colors[x.color] = colors[x.color] || { qty: 0, exc: 0, vQty: 0, vExc: 0 };
+            c.qty += x.qty; c.exc += x.excess;
+            const v = pieceBaht(x.code);
+            if (v != null) { c.vQty += v * x.qty; c.vExc += v * x.excess; }
+        });
+        const has = n => prices[n] > 0;
+        const names = Object.keys(colors).sort((a, b) => (has(a) ? 0 : 1) - (has(b) ? 0 : 1) || (prices[a] || 0) - (prices[b] || 0));
+        let tQty = 0, tExc = 0;
+        names.forEach(n => { tQty += colors[n].vQty; tExc += colors[n].vExc; });
+        const done = jobs.filter(j => j.status === 'done');
+        const saved = done.reduce((a, j) => a + jobValue(j).got.sum, 0);
+        const noPrice = names.filter(n => !has(n) && colors[n].qty > 0);
+        const unknown = items.filter(it => !G.parse(it.product_code)).reduce((a, it) => a + Math.max(0, Number(it.quantity) || 0), 0);
+        box.innerHTML = head
+            + '<div class="money-kpis">'
+            + '<div><b>' + baht(tQty) + '</b><span>กระจกทั้งหมดในสต็อก</span></div>'
+            + '<div><b>' + baht(tExc) + '</b><span>ส่วนที่เกิน' + (tQty > 0 ? ' (' + Math.round(tExc / tQty * 100) + '% ของทั้งหมด)' : '') + '</span></div>'
+            + '<div><b>' + baht(saved) + '</b><span>ตัดเสร็จแล้ว ได้ชิ้นที่ไม่ต้องสั่งซื้อ (' + num(done.length) + ' ใบ)</span></div>'
+            + '</div>'
+            + '<div class="tbl"><table><tr><th>สี</th><th>บาท/ ตร.ฟุต</th><th>ในสต็อก (แผ่น)</th><th>มูลค่า</th><th>เกิน (แผ่น)</th><th>มูลค่าที่เกิน</th></tr>'
+            + names.map(n => {
+                const c = colors[n], ok = has(n);
+                return '<tr><td><b>' + esc(n) + '</b></td><td>' + (ok ? prices[n].toFixed(2) : '<span class="meta">ไม่มีราคา</span>') + '</td>'
+                    + '<td>' + num(c.qty) + '</td><td>' + (ok ? baht(c.vQty) : '-') + '</td>'
+                    + '<td>' + num(c.exc) + '</td><td>' + (ok ? baht(c.vExc) : '-') + '</td></tr>';
+            }).join('')
+            + '</table></div>'
+            + '<div class="meta" style="margin-top:8px;">คิดจาก พื้นที่แผ่น × ราคาซื้อกระจกแผ่นใหญ่ต่อตารางฟุต (ราคาจากทะเบียนแผ่นในหน้าสั่งกระจก แก้ราคาที่นั่นแล้วหน้านี้ตามเอง · ไม่รวมเศษที่ร้านตัดทิ้ง)'
+            + (noPrice.length ? ' · สี' + noPrice.map(esc).join('/') + ' ไม่มีราคา ไม่นับรวมในยอดเงิน' : '')
+            + (unknown ? ' · อีก ' + num(unknown) + ' แผ่นอ่านขนาดจากรหัสไม่ได้ ไม่นับ' : '')
+            + '</div>';
+    }
+
     async function loadAll() {
         const s = settings();
         document.getElementById('sugList').innerHTML = '<div class="empty">กำลังโหลดยอดกระจกและออเดอร์ย้อนหลัง...</div>';
         try {
-            await Promise.all([loadItems(), loadDemand(s.histDays), loadJobs(), loadBacklog()]);
+            await Promise.all([loadItems(), loadDemand(s.histDays), loadJobs(), loadBacklog(), loadPrices()]);
         } catch (e) {
             const msg = esc(e.message || e);
             document.getElementById('sugList').innerHTML = '<div class="empty">❌ โหลดข้อมูลไม่สำเร็จ: ' + msg
@@ -345,6 +491,7 @@
             renderSettings();
             renderSugs();
             renderKpis();
+            renderMoney();
             renderToday();
         }, 30);
     }
@@ -398,7 +545,7 @@
                     + '<div class="meta">' + esc(g.src) + (st.loc ? ' · <span class="loc">📍 ' + esc(st.loc) + '</span>' : '') + '</div>'
                     + '<div class="meta">มี <b>' + num(st.qty) + '</b> แผ่น · ' + esc(daysText(st)) + ' · เก็บไว้ ' + num(st.keep) + ' แผ่น'
                     + (st.reserved ? ' · จองในใบอื่น ' + num(st.reserved) : '') + '</div></div>'
-                    + '<div style="text-align:right"><span class="pill amb">เกิน ' + num(st.excess) + ' แผ่น</span>'
+                    + '<div style="text-align:right"><span class="pill amb">เกิน ' + num(st.excess) + ' แผ่น</span>' + moneyTag(g.src, st.excess)
                     + '<div class="meta" style="margin-top:4px;">แนะนำตัด ' + num(total) + ' แผ่น · ' + g.lines.length + ' แบบ</div>'
                     + (canAct ? '<button type="button" class="btn" style="margin-top:6px;" data-pick="' + esc(g.src) + '">☑️ เลือกทั้งแผ่นนี้</button>' : '')
                     + '</div></div>'
@@ -412,7 +559,8 @@
         lb.innerHTML = left.length ? left.map(l => {
             const st = byCode[l.code] || {};
             return '<div class="left-row"><div><b>' + esc(label(l.code)) + '</b><div class="meta">' + esc(daysText(st)) + '</div></div>'
-                + '<div style="text-align:right;white-space:nowrap;">มี ' + num(l.qty) + ' · ยังเกิน <b>' + num(l.sheets) + '</b></div></div>';
+                + '<div style="text-align:right;white-space:nowrap;">มี ' + num(l.qty) + ' · ยังเกิน <b>' + num(l.sheets) + '</b>'
+                + (prices ? '<div>' + moneyTag(l.code, l.sheets) + '</div>' : '') + '</div></div>';
         }).join('') : '<div class="empty">ไม่มี</div>';
         updateBar();
     }
@@ -460,7 +608,12 @@
         if (tg) tg.style.bottom = (bar.offsetHeight + 12) + 'px';   // ปุ่มโหมดสว่าง/มืด ไม่ทับแถบล่าง
         const sheets = on.reduce((a, x) => a + x.sheets, 0);
         const pieces = on.reduce((a, x) => a + x.outputs.reduce((b, o) => b + o.per_sheet * x.sheets, 0), 0);
-        document.getElementById('barText').textContent = on.length ? 'เลือก ' + on.length + ' แผน · ใช้ ' + num(sheets) + ' แผ่น → ได้ ' + num(pieces) + ' ชิ้น' : 'ยังไม่ได้เลือกแผน';
+        let gotTxt = '';
+        if (prices && on.length) {
+            const got = valueOf(on.flatMap(x => x.outputs.map(o => [o.code, o.per_sheet * x.sheets])));
+            gotTxt = ' · มูลค่า ≈ ' + baht(got.sum);
+        }
+        document.getElementById('barText').textContent = on.length ? 'เลือก ' + on.length + ' แผน · ใช้ ' + num(sheets) + ' แผ่น → ได้ ' + num(pieces) + ' ชิ้น' + gotTxt : 'ยังไม่ได้เลือกแผน';
         const bad = checkSources();
         document.querySelectorAll('[data-warn]').forEach(el => {
             const x = sugs[Number(el.dataset.warn)];
@@ -708,6 +861,7 @@
                     + '<button type="button" class="btn btn-bad" data-cancel="' + j.id + '">❌ ยกเลิกใบ</button>' : '')
                 + '</div></div>'
                 + lines.map((l, i) => jobLineHtml(l, i, j)).join('')
+                + jobMoneyHtml(j)
                 + '<div class="done-slot"></div></div>';
         }).join('');
     }
@@ -821,6 +975,7 @@
         if (!db) { document.getElementById('sugList').innerHTML = '<div class="empty">❌ เชื่อมต่อฐานข้อมูลไม่ได้</div>'; return; }
         const perms = window.auth.pagePermissions || [];
         canAct = window.auth.role === 'Ceo' || perms.some(p => p.page_key === 'action_glass_recut' && p.can_access === true);
+        isCeo = window.auth.role === 'Ceo';
         if (!canAct) document.querySelector('.sub').insertAdjacentHTML('beforeend', '<br><span class="pill gry">👁️ ดูอย่างเดียว — สร้างใบ/กดตัดเสร็จ ต้องมีสิทธิ์ "✂️ ตัดกระจกส่วนเกิน"</span>');
         if (!canAct) document.querySelectorAll('[data-set="lowBacklog"],[data-set="dailySheets"]').forEach(i => { i.disabled = true; });
         renderSettings();
