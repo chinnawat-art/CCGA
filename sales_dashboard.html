@@ -42,6 +42,10 @@
         .period { display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; margin-bottom:10px; }
         .period label { display:flex; flex-direction:column; gap:3px; font-size:.78rem; color: var(--muted-strong,#64748b); font-weight:600; }
         .period select { min-width:170px; }
+        .dates { display:flex; gap:6px; align-items:flex-end; flex-wrap:wrap; }
+        .dates label { display:flex; flex-direction:column; gap:3px; min-width:140px; }
+        .dates .nav { padding:8px 11px; min-width:0; flex:0 0 auto; }
+        .btn:disabled { opacity:.4; cursor:not-allowed; }
         .seg { display:inline-flex; border:1px solid var(--border-color,#cbd5e1); border-radius:11px; overflow:hidden; }
         .seg button { border:0; background:transparent; color: var(--text-main,#0f172a); padding:7px 13px; cursor:pointer;
                       font:600 .86rem 'Kanit',sans-serif; }
@@ -78,6 +82,12 @@
         .empty { text-align:center; padding:26px 12px; color: var(--muted-strong,#64748b); }
         @media (max-width:560px) {
             .period select { min-width:0; flex:1 1 100%; }
+            .period > label { flex:1 1 100%; }
+            .dates { flex:1 1 100%; flex-wrap:nowrap; min-width:0; gap:4px; }
+            .dates label { min-width:0; flex:1 1 0; }
+            .dates input { width:100%; min-width:0; box-sizing:border-box; padding-left:5px; padding-right:3px; font-size:.82rem; }
+            .dates input::-webkit-calendar-picker-indicator { margin-left:1px; padding:0; }
+            .dates .nav { padding:8px 9px; }
             .chart-box { height:220px; }
             .kpi b { font-size:1.3rem; }
         }
@@ -93,7 +103,7 @@
 
     <div class="card">
         <div class="period">
-            <label>ช่วงเวลา
+            <label>ช่วงด่วน
                 <select id="fRange">
                     <option value="today">วันนี้</option>
                     <option value="yesterday">เมื่อวาน</option>
@@ -104,11 +114,15 @@
                     <option value="lastmonth">เดือนที่แล้ว</option>
                     <option value="year">ปีนี้</option>
                     <option value="all">ทั้งหมด</option>
-                    <option value="custom">เลือกวันเอง…</option>
+                    <option value="custom">กำหนดวันที่เอง</option>
                 </select>
             </label>
-            <label id="customFrom" style="display:none;">ตั้งแต่ <input type="date" id="fFrom"></label>
-            <label id="customTo" style="display:none;">ถึง <input type="date" id="fTo"></label>
+            <div class="dates">
+                <button type="button" class="btn nav" id="btnPrev" title="เลื่อนไปช่วงก่อนหน้า (ยาวเท่ากัน)">◀</button>
+                <label>ตั้งแต่วันที่ <input type="date" id="fFrom"></label>
+                <label>ถึงวันที่ <input type="date" id="fTo"></label>
+                <button type="button" class="btn nav" id="btnNext" title="เลื่อนไปช่วงถัดไป (ยาวเท่ากัน)">▶</button>
+            </div>
             <button type="button" class="btn" id="btnReload" title="โหลดยอดล่าสุด">🔄 โหลดใหม่</button>
         </div>
         <details id="filterBox" open>
@@ -251,24 +265,42 @@
             return;
         }
         buildTypeNames();
+        applyPreset();
         fillFilters();
         render();
     }
 
     // ───────── ช่วงเวลา ─────────
+    function firstDay() { const t = todayStr(); return rows.length ? rows.reduce((a, r) => r.day < a ? r.day : a, t) : t; }
     function range() {
-        const t = todayStr(), v = document.getElementById('fRange').value;
-        const first = rows.length ? rows.reduce((a, r) => r.day < a ? r.day : a, t) : t;
+        const a = document.getElementById('fFrom').value, b = document.getElementById('fTo').value;
+        if (a && b) return a <= b ? [a, b] : [b, a];
+        if (a || b) return [a || b, a || b];
+        const v = document.getElementById('fRange').value;
+        return presetRange(v === 'custom' ? '30' : v);
+    }
+    // ช่วงด่วน → กรอกช่องวันที่ให้
+    function applyPreset() {
+        const v = document.getElementById('fRange').value;
+        if (v === 'custom') return;
+        const [a, b] = presetRange(v);
+        document.getElementById('fFrom').value = a;
+        document.getElementById('fTo').value = b;
+    }
+    function syncDateLimits() {
+        const t = todayStr(), f = firstDay();
+        ['fFrom', 'fTo'].forEach(id => { const el = document.getElementById(id); el.min = f; el.max = t; });
+        document.getElementById('btnNext').disabled = range()[1] >= t;
+    }
+    function presetRange(v) {
+        const t = todayStr();
+        const first = firstDay();
         if (v === 'today') return [t, t];
         if (v === 'yesterday') { const y = addDays(t, -1); return [y, y]; }
         if (v === 'month') return [t.slice(0, 8) + '01', t];
         if (v === 'lastmonth') { const s = addDays(t.slice(0, 8) + '01', -1); return [s.slice(0, 8) + '01', s]; }
         if (v === 'year') return [t.slice(0, 5) + '01-01', t];
         if (v === 'all') return [first, t];
-        if (v === 'custom') {
-            const a = document.getElementById('fFrom').value || first, b = document.getElementById('fTo').value || t;
-            return a <= b ? [a, b] : [b, a];
-        }
         const n = Number(v) || 30; return [addDays(t, -(n - 1)), t];
     }
 
@@ -352,11 +384,12 @@
     }
 
     function render() {
+        syncDateLimits();
         fillFilters();
         const [a, b] = range();
         const list = rows.filter(r => r.day >= a && r.day <= b && match(r));
         const days = daysBetween(a, b);
-        const isAll = document.getElementById('fRange').value === 'all';
+        const isAll = document.getElementById('fRange').value === 'all' || a <= firstDay();
         const pa = addDays(a, -days), pb = addDays(a, -1);
         const prev = isAll ? null : rows.filter(r => r.day >= pa && r.day <= pb && match(r));
 
@@ -433,16 +466,26 @@
         if (window.innerWidth < 700) document.getElementById('filterBox').removeAttribute('open');   // มือถือ: พับตัวกรองไว้
         load();
         document.getElementById('btnReload').addEventListener('click', load);
-        document.getElementById('fRange').addEventListener('change', e => {
-            const c = e.target.value === 'custom';
-            document.getElementById('customFrom').style.display = c ? '' : 'none';
-            document.getElementById('customTo').style.display = c ? '' : 'none';
-            if (c && !document.getElementById('fFrom').value) {
-                const [a, b] = range(); document.getElementById('fFrom').value = addDays(b, -29); document.getElementById('fTo').value = b;
-            }
+        document.getElementById('fRange').addEventListener('change', () => { applyPreset(); render(); });
+        // แก้วันที่เอง → ช่วงด่วนเปลี่ยนเป็น "กำหนดวันที่เอง"
+        ['fFrom', 'fTo'].forEach(id => document.getElementById(id).addEventListener('change', () => {
+            const f = document.getElementById('fFrom'), t = document.getElementById('fTo');
+            if (f.value && t.value && f.value > t.value) { const x = f.value; f.value = t.value; t.value = x; }   // กรอกกลับด้าน → สลับให้
+            document.getElementById('fRange').value = 'custom';
             render();
-        });
-        ['fFrom', 'fTo'].forEach(id => document.getElementById(id).addEventListener('change', render));
+        }));
+        // ◀ ▶ เลื่อนทั้งช่วงไปก่อน/หลัง ทีละความยาวเท่าเดิม (เช่น ดูทีละวัน ทีละ 7 วัน)
+        function shift(dir) {
+            const [a, b] = range(), n = daysBetween(a, b), t = todayStr();
+            let na = addDays(a, dir * n), nb = addDays(b, dir * n);
+            if (nb > t) { nb = t; na = addDays(t, -(n - 1)); }
+            document.getElementById('fFrom').value = na;
+            document.getElementById('fTo').value = nb;
+            document.getElementById('fRange').value = 'custom';
+            render();
+        }
+        document.getElementById('btnPrev').addEventListener('click', () => shift(-1));
+        document.getElementById('btnNext').addEventListener('click', () => shift(1));
         document.querySelectorAll('[data-f]').forEach(s => s.addEventListener('change', () => { sel[s.dataset.f] = s.value || undefined; render(); }));
         let t = null;
         document.getElementById('fSearch').addEventListener('input', () => { clearTimeout(t); t = setTimeout(render, 250); });
@@ -454,6 +497,7 @@
             document.querySelectorAll('#segBucket button').forEach(x => x.classList.toggle('on', x === btn));
             if (bucket !== 'day' && ['today', 'yesterday', '7', '30'].includes(document.getElementById('fRange').value)) {
                 document.getElementById('fRange').value = bucket === 'month' ? 'year' : 'all';
+                applyPreset();
             }
             render();
         });
