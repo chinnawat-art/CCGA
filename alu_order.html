@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#6366f1">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-180.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Alu ERP">
+    <script src="pwa.js?v=20260918-2" defer></script>
+    <title>สั่งตัดอลูมิเนียม | Alu Order</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="auth.js?v=20261118-1"></script>
+    <link rel="stylesheet" href="theme.css">
+    <script src="theme.js" defer></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin:0; font-family:'Kanit',sans-serif;
+               background: var(--bg-body,#f1f5f9); color: var(--text-main,#0f172a); }
+        .shell { max-width:1040px; margin:0 auto; padding:16px 14px 120px; }
+        .back { color: var(--muted-strong,#64748b); text-decoration:none; font-size:.92rem; }
+        h1 { font-size:1.35rem; margin:10px 0 2px; }
+        h2 { font-size:1.05rem; margin:0 0 10px; }
+        .sub { color: var(--muted-strong,#64748b); font-size:.88rem; margin:0 0 14px; line-height:1.55; }
+        .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:9px; margin-bottom:14px; }
+        .kpi { background: var(--surface,#fff); border:1px solid var(--border-strong,#e2e8f0);
+               border-radius:14px; padding:11px 8px; text-align:center; }
+        .kpi b { display:block; font-size:1.4rem; line-height:1.25; color:#2563eb; }
+        .kpi span { font-size:.74rem; color: var(--muted-strong,#64748b); }
+        .card { background: var(--surface,#fff); border:1px solid var(--border-strong,#e2e8f0);
+                border-radius:15px; padding:14px; margin-bottom:12px; }
+        .tabs { display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap; }
+        .tab { padding:9px 16px; border-radius:11px; border:1px solid var(--border-strong,#cbd5e1); cursor:pointer;
+               font:600 .92rem 'Kanit',sans-serif; background: var(--surface,#fff); color: var(--text-main,#0f172a); }
+        .tab.on { background:#2563eb; border-color:#2563eb; color:#fff; }
+        .tab .n { display:inline-block; min-width:20px; padding:0 6px; margin-left:4px; border-radius:99px;
+                  background:rgba(37,99,235,.15); font-size:.78rem; }
+        .tab.on .n { background:rgba(255,255,255,.25); }
+        .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+        .toolbar select, .toolbar input { font-family:inherit; font-size:.92rem; padding:9px 11px;
+               border:1px solid var(--border-strong,#cbd5e1); border-radius:11px;
+               background: var(--surface,#fff); color: var(--text-main,#0f172a); }
+        .toolbar input[type=search] { flex:1 1 180px; min-width:0; }
+        .btn { padding:7px 11px; border:1px solid var(--border-strong,#cbd5e1); border-radius:10px; cursor:pointer;
+               font:600 .85rem 'Kanit',sans-serif; background:transparent; color: var(--text-main,#0f172a); }
+        .btn:disabled { opacity:.5; cursor:not-allowed; }
+        .btn-main { background: linear-gradient(135deg,#3b82f6,#2563eb); color:#fff; border:0; padding:10px 16px; font-size:.95rem; }
+        .btn-ok { background:#16a34a; color:#fff; border:0; }
+        .btn-bad { color:#dc2626; border-color:#fca5a5; }
+        .meta { font-size:.82rem; color: var(--muted-strong,#64748b); line-height:1.5; }
+        .pill { display:inline-block; padding:2px 10px; border-radius:99px; font-size:.78rem; font-weight:700;
+                background: rgba(37,99,235,.14); color:#2563eb; white-space:nowrap; }
+        .pill.grn { background: rgba(22,163,74,.14); color:#16a34a; }
+        .pill.amb { background: rgba(217,119,6,.15); color:#d97706; }
+        .pill.red { background: rgba(220,38,38,.13); color:#dc2626; }
+        .pill.gry { background: rgba(100,116,139,.15); color: var(--muted-strong,#64748b); }
+        .loc { display:inline-block; padding:0 7px; border-radius:6px; background:#0f766e; color:#fff; font-weight:700; font-size:.78rem; }
+        .empty { text-align:center; padding:26px 12px; color: var(--muted-strong,#64748b); }
+        .warn { color:#dc2626; font-size:.85rem; font-weight:600; }
+        .grp { margin-top:12px; }
+        .grp:first-child { margin-top:0; }
+        .grp-head { display:flex; justify-content:space-between; gap:8px; align-items:center; flex-wrap:wrap;
+                    padding:7px 10px; border-radius:10px; background: rgba(37,99,235,.07); font-weight:700; }
+        .row { display:flex; gap:10px; align-items:center; padding:9px 4px; border-bottom:1px dashed var(--border-strong,#e2e8f0); flex-wrap:wrap; }
+        .row:last-child { border-bottom:0; }
+        .row.off .info { opacity:.55; }
+        .row .chk { width:22px; height:22px; accent-color:#2563eb; flex:0 0 auto; }
+        .row .info { flex:1 1 230px; min-width:0; }
+        .row .nm { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+        .row .nm b { font-size:1rem; }
+        .qty { display:flex; align-items:center; gap:6px; flex:0 0 auto; margin-left:auto; }
+        .qty input { width:84px; font:700 1rem 'Kanit',sans-serif; text-align:center; padding:7px 6px;
+                     border:1px solid var(--border-strong,#cbd5e1); border-radius:10px;
+                     background: var(--surface,#fff); color: var(--text-main,#0f172a); }
+        details.set { margin-bottom:12px; }
+        details.set summary { cursor:pointer; font-weight:600; }
+        .set-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:8px 14px; margin-top:10px; }
+        .set-grid label { display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:.88rem; }
+        .set-grid input { width:80px; font:600 .92rem 'Kanit',sans-serif; text-align:center; padding:6px;
+                          border:1px solid var(--border-strong,#cbd5e1); border-radius:9px;
+                          background: var(--surface,#fff); color: var(--text-main,#0f172a); }
+        .bar { position:fixed; left:0; right:0; bottom:0; z-index:50; background: var(--surface,#fff);
+               border-top:1px solid var(--border-strong,#e2e8f0); box-shadow:0 -8px 24px rgba(0,0,0,.08);
+               padding:10px 14px; display:none; }
+        .bar-in { max-width:1040px; margin:0 auto; display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+        .bar-in input { font-family:inherit; font-size:.9rem; padding:9px 11px; border:1px solid var(--border-strong,#cbd5e1);
+                        border-radius:11px; background: var(--surface,#fff); color: var(--text-main,#0f172a); flex:1 1 160px; min-width:0; }
+        .ord { border:1px solid var(--border-strong,#e2e8f0); border-radius:14px; padding:12px; margin-bottom:12px; }
+        .ord.new { border:2px solid #2563eb; }
+        .ord-head { display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:flex-start; }
+        .ord-no { font-size:1.12rem; font-weight:700; }
+        .ord-actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+        .prog { height:8px; border-radius:99px; background: rgba(100,116,139,.18); overflow:hidden; margin:8px 0 2px; }
+        .prog i { display:block; height:100%; background:#16a34a; border-radius:99px; }
+        .ord details { margin-top:8px; }
+        .ord summary { cursor:pointer; font-weight:600; font-size:.9rem; }
+        .tbl { overflow-x:auto; }
+        .ord table { width:100%; border-collapse:collapse; font-size:.86rem; margin-top:6px; }
+        .ord th, .ord td { padding:5px 6px; border-bottom:1px solid var(--border-strong,#e2e8f0); text-align:right; white-space:nowrap; }
+        .ord th { font-weight:600; color: var(--muted-strong,#64748b); font-size:.78rem; }
+        .ord th:first-child, .ord td:first-child { text-align:left; white-space:normal; }
+        .ord td.left { color:#d97706; font-weight:700; }
+        .ord tr.gh td { background: rgba(37,99,235,.06); font-weight:700; text-align:left; }
+        .form { margin-top:10px; border:2px solid #16a34a; border-radius:12px; padding:10px; background: rgba(22,163,74,.05); }
+        .form.edit { border-color:#2563eb; background: rgba(37,99,235,.04); }
+        .form .frow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:6px 0; border-bottom:1px dashed var(--border-strong,#e2e8f0); font-size:.9rem; }
+        .form .frow:last-of-type { border-bottom:0; }
+        .form .frow .lbl { flex:1 1 200px; min-width:0; }
+        .form input[type=number] { width:84px; font:700 1rem 'Kanit',sans-serif; text-align:center; padding:6px;
+                                   border:1px solid var(--border-strong,#cbd5e1); border-radius:9px;
+                                   background: var(--surface,#fff); color: var(--text-main,#0f172a); }
+        .form input[type=text] { font-family:inherit; font-size:.92rem; padding:8px 10px; border:1px solid var(--border-strong,#cbd5e1);
+                                 border-radius:10px; background: var(--surface,#fff); color: var(--text-main,#0f172a); flex:1 1 200px; min-width:0; }
+        .rcpt { font-size:.84rem; padding:3px 0; border-top:1px dashed var(--border-strong,#e2e8f0); }
+        .toast { position:fixed; left:50%; bottom:90px; transform:translateX(-50%);
+                background:#0f172a; color:#fff; padding:12px 20px; border-radius:13px;
+                font-size:.92rem; z-index:9999; box-shadow:0 12px 30px rgba(0,0,0,.3);
+                max-width:calc(100vw - 32px); text-align:center; white-space:pre-line; }
+        #printArea { display:none; }
+        @media (max-width:560px) {
+            .qty { margin-left:32px; }
+            .ord table { font-size:.8rem; }
+            .ord th, .ord td { padding:4px 3px; }
+        }
+        @media print {
+            @page { size: A4; margin: 10mm; }
+            body { background:#fff !important; color:#000 !important; }
+            .shell, .bar, .toast, #user-display-area, nav, header, .navbar, .menu-btn, .theme-toggle-button, #ccga-alert-host { display:none !important; }
+            #printArea { display:block !important; font-family:'Kanit',sans-serif; color:#000; }
+            #printArea h1 { font-size:17pt; margin:0 0 1mm; }
+            #printArea .pm { font-size:10.5pt; margin:0 0 3mm; line-height:1.5; }
+            #printArea table { width:100%; border-collapse:collapse; font-size:11pt; }
+            #printArea td, #printArea th { border:1px solid #000; padding:1.2mm 2.5mm; text-align:left; }
+            #printArea td.n, #printArea th.n { text-align:right; }
+            #printArea tr.gh td { background:#eee; font-weight:700; }
+            #printArea tr { page-break-inside:avoid; }
+            #printArea .sign { display:flex; gap:20mm; margin-top:10mm; font-size:11pt; }
+        }
+    </style>
+    <link rel="stylesheet" href="mobile-fit.css?v=20261112-1">
+</head>
+<body>
+    <div class="shell">
+        <a href="stock_management.html" class="back">← กลับหน้าจัดการสต็อก</a>
+        <h1>🪚 สั่งตัดอลูมิเนียม (บานเลื่อน)</h1>
+        <p class="sub" id="sub">ประตูบานเลื่อน (SLD) และหน้าต่างบานเลื่อน (SLWD) ที่สั่งโรงงานรับตัด · ระบบดูว่าท่อนไหนใกล้หมด แล้วคิดให้ว่าควรสั่งกี่ท่อน
+            จากยอดในสต็อก + ที่สั่งไปแล้วรอของ + ออเดอร์ที่ขายจริง<br>
+            ยอดสต็อกเพิ่มเมื่อกด <b>📥 รับของ</b> ในใบสั่งตัดเท่านั้น (ชุดยูเนี่ยนตัดเองในแอป AluCut ไม่อยู่ในหน้านี้)</p>
+
+        <div id="user-display-area"></div>
+
+        <div class="kpis">
+            <div class="kpi"><b id="kLow" style="color:#dc2626">-</b><span>🔴 ใกล้หมด (รายการ)</span></div>
+            <div class="kpi"><b id="kTop" style="color:#d97706">-</b><span>🟡 ควรเติมพร้อมกัน (รายการ)</span></div>
+            <div class="kpi"><b id="kOpen">-</b><span>🕒 ใบสั่งตัดที่รอของ</span></div>
+            <div class="kpi"><b id="kWait" style="color:#0f766e">-</b><span>🚚 ท่อนที่รอของ</span></div>
+        </div>
+
+        <div class="tabs">
+            <button type="button" class="tab on" data-tab="need">💡 ต้องสั่ง</button>
+            <button type="button" class="tab" data-tab="orders">📋 ใบสั่งตัด <span class="n" id="nOpen">0</span></button>
+        </div>
+
+        <!-- ───────── แท็บต้องสั่ง ───────── -->
+        <div id="tabNeed">
+            <details class="card set" id="setBox">
+                <summary>⚙️ เกณฑ์การคิด <span class="meta" id="setSummary"></span></summary>
+                <div class="set-grid">
+                    <label>ดูออเดอร์ย้อนหลัง (วัน) <input type="number" inputmode="numeric" min="14" max="365" data-set="hist_days"></label>
+                    <label>🔴 เตือนเมื่อพอใช้ไม่ถึง (วัน) <input type="number" inputmode="numeric" min="1" max="365" data-set="alert_days"></label>
+                    <label>สั่งให้พอใช้ (วัน) <input type="number" inputmode="numeric" min="1" max="720" data-set="target_days"></label>
+                </div>
+                <div class="meta" style="margin-top:8px;">ควรสั่ง = ใช้ต่อวัน × สั่งให้พอใช้ − ที่มีในสต็อก − ที่สั่งแล้วรอของ · ตัวอย่าง: ใช้วันละ 2 ท่อน สั่งให้พอใช้ 45 วัน = 90 ท่อน มีอยู่ 20 = ควรสั่ง 70
+                    <br>เกณฑ์ใช้ร่วมทุกเครื่อง + ใช้กับป้ายเตือนทุกหน้า (เลือกว่าเตือนใคร ที่หน้า "จัดการสมาชิก" → ติ๊ก 🔔 อลูมิเนียมบานเลื่อนใกล้หมด)</div>
+                <div class="toolbar" style="margin-top:10px;margin-bottom:0;">
+                    <button type="button" class="btn btn-main" id="btnSetSave">💾 บันทึกเกณฑ์</button>
+                    <span class="meta" id="setBy"></span>
+                </div>
+            </details>
+
+            <div class="card">
+                <div class="toolbar">
+                    <select id="fShow">
+                        <option value="need">🔴🟡 ใกล้หมด + ควรเติม</option>
+                        <option value="low">🔴 ใกล้หมดอย่างเดียว</option>
+                        <option value="picked">☑️ ที่เลือกไว้</option>
+                        <option value="all">ทุกรายการ (เพิ่มเองได้)</option>
+                    </select>
+                    <select id="fModel">
+                        <option value="">ประตู + หน้าต่าง</option>
+                        <option value="SLD">🚪 ประตู (SLD)</option>
+                        <option value="SLWD">🪟 หน้าต่าง (SLWD)</option>
+                    </select>
+                    <select id="fColor"><option value="">ทุกสี</option></select>
+                    <select id="fSort">
+                        <option value="part">เรียงตามชิ้น (ส่งโรงงาน)</option>
+                        <option value="urgent">ใกล้หมดก่อน</option>
+                    </select>
+                    <input type="search" id="fSearch" placeholder="ค้นหา เช่น เสาตาย 55.5">
+                </div>
+                <div class="toolbar">
+                    <button type="button" class="btn" id="btnPickLow">☑️ เลือกที่ใกล้หมดทั้งหมด</button>
+                    <button type="button" class="btn" id="btnPickShown">☑️ เลือกที่แสดงอยู่</button>
+                    <button type="button" class="btn" id="btnPickNone">⬜ ไม่เลือกเลย</button>
+                </div>
+                <div id="needList"><div class="empty">กำลังโหลด...</div></div>
+            </div>
+        </div>
+
+        <!-- ───────── แท็บใบสั่งตัด ───────── -->
+        <div id="tabOrders" style="display:none;">
+            <div class="card">
+                <div class="toolbar">
+                    <select id="fStatus">
+                        <option value="wait">🕒 รอของ (ยังได้ไม่ครบ)</option>
+                        <option value="received">✅ ได้ของครบ</option>
+                        <option value="closed">📕 ปิดใบ (ได้ไม่ครบ)</option>
+                        <option value="cancelled">❌ ยกเลิก</option>
+                        <option value="">ทั้งหมด</option>
+                    </select>
+                    <button type="button" class="btn" id="btnReload">🔄 โหลดใหม่</button>
+                </div>
+                <div id="orderList"><div class="empty">กำลังโหลด...</div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bar" id="bar"><div class="bar-in">
+        <div><b id="barText">-</b><div class="meta" id="barSub"></div></div>
+        <input type="text" id="barNote" maxlength="200" placeholder="หมายเหตุ (ถ้ามี)">
+        <button type="button" class="btn btn-main" id="btnCreate">🧾 สร้างใบสั่งตัด</button>
+    </div></div>
+
+    <div id="printArea"></div>
+
+<script>
+    const SLIDE_RE = /^(SLD|SLWD)-([^-]+)-([^-]+)-([0-9]+(?:\.[0-9]+)?)$/;
+    const KIND = { SLD: 'ประตู', SLWD: 'หน้าต่าง' };
+    const KIND_ICON = { SLD: '🚪', SLWD: '🪟' };
+    const STATUS = {
+        open:      ['🕒 รอของ', 'amb'],
+        partial:   ['🚚 ได้ของบางส่วน', ''],
+        received:  ['✅ ได้ของครบ', 'grn'],
+        closed:    ['📕 ปิดใบ (ได้ไม่ครบ)', 'gry'],
+        cancelled: ['❌ ยกเลิก', 'red']
+    };
+    let db = null, canOrder = false, canReceive = false;
+    let stats = [], rows = [], byCode = {}, orders = [];
+    let set = { hist_days: 90, alert_days: 21, target_days: 45 }, setBy = null, setAt = null;
+    const pick = new Map();          // รหัส → { on, qty }
+    let pickInit = false;            // เลือกที่ใกล้หมดให้อัตโนมัติครั้งแรกที่โหลด
+    let createKey = null;            // กันกดสร้างใบซ้ำ (ใช้รหัสเดิมจนกว่าจะสร้างสำเร็จ)
+    let busy = false, newOrderId = null;
+    let formOpen = null;             // { id, mode:'recv'|'edit', key }
+
+    function esc(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+    }
+    function toast(msg, ms) {
+        document.querySelectorAll('.toast').forEach(x => x.remove());   // ข้อความใหม่แทนอันเก่า ไม่ซ้อนทับ
+        const t = document.createElement('div');
+        t.className = 'toast'; t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), ms || 3200);
+    }
+    function num(n) { return Number(n || 0).toLocaleString('th-TH'); }
+    function fmtDate(v, withTime) {
+        if (!v) return '-';
+        const o = { day:'2-digit', month:'short', year:'2-digit' };
+        if (withTime) Object.assign(o, { hour:'2-digit', minute:'2-digit', hour12:false });
+        return new Date(v).toLocaleString('th-TH', o);
+    }
+    function newKey() {
+        try { if (crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+        return 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+    }
+    function parse(code) {
+        const m = SLIDE_RE.exec(code || '');
+        if (!m) return null;
+        return { model: m[1], kind: KIND[m[1]], part: m[2], color: m[3], len: Number(m[4]) };
+    }
+    function lenText(n) { return String(Math.round(Number(n) * 100) / 100); }
+    // ชื่อสั้น: "หน้าต่าง เสาตาย ขาว 55.5 ซม."
+    function label(code) {
+        const p = parse(code);
+        return p ? p.kind + ' ' + p.part + ' ' + p.color + ' ' + lenText(p.len) + ' ซม.' : code;
+    }
+    function errText(e) {
+        const m = String((e && (e.message || e.details)) || e || '');
+        if (/rpc_alu|alu_order|schema cache|Could not find/i.test(m)) return 'ฐานข้อมูลยังไม่ได้ติดตั้งระบบสั่งตัดอลูมิเนียม (alu-order-step1.sql)';
+        if (/Failed to fetch|NetworkError|timeout|aborted/i.test(m)) return 'เน็ตหลุดหรือช้า — ลองใหม่อีกครั้ง (กดซ้ำได้ ระบบไม่บันทึกซ้ำ)';
+        return m;
+    }
+
+    // ───────── โหลดข้อมูล ─────────
+    async function fetchAll(build) {
+        const out = [];
+        for (let from = 0; from < 20000; from += 1000) {
+            const { data, error } = await build().range(from, from + 999);
+            if (error) throw error;
+            out.push(...(data || []));
+            if (!data || data.length < 1000) break;
+        }
+        return out;
+    }
+    async function loadSettings() {
+        const { data, error } = await db.rpc('rpc_alu_order_settings');
+        if (error) throw error;
+        set = { hist_days: Number(data.hist_days) || 90, alert_days: Number(data.alert_days) || 21, target_days: Number(data.target_days) || 45 };
+        setBy = data.updated_by || null; setAt = data.updated_at || null;
+    }
+    async function loadStats() {
+        stats = await fetchAll(() => db.rpc('rpc_alu_order_stats', { p_days: null }).order('product_code'));
+    }
+    async function loadOrders() {
+        const { data, error } = await db.from('alu_orders')
+            .select('*, alu_order_lines(*), alu_order_receipts(*)')
+            .order('created_at', { ascending: false }).limit(300);
+        if (error) throw error;
+        orders = data || [];
+    }
+    async function loadAll() {
+        document.getElementById('needList').innerHTML = '<div class="empty">กำลังโหลด...</div>';
+        try {
+            await loadSettings();
+            await Promise.all([loadStats(), loadOrders()]);
+        } catch (e) {
+            const msg = '<div class="empty warn">❌ ' + esc(errText(e)) + '</div>';
+            document.getElementById('needList').innerHTML = msg;
+            document.getElementById('orderList').innerHTML = msg;
+            return;
+        }
+        compute();
+        renderSettings();
+        renderNeed();
+        renderOrders();
+    }
+
+    // ───────── คิดยอด ─────────
+    function compute() {
+        const A = set.alert_days, T = set.target_days;
+        byCode = {};
+        rows = stats.map(s => {
+            const p = parse(s.product_code);
+            if (!p) return null;
+            const win = Math.max(Number(s.window_days) || 1, 1);
+            const dem = Math.max(0, Number(s.demand) || 0), daily = dem / win;
+            const qty = Math.max(0, Number(s.quantity) || 0), on = Math.max(0, Number(s.on_order) || 0), have = qty + on;
+            // เทียบแบบคูณไขว้ (have × วัน < ใช้ × เกณฑ์) กันเศษทศนิยม เช่น พอใช้ 45 วันพอดีกลายเป็น 44.999
+            const days = dem > 0 ? have * win / dem : Infinity;
+            const st = !(dem > 0) ? 'none' : have * win < dem * A ? 'low' : have * win < dem * T ? 'top' : 'ok';
+            const sug = dem > 0 ? Math.max(0, Math.ceil((dem * T - have * win) / win - 1e-9)) : 0;
+            const r = Object.assign({ code: s.product_code, name: s.product_name, loc: s.storage_location || '', qty, on, have, daily, days, st, sug, win }, p);
+            byCode[r.code] = r;
+            return r;
+        }).filter(Boolean);
+        // ตัดรายการที่ถูกลบออกจากสต็อกไปแล้ว
+        [...pick.keys()].forEach(c => { if (!byCode[c]) pick.delete(c); });
+        if (!pickInit) {
+            rows.forEach(r => { if (r.st === 'low' && r.sug > 0) pick.set(r.code, { on: true, qty: r.sug }); });
+            pickInit = true;
+        }
+        const wait = orders.filter(o => o.status === 'open' || o.status === 'partial');
+        document.getElementById('kLow').textContent = num(rows.filter(r => r.st === 'low').length);
+        document.getElementById('kTop').textContent = num(rows.filter(r => r.st === 'top').length);
+        document.getElementById('kOpen').textContent = num(wait.length);
+        document.getElementById('kWait').textContent = num(wait.reduce((a, o) => a + (o.alu_order_lines || []).reduce((b, l) => b + l.qty - l.received_qty, 0), 0));
+        document.getElementById('nOpen').textContent = num(wait.length);
+        const colors = [...new Set(rows.map(r => r.color))].sort();
+        const fc = document.getElementById('fColor'), cur = fc.value;
+        fc.innerHTML = '<option value="">ทุกสี</option>' + colors.map(c => '<option>' + esc(c) + '</option>').join('');
+        fc.value = colors.includes(cur) ? cur : '';
+    }
+    function stPill(r) {
+        if (r.st === 'low') return r.qty + r.on <= 0 ? '<span class="pill red">🔴 หมดแล้ว</span>' : '<span class="pill red">🔴 ใกล้หมด</span>';
+        if (r.st === 'top') return '<span class="pill amb">🟡 ควรเติม</span>';
+        if (r.st === 'ok') return '<span class="pill grn">✅ พอใช้</span>';
+        return '<span class="pill gry">ไม่มีออเดอร์ใช้ช่วงนี้</span>';
+    }
+    function useText(r) {
+        if (!(r.daily > 0)) return 'มี ' + num(r.qty) + (r.on ? ' · รอของ ' + num(r.on) : '') + ' · ไม่มีออเดอร์ใช้ใน ' + Math.round(r.win) + ' วันที่ผ่านมา';
+        const d = r.days >= 999 ? '999+' : Math.floor(r.days);
+        return 'มี ' + num(r.qty) + (r.on ? ' · รอของ ' + num(r.on) : '') + ' · ใช้ ~' + num(Math.round(r.daily * 30)) + ' ท่อน/เดือน · พอใช้ ' + d + ' วัน'
+            + (r.sug > 0 ? ' · ระบบแนะนำ ' + num(r.sug) : '');
+    }
+
+    // ───────── แท็บต้องสั่ง ─────────
+    function shownRows() {
+        const show = document.getElementById('fShow').value;
+        const m = document.getElementById('fModel').value, c = document.getElementById('fColor').value;
+        const q = document.getElementById('fSearch').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        return rows.filter(r => {
+            const pk = pick.get(r.code);
+            if (show === 'need' && !(r.st === 'low' || r.st === 'top' || (pk && pk.on))) return false;
+            if (show === 'low' && !(r.st === 'low' || (pk && pk.on))) return false;
+            if (show === 'picked' && !(pk && pk.on)) return false;
+            if (m && r.model !== m) return false;
+            if (c && r.color !== c) return false;
+            if (q.length) {
+                const hay = (r.kind + ' ' + r.part + ' ' + r.color + ' ' + lenText(r.len) + ' ' + r.code).toLowerCase();
+                const words = hay.split(/[\s-]+/);
+                // ตัวเลข = ความยาวที่ขึ้นต้นด้วยเลขนั้น (55.5 ไม่ไปเจอ 155.5) · คำอื่นค้นทั้งข้อความ
+                if (!q.every(w => /^[0-9.]+$/.test(w) ? words.some(t => t.startsWith(w)) : hay.includes(w))) return false;
+            }
+            return true;
+        });
+    }
+    function rowHtml(r, full) {
+        const pk = pick.get(r.code) || { on: false, qty: r.sug };
+        const qty = pk.qty > 0 ? pk.qty : '';
+        const title = full ? r.kind + ' ' + r.part + ' ' + r.color + ' ' + lenText(r.len) + ' ซม.' : r.color + ' ' + lenText(r.len) + ' ซม.';
+        return '<div class="row' + (pk.on ? '' : ' off') + '" data-code="' + esc(r.code) + '">'
+            + '<input type="checkbox" class="chk" data-chk' + (pk.on ? ' checked' : '') + ' aria-label="เลือก ' + esc(title) + '">'
+            + '<div class="info"><div class="nm"><b>' + esc(title) + '</b>' + stPill(r) + (r.loc ? ' <span class="loc">' + esc(r.loc) + '</span>' : '') + '</div>'
+            + '<div class="meta">' + useText(r) + '</div></div>'
+            + '<div class="qty">สั่ง <input type="number" min="0" max="100000" step="1" inputmode="numeric" data-qty value="' + qty + '" placeholder="0" aria-label="จำนวนที่จะสั่ง ' + esc(title) + '"> ท่อน</div>'
+            + '</div>';
+    }
+    function sortRows(list, mode) {
+        if (mode === 'urgent') return list.slice().sort((a, b) => (a.days - b.days) || (b.sug - a.sug) || a.code.localeCompare(b.code));
+        return list.slice().sort((a, b) => a.model.localeCompare(b.model) || a.part.localeCompare(b.part, 'th')
+            || a.color.localeCompare(b.color, 'th') || b.len - a.len);
+    }
+    function renderNeed() {
+        const box = document.getElementById('needList');
+        const list = shownRows(), mode = document.getElementById('fSort').value;
+        if (!rows.length) { box.innerHTML = '<div class="empty">ไม่พบอลูมิเนียมบานเลื่อนในสต็อก</div>'; updateBar(); return; }
+        if (!list.length) {
+            box.innerHTML = '<div class="empty">' + (document.getElementById('fShow').value === 'need'
+                ? '✅ ไม่มีรายการใกล้หมดหรือควรเติม — ทุกท่อนพอใช้เกิน ' + set.target_days + ' วัน<br><span class="meta">เลือก "ทุกรายการ" ถ้าอยากสั่งเพิ่มเอง</span>'
+                : 'ไม่มีรายการตามที่กรอง') + '</div>';
+            updateBar(); return;
+        }
+        if (mode === 'urgent') {
+            box.innerHTML = sortRows(list, mode).map(r => rowHtml(r, true)).join('');
+        } else {
+            const groups = [];
+            sortRows(list, mode).forEach(r => {
+                const k = r.model + '|' + r.part;
+                let g = groups[groups.length - 1];
+                if (!g || g.k !== k) { g = { k, r, items: [] }; groups.push(g); }
+                g.items.push(r);
+            });
+            box.innerHTML = groups.map(g => {
+                const on = g.items.filter(r => (pick.get(r.code) || {}).on).length;
+                return '<div class="grp"><div class="grp-head"><span>' + KIND_ICON[g.r.model] + ' ' + esc(g.r.kind + ' · ' + g.r.part) + '</span>'
+                    + '<span class="meta">' + num(g.items.length) + ' ขนาด' + (on ? ' · เลือก ' + num(on) : '') + '</span></div>'
+                    + g.items.map(r => rowHtml(r, false)).join('') + '</div>';
+            }).join('');
+        }
+        updateBar();
+    }
+    function picked() {
+        return [...pick.entries()].filter(([c, v]) => v.on && v.qty > 0 && byCode[c]).map(([c, v]) => ({ code: c, qty: v.qty }));
+    }
+    function updateBar() {
+        const list = picked();
+        const bar = document.getElementById('bar');
+        const onNeed = document.getElementById('tabNeed').style.display !== 'none';
+        bar.style.display = onNeed && (list.length || [...pick.values()].some(v => v.on)) ? 'block' : 'none';
+        const pcs = list.reduce((a, x) => a + x.qty, 0);
+        const noQty = [...pick.entries()].filter(([c, v]) => v.on && !(v.qty > 0) && byCode[c]).length;
+        document.getElementById('barText').textContent = 'เลือก ' + num(list.length) + ' รายการ · ' + num(pcs) + ' ท่อน';
+        document.getElementById('barSub').textContent = (noQty ? '⚠️ ' + num(noQty) + ' รายการยังไม่ได้ใส่จำนวน (ไม่รวมในใบ) · ' : '')
+            + (canOrder ? 'ยอดสต็อกยังไม่เปลี่ยนจนกว่าจะรับของ' : '👁️ สร้างใบต้องมีสิทธิ์ "🪚 สั่งตัดอลูมิเนียม"');
+        document.getElementById('btnCreate').disabled = busy || !canOrder || !list.length;
+        liftFloaters();
+    }
+    // แถบล่างโผล่ → ยกปุ่มโหมดสว่าง/มืด และปุ่มเมนู (มือถือ) ขึ้นเหนือแถบ ไม่ให้บังปุ่มสร้างใบ
+    function liftFloaters() {
+        const bar = document.getElementById('bar');
+        const h = bar.style.display === 'block' ? bar.offsetHeight : 0;
+        const t = document.querySelector('.theme-toggle-button');
+        if (t) t.style.bottom = h ? (h + 12) + 'px' : '';
+        const nav = document.getElementById('permission-page-navigation');
+        if (nav) nav.style.bottom = h && window.matchMedia('(max-width:640px)').matches ? (h + 70) + 'px' : '';
+    }
+    async function createOrder() {
+        if (busy) return;
+        if (!canOrder) { toast('ต้องมีสิทธิ์ "🪚 สั่งตัดอลูมิเนียม" (ให้ CEO เปิดในหน้าจัดการสมาชิก)', 5000); return; }
+        const list = picked();
+        if (!list.length) { toast('ยังไม่ได้เลือกรายการ หรือยังไม่ได้ใส่จำนวน'); return; }
+        if (list.length > 400) { toast('ใบหนึ่งได้ไม่เกิน 400 รายการ'); return; }
+        const pcs = list.reduce((a, x) => a + x.qty, 0);
+        if (!confirm('สร้างใบสั่งตัด ' + num(list.length) + ' รายการ รวม ' + num(pcs) + ' ท่อน ?\n\nยอดสต็อกยังไม่เปลี่ยน — เพิ่มเมื่อของมาถึงแล้วกด "📥 รับของ"')) return;
+        busy = true; updateBar();
+        const btn = document.getElementById('btnCreate');
+        btn.textContent = '⏳ กำลังสร้าง...';
+        if (!createKey) createKey = newKey();
+        try {
+            const note = document.getElementById('barNote').value.trim();
+            const { data, error } = await db.rpc('rpc_alu_order_create', {
+                p_lines: sortRows(list.map(x => byCode[x.code]), 'part').map(r => ({ product_code: r.code, qty: pick.get(r.code).qty })),
+                p_note: note || null, p_factory_ref: null, p_key: createKey
+            });
+            if (error) throw error;
+            createKey = null;
+            pick.clear();
+            document.getElementById('barNote').value = '';
+            newOrderId = Number(data.id);
+            toast('✅ สร้างใบ ' + data.order_no + ' แล้ว (' + num(data.items) + ' รายการ ' + num(data.pieces) + ' ท่อน)\nคัดลอกรายการ/พิมพ์ใบ ส่งโรงงานได้เลย', 5000);
+            await Promise.all([loadStats(), loadOrders()]);
+            compute(); renderNeed();
+            document.getElementById('fStatus').value = 'wait';
+            switchTab('orders');
+        } catch (e) {
+            toast('❌ สร้างใบไม่สำเร็จ: ' + errText(e), 7000);
+        } finally {
+            busy = false; btn.textContent = '🧾 สร้างใบสั่งตัด'; updateBar();
+        }
+    }
+
+    // ───────── เกณฑ์ ─────────
+    function renderSettings() {
+        document.querySelectorAll('[data-set]').forEach(i => { i.value = set[i.dataset.set]; i.disabled = !canOrder; });
+        document.getElementById('btnSetSave').disabled = !canOrder;
+        document.getElementById('setSummary').textContent = '· เตือนเมื่อพอใช้ไม่ถึง ' + set.alert_days + ' วัน · สั่งให้พอใช้ ' + set.target_days + ' วัน · ดูออเดอร์ ' + set.hist_days + ' วัน';
+        document.getElementById('setBy').textContent = canOrder ? (setBy ? 'แก้ล่าสุด: ' + setBy + ' · ' + fmtDate(setAt, true) : '') : '👁️ แก้เกณฑ์ต้องมีสิทธิ์ "🪚 สั่งตัดอลูมิเนียม"';
+    }
+    async function saveSettings(btn) {
+        const v = {};
+        for (const i of document.querySelectorAll('[data-set]')) {
+            const n = Number(i.value);
+            if (!Number.isInteger(n) || n < Number(i.min) || n > Number(i.max)) { toast('ค่าต้องเป็นเลขเต็มระหว่าง ' + i.min + '–' + i.max); i.focus(); return; }
+            v[i.dataset.set] = n;
+        }
+        if (v.target_days < v.alert_days) { toast('"สั่งให้พอใช้" ต้องไม่น้อยกว่า "เตือนเมื่อพอใช้ไม่ถึง"'); return; }
+        btn.disabled = true;
+        try {
+            const { error } = await db.rpc('rpc_alu_order_settings_set', { p_hist_days: v.hist_days, p_alert_days: v.alert_days, p_target_days: v.target_days });
+            if (error) throw error;
+            const histChanged = v.hist_days !== set.hist_days;
+            await loadSettings();
+            if (histChanged) await loadStats();
+            pickInit = false; pick.clear();
+            compute(); renderSettings(); renderNeed();
+            toast('✅ บันทึกเกณฑ์แล้ว (ใช้ทุกเครื่อง) · เลือกรายการที่ใกล้หมดให้ใหม่ตามเกณฑ์');
+        } catch (e) {
+            toast('❌ บันทึกเกณฑ์ไม่สำเร็จ: ' + errText(e), 6000);
+        } finally { btn.disabled = !canOrder; }
+    }
+
+    // ───────── แท็บใบสั่งตัด ─────────
+    function linesOf(o) { return (o.alu_order_lines || []).slice().sort((a, b) => a.line_no - b.line_no); }
+    function groupedLines(o) {
+        const out = [];
+        linesOf(o).forEach(l => {
+            const p = parse(l.product_code) || { model: '', kind: '', part: l.product_name || l.product_code, color: '', len: 0 };
+            const k = p.model + '|' + p.part;
+            let g = out[out.length - 1];
+            if (!g || g.k !== k) { g = { k, p, items: [] }; out.push(g); }
+            g.items.push(Object.assign({}, l, { p }));
+        });
+        return out;
+    }
+    function orderSums(o) {
+        const ls = linesOf(o);
+        const tot = ls.reduce((a, l) => a + l.qty, 0), got = ls.reduce((a, l) => a + l.received_qty, 0);
+        return { n: ls.length, tot, got, left: tot - got };
+    }
+    function orderCard(o) {
+        const s = orderSums(o), st = STATUS[o.status] || [o.status, 'gry'];
+        const waiting = o.status === 'open' || o.status === 'partial';
+        const days = Math.floor((Date.now() - new Date(o.created_at).getTime()) / 864e5);
+        const pct = s.tot ? Math.round(s.got / s.tot * 100) : 0;
+        const rc = (o.alu_order_receipts || []).slice().sort((a, b) => new Date(a.received_at) - new Date(b.received_at));
+        let h = '<div class="ord' + (o.id === newOrderId ? ' new' : '') + '" id="ord-' + o.id + '">'
+            + '<div class="ord-head"><div><div class="ord-no">🧾 ' + esc(o.order_no) + ' <span class="pill ' + st[1] + '">' + st[0] + '</span></div>'
+            + '<div class="meta">สร้าง ' + fmtDate(o.created_at, true) + ' · ' + esc(o.created_by || '-')
+            + (waiting ? ' · <b>รอมาแล้ว ' + num(days) + ' วัน</b>' : '')
+            + (o.received_at ? ' · ได้ครบ ' + fmtDate(o.received_at, true) : '') + '</div>'
+            + '<div class="meta">เลขใบในแอปโรงงาน: <b>' + esc(o.factory_ref || '— ยังไม่ได้ใส่') + '</b>' + (o.note ? ' · หมายเหตุ: ' + esc(o.note) : '') + '</div>'
+            + (o.status === 'closed' ? '<div class="meta">ปิดใบโดย ' + esc(o.closed_by || '-') + ' ' + fmtDate(o.closed_at, true) + (o.close_reason ? ' · ' + esc(o.close_reason) : '') + '</div>' : '')
+            + (o.status === 'cancelled' ? '<div class="meta">ยกเลิกโดย ' + esc(o.cancelled_by || '-') + ' ' + fmtDate(o.cancelled_at, true) + (o.cancel_reason ? ' · ' + esc(o.cancel_reason) : '') + '</div>' : '')
+            + '</div><div style="text-align:right;"><b style="font-size:1.05rem;">' + num(s.got) + ' / ' + num(s.tot) + '</b><div class="meta">ท่อน ได้แล้ว · ' + num(s.n) + ' รายการ</div></div></div>'
+            + '<div class="prog"><i style="width:' + pct + '%"></i></div>';
+        h += '<details' + (o.id === newOrderId || (formOpen && formOpen.id === o.id) ? ' open' : '') + '><summary>ดูรายการ' + (s.left && o.status !== 'cancelled' ? ' · ค้าง ' + num(s.left) + ' ท่อน' : '') + '</summary>'
+            + '<div class="tbl"><table><tr><th>ขนาด</th><th>สั่ง</th><th>ได้แล้ว</th><th>ค้าง</th></tr>'
+            + groupedLines(o).map(g => '<tr class="gh"><td colspan="4">' + (KIND_ICON[g.p.model] || '') + ' ' + esc((g.p.kind ? g.p.kind + ' · ' : '') + g.p.part) + '</td></tr>'
+                + g.items.map(l => {
+                    const left = l.qty - l.received_qty;
+                    return '<tr><td>' + esc(l.p.color ? l.p.color + ' ' + lenText(l.p.len) + ' ซม.' : l.product_name) + '</td><td>' + num(l.qty) + '</td><td>' + num(l.received_qty) + '</td>'
+                        + '<td class="' + (left > 0 && o.status !== 'cancelled' && o.status !== 'closed' ? 'left' : '') + '">' + (left > 0 ? num(left) : '-') + '</td></tr>';
+                }).join('')).join('')
+            + '</table></div>'
+            + (rc.length ? '<div style="margin-top:8px;"><b class="meta">ประวัติรับของ</b>' + rc.map((r, i) => '<div class="rcpt">📥 ครั้งที่ ' + (i + 1) + ' · ' + fmtDate(r.received_at, true) + ' · '
+                + esc(r.received_by || '-') + ' · ' + num(r.pieces) + ' ท่อน' + (r.note ? ' · ' + esc(r.note) : '') + '</div>').join('') + '</div>' : '')
+            + '</details>';
+        h += '<div class="ord-actions">'
+            + '<button type="button" class="btn" data-act="copy" data-id="' + o.id + '">📋 คัดลอกรายการ</button>'
+            + '<button type="button" class="btn" data-act="print" data-id="' + o.id + '">🖨️ พิมพ์ใบ</button>'
+            + '<button type="button" class="btn" data-act="csv" data-id="' + o.id + '">⬇️ ไฟล์ Excel (CSV)</button>'
+            + (waiting && canReceive ? '<button type="button" class="btn btn-ok" data-act="recv" data-id="' + o.id + '">📥 รับของ</button>' : '')
+            + (o.status !== 'cancelled' && canOrder ? '<button type="button" class="btn" data-act="edit" data-id="' + o.id + '">✏️ เลขใบโรงงาน / หมายเหตุ</button>' : '')
+            + (o.status === 'partial' && canOrder ? '<button type="button" class="btn" data-act="close" data-id="' + o.id + '">📕 ปิดใบ (ไม่รอที่ค้าง)</button>' : '')
+            + (o.status === 'open' && !rc.length && canOrder ? '<button type="button" class="btn btn-bad" data-act="cancel" data-id="' + o.id + '">❌ ยกเลิกใบ</button>' : '')
+            + '</div>';
+        if (formOpen && formOpen.id === o.id) h += formOpen.mode === 'recv' ? recvFormHtml(o) : editFormHtml(o);
+        return h + '</div>';
+    }
+    function shownOrders() {
+        const f = document.getElementById('fStatus').value;
+        return orders.filter(o => !f || (f === 'wait' ? (o.status === 'open' || o.status === 'partial') : o.status === f));
+    }
+    function renderOrders() {
+        const box = document.getElementById('orderList');
+        const list = shownOrders();
+        if (!list.length) {
+            box.innerHTML = '<div class="empty">' + (document.getElementById('fStatus').value === 'wait' ? 'ไม่มีใบที่รอของ' : 'ไม่มีใบสั่งตัด') + '</div>';
+            return;
+        }
+        box.innerHTML = list.map(orderCard).join('');
+    }
+
+    // รับของ
+    function recvFormHtml(o) {
+        const ls = linesOf(o).filter(l => l.qty - l.received_qty > 0);
+        return '<div class="form" data-form="recv">'
+            + '<b>📥 รับของใบ ' + esc(o.order_no) + '</b><div class="meta">ใส่จำนวนที่ได้รับจริงรอบนี้ (ได้ไม่ครบใส่เท่าที่ได้ ที่เหลือรอรอบหน้า · รายการที่ยังไม่ได้ ใส่ 0)</div>'
+            + '<div class="toolbar" style="margin:8px 0 4px;"><button type="button" class="btn" data-act="recvAll" data-id="' + o.id + '">ใส่ครบตามที่ค้าง</button>'
+            + '<button type="button" class="btn" data-act="recvZero" data-id="' + o.id + '">ล้างเป็น 0</button></div>'
+            + ls.map(l => {
+                const left = l.qty - l.received_qty;
+                return '<div class="frow"><span class="lbl">' + esc(label(l.product_code)) + '<br><span class="meta">สั่ง ' + num(l.qty) + ' · ได้แล้ว ' + num(l.received_qty) + ' · ค้าง ' + num(left) + '</span></span>'
+                    + '<input type="number" min="0" max="' + left + '" step="1" inputmode="numeric" data-rcode="' + esc(l.product_code) + '" data-left="' + left + '" value="' + left + '"> ท่อน</div>';
+            }).join('')
+            + '<div class="frow"><input type="text" maxlength="200" data-rnote placeholder="หมายเหตุ (ถ้ามี) เช่น ส่งมารอบแรก"></div>'
+            + '<div class="toolbar" style="margin:8px 0 0;"><button type="button" class="btn btn-ok" data-act="recvSave" data-id="' + o.id + '">✅ บันทึกรับของ</button>'
+            + '<button type="button" class="btn" data-act="formClose" data-id="' + o.id + '">ปิด</button>'
+            + '<span class="meta" data-rsum></span></div></div>';
+    }
+    function recvSum(card) {
+        let pcs = 0, n = 0;
+        card.querySelectorAll('[data-rcode]').forEach(i => { const v = parseInt(i.value, 10); if (v > 0) { pcs += v; n++; } });
+        const el = card.querySelector('[data-rsum]');
+        if (el) el.textContent = 'รอบนี้ ' + num(n) + ' รายการ · ' + num(pcs) + ' ท่อน';
+    }
+    async function saveRecv(id, btn) {
+        if (busy) return;
+        const o = orders.find(x => x.id === id), card = document.getElementById('ord-' + id);
+        if (!o || !card || !formOpen || formOpen.id !== id) return;
+        const items = [];
+        for (const i of card.querySelectorAll('[data-rcode]')) {
+            const raw = String(i.value).trim();
+            const v = raw === '' ? 0 : Number(raw), left = Number(i.dataset.left);
+            if (!Number.isInteger(v) || v < 0) { toast('จำนวนต้องเป็นเลขเต็ม 0 ขึ้นไป'); i.focus(); return; }
+            if (v > left) { toast(label(i.dataset.rcode) + ' ค้างแค่ ' + num(left) + ' ท่อน\n(ถ้าได้เกินมา ให้ปรับยอดเพิ่มในหน้าจัดการสต็อก)', 6000); i.focus(); return; }
+            if (v > 0) items.push({ product_code: i.dataset.rcode, qty: v });
+        }
+        if (!items.length) { toast('ยังไม่ได้ใส่จำนวนที่ได้รับ'); return; }
+        const pcs = items.reduce((a, x) => a + x.qty, 0);
+        if (!confirm('รับของใบ ' + o.order_no + '\n' + num(items.length) + ' รายการ รวม ' + num(pcs) + ' ท่อน\n\nยอดสต็อกจะเพิ่มทันที ยืนยัน?')) return;
+        busy = true; btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก...';
+        try {
+            const note = (card.querySelector('[data-rnote]') || {}).value || '';
+            const { data, error } = await db.rpc('rpc_alu_order_receive', { p_id: id, p_items: items, p_key: formOpen.key, p_note: note.trim() || null });
+            if (error) throw error;
+            formOpen = null;
+            toast(data.status === 'duplicate' ? 'ℹ️ รอบนี้บันทึกไปแล้ว (ไม่บวกซ้ำ)'
+                : '✅ รับของใบ ' + data.order_no + ' แล้ว ' + num(data.pieces) + ' ท่อน' + (data.left > 0 ? '\nยังค้างอีก ' + num(data.left) + ' ท่อน' : '\nได้ของครบทั้งใบแล้ว'), 5000);
+            await Promise.all([loadStats(), loadOrders()]);
+            compute(); renderNeed(); renderOrders();
+        } catch (e) {
+            toast('❌ รับของไม่สำเร็จ: ' + errText(e), 7000);
+            btn.disabled = false; btn.textContent = '✅ บันทึกรับของ';
+        } finally { busy = false; }
+    }
+
+    // แก้เลขใบโรงงาน / หมายเหตุ
+    function editFormHtml(o) {
+        return '<div class="form edit" data-form="edit"><b>✏️ ใบ ' + esc(o.order_no) + '</b>'
+            + '<div class="frow"><span class="lbl">เลขใบในแอปของโรงงานรับตัด</span><input type="text" maxlength="80" data-eref value="' + esc(o.factory_ref || '') + '"></div>'
+            + '<div class="frow"><span class="lbl">หมายเหตุ</span><input type="text" maxlength="200" data-enote value="' + esc(o.note || '') + '"></div>'
+            + '<div class="toolbar" style="margin:8px 0 0;"><button type="button" class="btn btn-main" data-act="editSave" data-id="' + o.id + '">💾 บันทึก</button>'
+            + '<button type="button" class="btn" data-act="formClose" data-id="' + o.id + '">ปิด</button></div></div>';
+    }
+    async function saveEdit(id, btn) {
+        const card = document.getElementById('ord-' + id);
+        if (!card) return;
+        btn.disabled = true;
+        try {
+            const { error } = await db.rpc('rpc_alu_order_set_ref', { p_id: id, p_factory_ref: card.querySelector('[data-eref]').value.trim() || null,
+                p_note: card.querySelector('[data-enote]').value.trim() || null });
+            if (error) throw error;
+            formOpen = null;
+            await loadOrders(); renderOrders();
+            toast('✅ บันทึกแล้ว');
+        } catch (e) { toast('❌ ' + errText(e), 6000); btn.disabled = false; }
+    }
+    async function closeOrCancel(id, kind) {
+        const o = orders.find(x => x.id === id);
+        if (!o || busy) return;
+        const s = orderSums(o);
+        const q = kind === 'close'
+            ? 'ปิดใบ ' + o.order_no + ' ?\nได้ของแล้ว ' + num(s.got) + ' / ' + num(s.tot) + ' ท่อน — ที่ค้าง ' + num(s.left) + ' ท่อนจะไม่รอแล้ว\n(ระบบจะแนะนำให้สั่งใหม่ถ้ายังใกล้หมด)\n\nเหตุผล (ถ้ามี):'
+            : 'ยกเลิกใบ ' + o.order_no + ' ?\n(ยังไม่ได้รับของเลย ยอดสต็อกไม่เปลี่ยน)\n\nเหตุผล (ถ้ามี):';
+        const reason = prompt(q, '');
+        if (reason === null) return;
+        busy = true;
+        try {
+            const { error } = await db.rpc(kind === 'close' ? 'rpc_alu_order_close' : 'rpc_alu_order_cancel', { p_id: id, p_reason: reason.trim() || null });
+            if (error) throw error;
+            toast(kind === 'close' ? '📕 ปิดใบ ' + o.order_no + ' แล้ว' : '❌ ยกเลิกใบ ' + o.order_no + ' แล้ว');
+            await Promise.all([loadStats(), loadOrders()]);
+            compute(); renderNeed(); renderOrders();
+        } catch (e) { toast('❌ ' + errText(e), 6000); }
+        finally { busy = false; }
+    }
+
+    // คัดลอก / พิมพ์ / CSV
+    function orderText(o) {
+        const s = orderSums(o), out = ['ใบสั่งตัดอลูมิเนียม ' + o.order_no + ' (' + fmtDate(o.created_at) + ')'];
+        if (o.factory_ref) out.push('เลขใบโรงงาน: ' + o.factory_ref);
+        if (o.note) out.push('หมายเหตุ: ' + o.note);
+        let model = '';
+        groupedLines(o).forEach(g => {
+            if (g.p.model !== model) { model = g.p.model; out.push(''); out.push('[' + (g.p.kind || '-') + (model ? ' ' + model : '') + ']'); }
+            g.items.forEach(l => out.push('• ' + g.p.part + ' ' + (l.p.color ? l.p.color + ' ' + lenText(l.p.len) + ' ซม.' : l.product_name) + ' × ' + num(l.qty) + ' ท่อน'));
+        });
+        out.push(''); out.push('รวม ' + num(s.n) + ' รายการ ' + num(s.tot) + ' ท่อน');
+        return out.join('\n');
+    }
+    async function copyText(t) {
+        try { await navigator.clipboard.writeText(t); return true; } catch (e) {}
+        try {
+            const a = document.createElement('textarea');
+            a.value = t; a.setAttribute('readonly', ''); a.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+            document.body.appendChild(a); a.select(); a.setSelectionRange(0, t.length);
+            const ok = document.execCommand('copy'); a.remove(); return ok;
+        } catch (e) { return false; }
+    }
+    function printOrder(o) {
+        const s = orderSums(o);
+        let i = 0;
+        document.getElementById('printArea').innerHTML = '<h1>ใบสั่งตัดอลูมิเนียม ' + esc(o.order_no) + '</h1>'
+            + '<div class="pm">CG Alu Tech · วันที่สั่ง ' + fmtDate(o.created_at) + (o.factory_ref ? ' · เลขใบโรงงาน ' + esc(o.factory_ref) : '')
+            + (o.note ? '<br>หมายเหตุ: ' + esc(o.note) : '') + '<br>รวม ' + num(s.n) + ' รายการ · ' + num(s.tot) + ' ท่อน (ความยาวเป็น ซม.)</div>'
+            + '<table><tr><th class="n">#</th><th>สี</th><th class="n">ยาว (ซม.)</th><th class="n">จำนวน (ท่อน)</th><th>รหัส</th><th>✓ ได้รับ</th></tr>'
+            + groupedLines(o).map(g => '<tr class="gh"><td colspan="6">' + esc((g.p.kind ? g.p.kind + ' (' + g.p.model + ') · ' : '') + g.p.part) + '</td></tr>'
+                + g.items.map(l => '<tr><td class="n">' + (++i) + '</td><td>' + esc(l.p.color || '-') + '</td><td class="n">' + (l.p.len ? lenText(l.p.len) : '-') + '</td>'
+                    + '<td class="n"><b>' + num(l.qty) + '</b></td><td>' + esc(l.product_code) + '</td><td></td></tr>').join('')).join('')
+            + '</table><div class="sign"><div>ผู้สั่ง ______________________</div><div>ผู้รับของ ______________________</div></div>';
+        window.print();
+    }
+    function csvOrder(o) {
+        const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+        const rowsOut = [['ลำดับ', 'รหัส', 'ประเภท', 'ชิ้น', 'สี', 'ยาว (ซม.)', 'สั่ง (ท่อน)', 'ได้แล้ว', 'ค้าง'].map(q).join(',')];
+        let i = 0;
+        groupedLines(o).forEach(g => g.items.forEach(l => {
+            rowsOut.push([++i, l.product_code, g.p.kind, g.p.part, l.p.color, l.p.len || '', l.qty, l.received_qty, l.qty - l.received_qty].map(q).join(','));
+        }));
+        const blob = new Blob(['﻿' + rowsOut.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob); a.download = o.order_no + '.csv';
+        document.body.appendChild(a); a.click();
+        setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+    }
+
+    function switchTab(t) {
+        document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+        document.getElementById('tabNeed').style.display = t === 'need' ? '' : 'none';
+        document.getElementById('tabOrders').style.display = t === 'orders' ? '' : 'none';
+        if (t === 'orders') {
+            renderOrders();
+            if (newOrderId) setTimeout(() => { const el = document.getElementById('ord-' + newOrderId); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
+        }
+        updateBar();
+    }
+
+    window.addEventListener('auth-ready', () => {
+        db = window.auth && window.auth.supabase;
+        if (!db) { document.getElementById('needList').innerHTML = '<div class="empty">❌ เชื่อมต่อฐานข้อมูลไม่ได้</div>'; return; }
+        const perms = window.auth.pagePermissions || [], ceo = window.auth.role === 'Ceo';
+        const has = k => ceo || perms.some(p => p.page_key === k && p.can_access === true);
+        canOrder = has('action_alu_order');
+        canReceive = has('action_receive_alu');
+        if (!canOrder || !canReceive) {
+            document.getElementById('sub').insertAdjacentHTML('beforeend', '<br><span class="pill gry">👁️ '
+                + (!canOrder && !canReceive ? 'ดูอย่างเดียว — สร้างใบต้องมีสิทธิ์ "🪚 สั่งตัดอลูมิเนียม" · รับของต้องมีสิทธิ์ "📥 รับอลูมิเนียมเข้าสต็อก"'
+                   : !canOrder ? 'สร้าง/แก้/ยกเลิกใบ ต้องมีสิทธิ์ "🪚 สั่งตัดอลูมิเนียม"' : 'รับของต้องมีสิทธิ์ "📥 รับอลูมิเนียมเข้าสต็อก"') + '</span>');
+        }
+        loadAll();
+        window.addEventListener('resize', liftFloaters);
+
+        document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+        ['fShow', 'fModel', 'fColor', 'fSort'].forEach(id => document.getElementById(id).addEventListener('change', renderNeed));
+        document.getElementById('fSearch').addEventListener('input', renderNeed);
+        document.getElementById('fStatus').addEventListener('change', () => { formOpen = null; renderOrders(); });
+        document.getElementById('btnReload').addEventListener('click', async () => { formOpen = null; await loadAll(); });
+        document.getElementById('btnSetSave').addEventListener('click', e => saveSettings(e.currentTarget));
+        document.getElementById('btnCreate').addEventListener('click', createOrder);
+        document.getElementById('btnPickLow').addEventListener('click', () => {
+            rows.forEach(r => { if (r.st === 'low' && r.sug > 0) { const pk = pick.get(r.code); pick.set(r.code, { on: true, qty: pk && pk.qty > 0 ? pk.qty : r.sug }); } });
+            renderNeed();
+        });
+        document.getElementById('btnPickShown').addEventListener('click', () => {
+            shownRows().forEach(r => { const pk = pick.get(r.code); pick.set(r.code, { on: true, qty: pk && pk.qty > 0 ? pk.qty : r.sug }); });
+            renderNeed();
+        });
+        document.getElementById('btnPickNone').addEventListener('click', () => { pick.forEach(v => { v.on = false; }); renderNeed(); });
+
+        const needBox = document.getElementById('needList');
+        needBox.addEventListener('change', e => {
+            const c = e.target.closest('[data-chk]');
+            if (!c) return;
+            const row = c.closest('.row'), code = row.dataset.code, r = byCode[code];
+            const pk = pick.get(code) || { on: false, qty: r ? r.sug : 0 };
+            pk.on = c.checked;
+            if (pk.on && !(pk.qty > 0) && r && r.sug > 0) { pk.qty = r.sug; row.querySelector('[data-qty]').value = r.sug; }
+            pick.set(code, pk);
+            row.classList.toggle('off', !pk.on);
+            updateBar();
+        });
+        needBox.addEventListener('input', e => {
+            const q = e.target.closest('[data-qty]');
+            if (!q) return;
+            const row = q.closest('.row'), code = row.dataset.code;
+            const n = parseInt(q.value, 10);
+            const v = Number.isInteger(n) && n > 0 ? Math.min(n, 100000) : 0;
+            const pk = pick.get(code) || { on: false, qty: 0 };
+            pk.qty = v; pk.on = v > 0;   // ใส่จำนวน = เลือกให้เลย · ลบเป็น 0 = ไม่เลือก
+            pick.set(code, pk);
+            row.querySelector('[data-chk]').checked = pk.on;
+            row.classList.toggle('off', !pk.on);
+            updateBar();
+        });
+
+        const ordBox = document.getElementById('orderList');
+        ordBox.addEventListener('click', e => {
+            const b = e.target.closest('button[data-act]');
+            if (!b) return;
+            const id = Number(b.dataset.id), o = orders.find(x => x.id === id), act = b.dataset.act;
+            if (!o) return;
+            if (act === 'copy') {
+                copyText(orderText(o)).then(ok => toast(ok ? '📋 คัดลอกรายการใบ ' + o.order_no + ' แล้ว — วางในไลน์หรือแอปโรงงานได้เลย' : '❌ คัดลอกไม่ได้ ลองใช้ปุ่มพิมพ์ใบแทน', 4000));
+            } else if (act === 'print') printOrder(o);
+            else if (act === 'csv') csvOrder(o);
+            else if (act === 'recv' || act === 'edit') {
+                formOpen = (formOpen && formOpen.id === id && formOpen.mode === act) ? null : { id, mode: act, key: newKey() };
+                renderOrders();
+                const card = document.getElementById('ord-' + id);
+                if (card && formOpen) { recvSum(card); const f = card.querySelector('[data-form]'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+            } else if (act === 'formClose') { formOpen = null; renderOrders(); }
+            else if (act === 'recvAll' || act === 'recvZero') {
+                const card = document.getElementById('ord-' + id);
+                card.querySelectorAll('[data-rcode]').forEach(i => { i.value = act === 'recvAll' ? i.dataset.left : 0; });
+                recvSum(card);
+            }
+            else if (act === 'recvSave') saveRecv(id, b);
+            else if (act === 'editSave') saveEdit(id, b);
+            else if (act === 'close' || act === 'cancel') closeOrCancel(id, act);
+        });
+        ordBox.addEventListener('input', e => {
+            if (!e.target.closest('[data-rcode]')) return;
+            const card = e.target.closest('.ord');
+            if (card) recvSum(card);
+        });
+    });
+</script>
+</body>
+</html>

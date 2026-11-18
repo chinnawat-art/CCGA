@@ -100,6 +100,7 @@ const PERMISSION_PAGE_CATALOG = [
     ['backup_stock.html', 'สต็อกสำรอง', '🗄️'],
     ['glass_recut.html', 'ตัดกระจกส่วนเกิน', '✂️'],
     ['glass_order.html', 'สั่งกระจก', '🧾'],
+    ['alu_order.html', 'สั่งตัดอลูมิเนียม', '🪚'],
     ['sku_manage.html', 'จัดการ SKU', '🏷️'],
     ['stock_bom_manage.html', 'จัดการ BOM', '🧩'],
     ['damage_report.html', 'วัสดุเสียหาย', '⚠️'],
@@ -181,6 +182,7 @@ async function checkAuth() {
     }));
 
     showGlassRecutAlert(userRole, pagePermissions, currentPage);
+    showAluLowAlert(userRole, pagePermissions, currentPage);
 }
 
 // ─── 🔔 ป้ายเตือน "วันนี้งานน้อย ควรตัดกระจกส่วนเกิน" ───
@@ -211,9 +213,9 @@ async function showGlassRecutAlert(role, pagePermissions, currentPage) {
         const bar = document.createElement('div');
         bar.id = 'glass-recut-alert';
         bar.setAttribute('role', 'status');
-        bar.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);width:calc(100% - 24px);max-width:760px;box-sizing:border-box;'
+        bar.style.cssText = 'box-sizing:border-box;pointer-events:auto;'
             + 'display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 14px;padding:10px 14px;border-radius:14px;'
-            + 'background:#15803d;color:#fff;font-family:Kanit,sans-serif;font-size:.92rem;line-height:1.45;z-index:10000;text-align:center;box-shadow:0 10px 28px rgba(0,0,0,.35);';
+            + 'background:#15803d;color:#fff;font-family:Kanit,sans-serif;font-size:.92rem;line-height:1.45;text-align:center;box-shadow:0 10px 28px rgba(0,0,0,.35);';
         const pcs = Number(res.pieces) || 0, low = Number(res.low_backlog) || 0;
         bar.innerHTML = '<span>🟢 <b>วันนี้งานน้อย</b> — งานค้างผลิต ' + pcs.toLocaleString('th-TH') + ' ชิ้น (เกณฑ์ ≤ ' + low.toLocaleString('th-TH')
             + ') · ควรตัดกระจกส่วนเกินวันนี้</span>'
@@ -224,9 +226,69 @@ async function showGlassRecutAlert(role, pagePermissions, currentPage) {
             try { localStorage.setItem(DISMISS, today); } catch (e) {}
             bar.remove();
         });
-        document.body.appendChild(bar);
+        alertHost().appendChild(bar);
     } catch (e) {
         console.warn('glass recut alert:', e);
+    }
+}
+
+// กล่องป้ายเตือนรวม (บนสุดของจอ) — ป้ายกระจก + ป้ายอลูมิเนียม เรียงลงมาไม่ทับกัน
+function alertHost() {
+    let host = document.getElementById('ccga-alert-host');
+    if (!host) {
+        host = document.createElement('div');
+        host.id = 'ccga-alert-host';
+        host.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);width:calc(100% - 24px);max-width:760px;'
+            + 'display:flex;flex-direction:column;gap:6px;z-index:10000;pointer-events:none;';
+        document.body.appendChild(host);
+    }
+    return host;
+}
+
+// ─── 🔔 ป้ายเตือน "อลูมิเนียมบานเลื่อนใกล้หมด" (18/11/2569) ───
+// ขึ้นเฉพาะบัญชีที่ติ๊ก 🔔 ในหน้าจัดการสมาชิก (ฐานข้อมูลตรวจซ้ำอีกชั้น · CEO ก็ต้องติ๊กเอง)
+// นับรายการที่ (ยอด + ที่สั่งแล้วรอของ) พอใช้ไม่ถึงเกณฑ์ · ถามฐานข้อมูลไม่เกินทุก 10 นาทีต่อแท็บ · กด ✕ = ไม่เตือนจนถึงพรุ่งนี้
+async function showAluLowAlert(role, pagePermissions, currentPage) {
+    try {
+        if (currentPage === 'alu_order.html' || currentPage === 'login.html') return;   // หน้าสั่งตัดมีตัวเลขของตัวเองแล้ว
+        const subscribed = pagePermissions.some(p => p.page_key === 'notify_alu_low' && p.can_access === true);
+        if (role !== 'Ceo' && !subscribed) return;   // CEO ไม่ได้โหลดรายการสิทธิ์ → ให้ฐานข้อมูลตัดสิน
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+        const DISMISS = 'ccga.aluLowAlert.dismissed', CACHE = 'ccga.aluLowAlert.cache';
+        try { if (localStorage.getItem(DISMISS) === today) return; } catch (e) {}
+        let res = null;
+        try {
+            const c = JSON.parse(sessionStorage.getItem(CACHE) || 'null');
+            if (c && c.day === today && Date.now() - c.t < 10 * 60 * 1000) res = c.res;
+        } catch (e) {}
+        if (!res) {
+            const { data, error } = await supabaseClient.rpc('rpc_alu_low_alert');
+            if (error) return;   // ยังไม่ได้ติดตั้งฝั่งฐานข้อมูล หรือเน็ตหลุด → เงียบไว้
+            res = data || {};
+            try { sessionStorage.setItem(CACHE, JSON.stringify({ day: today, t: Date.now(), res: res })); } catch (e) {}
+        }
+        if (!res || res.show !== true) return;
+        document.getElementById('alu-low-alert')?.remove();
+        const canOpen = role === 'Ceo' || pagePermissions.some(p => p.page_key === 'alu_order.html' && p.can_access === true);
+        const bar = document.createElement('div');
+        bar.id = 'alu-low-alert';
+        bar.setAttribute('role', 'status');
+        bar.style.cssText = 'box-sizing:border-box;pointer-events:auto;'
+            + 'display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 14px;padding:10px 14px;border-radius:14px;'
+            + 'background:#c2410c;color:#fff;font-family:Kanit,sans-serif;font-size:.92rem;line-height:1.45;text-align:center;box-shadow:0 10px 28px rgba(0,0,0,.35);';
+        const n = Number(res.count) || 0, z = Number(res.zero) || 0, d = Number(res.alert_days) || 0;
+        bar.innerHTML = '<span>🟠 <b>อลูมิเนียมบานเลื่อนใกล้หมด ' + n.toLocaleString('th-TH') + ' รายการ</b>'
+            + (z ? ' (หมดแล้ว ' + z.toLocaleString('th-TH') + ')' : '') + ' — พอใช้ไม่ถึง ' + d.toLocaleString('th-TH') + ' วัน · ควรสั่งตัด</span>'
+            + (canOpen ? '<a href="alu_order.html" style="background:#fff;color:#c2410c;font-weight:700;padding:5px 12px;border-radius:9px;text-decoration:none;">🪚 ไปสั่งตัด</a>'
+                       : '<span style="opacity:.9;">(บอกคนดูแลสั่งตัด)</span>')
+            + '<button type="button" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.6);border-radius:9px;padding:4px 10px;cursor:pointer;font:inherit;">✕ วันนี้ไม่ต้องเตือน</button>';
+        bar.querySelector('button').addEventListener('click', () => {
+            try { localStorage.setItem(DISMISS, today); } catch (e) {}
+            bar.remove();
+        });
+        alertHost().appendChild(bar);
+    } catch (e) {
+        console.warn('alu low alert:', e);
     }
 }
 

@@ -17,7 +17,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
-  <script src="auth.js?v=20261116-2"></script>
+  <script src="auth.js?v=20261118-1"></script>
   <script src="sound-settings.js?v=20261112-3"></script>
   <link rel="stylesheet" href="theme.css">
   <script src="theme.js" defer></script>
@@ -418,6 +418,7 @@
       ['backup_stock.html','สต็อกสำรอง'],
       ['glass_recut.html','ตัดกระจกส่วนเกิน'],
       ['glass_order.html','สั่งกระจก'],
+      ['alu_order.html','สั่งตัดอลูมิเนียม'],
       ['sku_manage.html','จัดการ SKU'],
       ['stock_bom_manage.html','จัดการ BOM'],
       ['damage_report.html','วัสดุเสียหาย'],
@@ -438,12 +439,15 @@
       ['action_receive_glass','🪟 รับกระจกเข้าสต็อก (จาก Glass Order)'],
       ['action_glass_recut','✂️ ตัดกระจกส่วนเกิน (สร้างใบสั่งตัด / กดตัดเสร็จ / ยกเลิก)'],
       ['action_glass_order_owner','🧾 เจ้าของหน้าสั่งกระจก (อนุมัติ/ตีกลับใบสั่ง · ลบทะเบียน · รวมชิ้น · กู้ข้อมูล)'],
+      ['action_alu_order','🪚 สั่งตัดอลูมิเนียม (สร้างใบ / แก้เลขใบโรงงาน / ปิด-ยกเลิกใบ / แก้เกณฑ์)'],
+      ['action_receive_alu','📥 รับอลูมิเนียมเข้าสต็อก (จากใบสั่งตัด)'],
       ['action_confirm_shipped','🚚 ยืนยันส่งของ (กด ส่งแล้ว ในแท็บตรวจเสร็จรอจัดส่ง)']
     ];
 
     // การแจ้งเตือน: ติ๊กรายคน (CEO ก็เลือกได้ ไม่ได้รับอัตโนมัติ)
     const NOTIFY_PERMISSIONS = [
-      ['notify_glass_recut_low','🔔 วันนี้งานน้อย ควรตัดกระจกส่วนเกิน (ป้ายขึ้นทุกหน้า)']
+      ['notify_glass_recut_low','🔔 วันนี้งานน้อย ควรตัดกระจกส่วนเกิน (ป้ายขึ้นทุกหน้า)'],
+      ['notify_alu_low','🔔 อลูมิเนียมบานเลื่อนใกล้หมด ควรสั่งตัด (ป้ายขึ้นทุกหน้า)']
     ];
     const NOTIFY_KEYS = new Set(NOTIFY_PERMISSIONS.map(([key]) => key));
 
