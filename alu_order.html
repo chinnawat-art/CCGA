@@ -105,6 +105,7 @@
         .ord th { font-weight:600; color: var(--muted-strong,#64748b); font-size:.78rem; }
         .ord th:first-child, .ord td:first-child { text-align:left; white-space:normal; }
         .ord td.left { color:#d97706; font-weight:700; }
+        .ord td.over, .form .over { color:#2563eb; font-weight:700; }
         .ord tr.gh td { background: rgba(37,99,235,.06); font-weight:700; text-align:left; }
         .form { margin-top:10px; border:2px solid #16a34a; border-radius:12px; padding:10px; background: rgba(22,163,74,.05); }
         .form.edit { border-color:#2563eb; background: rgba(37,99,235,.04); }
@@ -226,6 +227,7 @@
                     <button type="button" class="btn" id="btnReload">🔄 โหลดใหม่</button>
                 </div>
                 <div id="orderList"><div class="empty">กำลังโหลด...</div></div>
+                <datalist id="aluCodes"></datalist>
             </div>
         </div>
     </div>
@@ -285,6 +287,9 @@
         return { model: m[1], kind: KIND[m[1]], part: m[2], color: m[3], len: Number(m[4]) };
     }
     function lenText(n) { return String(Math.round(Number(n) * 100) / 100); }
+    // ความยาวเป็น มม. แบบที่โรงงานใช้: ตัดทศนิยมทิ้ง (41.475 ซม. → 414 มม.) ตามใบ CO-189
+    function mmOf(n) { return Math.floor(Number(n) * 10 + 1e-6); }
+    function sizeText(p) { return p.color + ' ' + mmOf(p.len) + ' มม. (' + lenText(p.len) + ' ซม.)'; }
     // ชื่อสั้น: "หน้าต่าง เสาตาย ขาว 55.5 ซม."
     function label(code) {
         const p = parse(code);
@@ -369,7 +374,10 @@
         document.getElementById('kLow').textContent = num(rows.filter(r => r.st === 'low').length);
         document.getElementById('kTop').textContent = num(rows.filter(r => r.st === 'top').length);
         document.getElementById('kOpen').textContent = num(wait.length);
-        document.getElementById('kWait').textContent = num(wait.reduce((a, o) => a + (o.alu_order_lines || []).reduce((b, l) => b + l.qty - l.received_qty, 0), 0));
+        document.getElementById('kWait').textContent = num(wait.reduce((a, o) => a + orderSums(o).left, 0));
+        // รายการให้เลือกตอนได้ขนาดที่ไม่อยู่ในใบ
+        document.getElementById('aluCodes').innerHTML = rows.slice().sort((a, b) => label(a.code).localeCompare(label(b.code), 'th'))
+            .map(r => '<option value="' + esc(label(r.code)) + '"></option>').join('');
         document.getElementById('nOpen').textContent = num(wait.length);
         const colors = [...new Set(rows.map(r => r.color))].sort();
         const fc = document.getElementById('fColor'), cur = fc.value;
@@ -560,14 +568,17 @@
     }
     function orderSums(o) {
         const ls = linesOf(o);
+        // ได้เกินที่สั่งได้ (โรงงานตัดเป็นเส้นเต็ม) · รายการ "สั่ง 0" = ไม่ได้สั่งแต่ได้เพิ่มมา
         const tot = ls.reduce((a, l) => a + l.qty, 0), got = ls.reduce((a, l) => a + l.received_qty, 0);
-        return { n: ls.length, tot, got, left: tot - got };
+        const left = ls.reduce((a, l) => a + Math.max(l.qty - l.received_qty, 0), 0);
+        const over = ls.reduce((a, l) => a + Math.max(l.received_qty - l.qty, 0), 0);
+        return { n: ls.filter(l => l.qty > 0).length, tot, got, left, over };
     }
     function orderCard(o) {
         const s = orderSums(o), st = STATUS[o.status] || [o.status, 'gry'];
         const waiting = o.status === 'open' || o.status === 'partial';
         const days = Math.floor((Date.now() - new Date(o.created_at).getTime()) / 864e5);
-        const pct = s.tot ? Math.round(s.got / s.tot * 100) : 0;
+        const pct = s.tot ? Math.round((s.tot - s.left) / s.tot * 100) : 0;
         const rc = (o.alu_order_receipts || []).slice().sort((a, b) => new Date(a.received_at) - new Date(b.received_at));
         let h = '<div class="ord' + (o.id === newOrderId ? ' new' : '') + '" id="ord-' + o.id + '">'
             + '<div class="ord-head"><div><div class="ord-no">🧾 ' + esc(o.order_no) + ' <span class="pill ' + st[1] + '">' + st[0] + '</span></div>'
@@ -577,15 +588,18 @@
             + '<div class="meta">เลขใบในแอปโรงงาน: <b>' + esc(o.factory_ref || '— ยังไม่ได้ใส่') + '</b>' + (o.note ? ' · หมายเหตุ: ' + esc(o.note) : '') + '</div>'
             + (o.status === 'closed' ? '<div class="meta">ปิดใบโดย ' + esc(o.closed_by || '-') + ' ' + fmtDate(o.closed_at, true) + (o.close_reason ? ' · ' + esc(o.close_reason) : '') + '</div>' : '')
             + (o.status === 'cancelled' ? '<div class="meta">ยกเลิกโดย ' + esc(o.cancelled_by || '-') + ' ' + fmtDate(o.cancelled_at, true) + (o.cancel_reason ? ' · ' + esc(o.cancel_reason) : '') + '</div>' : '')
-            + '</div><div style="text-align:right;"><b style="font-size:1.05rem;">' + num(s.got) + ' / ' + num(s.tot) + '</b><div class="meta">ท่อน ได้แล้ว · ' + num(s.n) + ' รายการ</div></div></div>'
+            + '</div><div style="text-align:right;"><b style="font-size:1.05rem;">' + num(s.got) + ' / ' + num(s.tot) + '</b><div class="meta">ท่อน ได้แล้ว · ' + num(s.n) + ' รายการ</div>'
+            + (s.over ? '<div class="meta over">ได้เกินที่สั่ง +' + num(s.over) + '</div>' : '') + '</div></div>'
             + '<div class="prog"><i style="width:' + pct + '%"></i></div>';
         h += '<details' + (o.id === newOrderId || (formOpen && formOpen.id === o.id) ? ' open' : '') + '><summary>ดูรายการ' + (s.left && o.status !== 'cancelled' ? ' · ค้าง ' + num(s.left) + ' ท่อน' : '') + '</summary>'
             + '<div class="tbl"><table><tr><th>ขนาด</th><th>สั่ง</th><th>ได้แล้ว</th><th>ค้าง</th></tr>'
             + groupedLines(o).map(g => '<tr class="gh"><td colspan="4">' + (KIND_ICON[g.p.model] || '') + ' ' + esc((g.p.kind ? g.p.kind + ' · ' : '') + g.p.part) + '</td></tr>'
                 + g.items.map(l => {
                     const left = l.qty - l.received_qty;
-                    return '<tr><td>' + esc(l.p.color ? l.p.color + ' ' + lenText(l.p.len) + ' ซม.' : l.product_name) + '</td><td>' + num(l.qty) + '</td><td>' + num(l.received_qty) + '</td>'
-                        + '<td class="' + (left > 0 && o.status !== 'cancelled' && o.status !== 'closed' ? 'left' : '') + '">' + (left > 0 ? num(left) : '-') + '</td></tr>';
+                    return '<tr><td>' + esc(l.p.color ? l.p.color + ' ' + lenText(l.p.len) + ' ซม.' : l.product_name)
+                        + (l.qty === 0 ? ' <span class="meta over">(ไม่ได้สั่ง ได้เพิ่ม)</span>' : '') + '</td><td>' + (l.qty ? num(l.qty) : '-') + '</td><td>' + num(l.received_qty) + '</td>'
+                        + (left < 0 ? '<td class="over">+' + num(-left) + '</td>'
+                            : '<td class="' + (left > 0 && o.status !== 'cancelled' && o.status !== 'closed' ? 'left' : '') + '">' + (left > 0 ? num(left) : '-') + '</td>') + '</tr>';
                 }).join('')).join('')
             + '</table></div>'
             + (rc.length ? '<div style="margin-top:8px;"><b class="meta">ประวัติรับของ</b>' + rc.map((r, i) => '<div class="rcpt">📥 ครั้งที่ ' + (i + 1) + ' · ' + fmtDate(r.received_at, true) + ' · '
@@ -621,40 +635,77 @@
     function recvFormHtml(o) {
         const ls = linesOf(o).filter(l => l.qty - l.received_qty > 0);
         return '<div class="form" data-form="recv">'
-            + '<b>📥 รับของใบ ' + esc(o.order_no) + '</b><div class="meta">ใส่จำนวนที่ได้รับจริงรอบนี้ (ได้ไม่ครบใส่เท่าที่ได้ ที่เหลือรอรอบหน้า · รายการที่ยังไม่ได้ ใส่ 0)</div>'
+            + '<b>📥 รับของใบ ' + esc(o.order_no) + '</b><div class="meta">ใส่จำนวนที่ได้รับจริงรอบนี้ (ได้ไม่ครบใส่เท่าที่ได้ ที่เหลือรอรอบหน้า · รายการที่ยังไม่ได้ ใส่ 0)'
+            + '<br>ได้เกินที่สั่ง ใส่ตามจริงได้เลย (โรงงานตัดเป็นเส้นเต็ม) · ได้ขนาดที่ไม่ได้สั่ง กด ➕ ด้านล่าง</div>'
             + '<div class="toolbar" style="margin:8px 0 4px;"><button type="button" class="btn" data-act="recvAll" data-id="' + o.id + '">ใส่ครบตามที่ค้าง</button>'
             + '<button type="button" class="btn" data-act="recvZero" data-id="' + o.id + '">ล้างเป็น 0</button></div>'
-            + ls.map(l => {
-                const left = l.qty - l.received_qty;
-                return '<div class="frow"><span class="lbl">' + esc(label(l.product_code)) + '<br><span class="meta">สั่ง ' + num(l.qty) + ' · ได้แล้ว ' + num(l.received_qty) + ' · ค้าง ' + num(left) + '</span></span>'
-                    + '<input type="number" min="0" max="' + left + '" step="1" inputmode="numeric" data-rcode="' + esc(l.product_code) + '" data-left="' + left + '" value="' + left + '"> ท่อน</div>';
-            }).join('')
-            + '<div class="frow"><input type="text" maxlength="200" data-rnote placeholder="หมายเหตุ (ถ้ามี) เช่น ส่งมารอบแรก"></div>'
+            + '<div data-rlist>' + ls.map(l => recvRow(l.product_code, l.qty - l.received_qty,
+                'สั่ง ' + num(l.qty) + ' · ได้แล้ว ' + num(l.received_qty) + ' · ค้าง ' + num(l.qty - l.received_qty))).join('') + '</div>'
+            + '<div class="frow"><span class="lbl">➕ ได้ขนาดที่ไม่อยู่ในใบ / ได้เพิ่มรายการที่ครบแล้ว<br>'
+            + '<input type="text" list="aluCodes" data-xcode placeholder="พิมพ์ค้นหา เช่น ขวางล่าง ขาว 66.2" style="width:100%;margin-top:4px;"></span>'
+            + '<input type="number" min="1" max="100000" step="1" inputmode="numeric" data-xqty placeholder="0"> ท่อน'
+            + '<button type="button" class="btn" data-act="recvAdd" data-id="' + o.id + '">➕ เพิ่ม</button></div>'
+            + '<div class="frow"><input type="text" maxlength="200" data-rnote placeholder="หมายเหตุ (ถ้ามี) เช่น ส่งมารอบแรก / ตามใบ CO-189"></div>'
             + '<div class="toolbar" style="margin:8px 0 0;"><button type="button" class="btn btn-ok" data-act="recvSave" data-id="' + o.id + '">✅ บันทึกรับของ</button>'
             + '<button type="button" class="btn" data-act="formClose" data-id="' + o.id + '">ปิด</button>'
             + '<span class="meta" data-rsum></span></div></div>';
     }
+    // แถวรับของ 1 รหัส · left = ที่ยังค้าง (0 = ไม่ได้สั่ง/ครบแล้ว ทุกท่อนที่ได้นับเป็นของเกิน)
+    function recvRow(code, left, meta, value) {
+        return '<div class="frow" data-rrow><span class="lbl">' + esc(label(code)) + '<br><span class="meta">' + esc(meta) + '</span> <span class="meta over" data-rover></span></span>'
+            + '<input type="number" min="0" max="100000" step="1" inputmode="numeric" data-rcode="' + esc(code) + '" data-left="' + left + '" value="' + (value ?? left) + '"> ท่อน</div>';
+    }
     function recvSum(card) {
-        let pcs = 0, n = 0;
-        card.querySelectorAll('[data-rcode]').forEach(i => { const v = parseInt(i.value, 10); if (v > 0) { pcs += v; n++; } });
+        let pcs = 0, n = 0, over = 0;
+        card.querySelectorAll('[data-rcode]').forEach(i => {
+            const v = parseInt(i.value, 10), left = Number(i.dataset.left) || 0;
+            const ov = v > left ? v - left : 0;
+            const tag = i.closest('[data-rrow]') && i.closest('[data-rrow]').querySelector('[data-rover]');
+            if (tag) tag.textContent = ov ? (left ? '· ได้เกิน +' + num(ov) : '') : '';
+            if (v > 0) { pcs += v; n++; over += ov; }
+        });
         const el = card.querySelector('[data-rsum]');
-        if (el) el.textContent = 'รอบนี้ ' + num(n) + ' รายการ · ' + num(pcs) + ' ท่อน';
+        if (el) el.textContent = 'รอบนี้ ' + num(n) + ' รายการ · ' + num(pcs) + ' ท่อน' + (over ? ' (เกินที่สั่ง ' + num(over) + ')' : '');
+    }
+    // ➕ เพิ่มรหัสที่ไม่อยู่ในใบ (หรือรายการที่ครบแล้วแต่ได้เพิ่ม)
+    function recvAdd(id) {
+        const card = document.getElementById('ord-' + id), o = orders.find(x => x.id === id);
+        if (!card || !o) return;
+        const ci = card.querySelector('[data-xcode]'), qi = card.querySelector('[data-xqty]');
+        const t = String(ci.value || '').trim(), q = Number(String(qi.value).trim());
+        const r = byCode[t] || rows.find(x => label(x.code) === t);
+        if (!r) { toast('ไม่พบรหัสนี้ — เลือกจากรายการที่ขึ้นตอนพิมพ์ (อลูมิเนียมบานเลื่อนเท่านั้น)', 5000); ci.focus(); return; }
+        if (!Number.isInteger(q) || q < 1 || q > 100000) { toast('ใส่จำนวนที่ได้ (เลขเต็ม 1 ขึ้นไป)'); qi.focus(); return; }
+        const had = card.querySelector('[data-rcode="' + CSS.escape(r.code) + '"]');
+        if (had) had.value = (parseInt(had.value, 10) || 0) + q;
+        else {
+            const l = linesOf(o).find(x => x.product_code === r.code);
+            card.querySelector('[data-rlist]').insertAdjacentHTML('beforeend', recvRow(r.code, 0,
+                l ? 'สั่ง ' + num(l.qty) + ' · ได้ครบแล้ว ' + num(l.received_qty) + ' · ได้เพิ่ม' : 'ไม่ได้สั่ง · ได้เพิ่มมา', q));
+        }
+        ci.value = ''; qi.value = '';
+        recvSum(card);
     }
     async function saveRecv(id, btn) {
         if (busy) return;
         const o = orders.find(x => x.id === id), card = document.getElementById('ord-' + id);
         if (!o || !card || !formOpen || formOpen.id !== id) return;
-        const items = [];
+        if (String((card.querySelector('[data-xcode]') || {}).value || '').trim()) {
+            toast('มีรายการที่พิมพ์ไว้ในช่อง ➕ แต่ยังไม่ได้กด "เพิ่ม"', 5000); card.querySelector('[data-xcode]').focus(); return;
+        }
+        const items = [], overs = [];
         for (const i of card.querySelectorAll('[data-rcode]')) {
             const raw = String(i.value).trim();
-            const v = raw === '' ? 0 : Number(raw), left = Number(i.dataset.left);
-            if (!Number.isInteger(v) || v < 0) { toast('จำนวนต้องเป็นเลขเต็ม 0 ขึ้นไป'); i.focus(); return; }
-            if (v > left) { toast(label(i.dataset.rcode) + ' ค้างแค่ ' + num(left) + ' ท่อน\n(ถ้าได้เกินมา ให้ปรับยอดเพิ่มในหน้าจัดการสต็อก)', 6000); i.focus(); return; }
+            const v = raw === '' ? 0 : Number(raw), left = Number(i.dataset.left) || 0;
+            if (!Number.isInteger(v) || v < 0 || v > 100000) { toast('จำนวนต้องเป็นเลขเต็ม 0 – 100,000'); i.focus(); return; }
             if (v > 0) items.push({ product_code: i.dataset.rcode, qty: v });
+            if (v > left) overs.push('• ' + label(i.dataset.rcode) + (left ? ' ค้าง ' + num(left) + ' ได้ ' + num(v) + ' (เกิน +' + num(v - left) + ')' : ' ไม่ได้สั่ง ได้ ' + num(v)));
         }
         if (!items.length) { toast('ยังไม่ได้ใส่จำนวนที่ได้รับ'); return; }
         const pcs = items.reduce((a, x) => a + x.qty, 0);
-        if (!confirm('รับของใบ ' + o.order_no + '\n' + num(items.length) + ' รายการ รวม ' + num(pcs) + ' ท่อน\n\nยอดสต็อกจะเพิ่มทันที ยืนยัน?')) return;
+        if (!confirm('รับของใบ ' + o.order_no + '\n' + num(items.length) + ' รายการ รวม ' + num(pcs) + ' ท่อน'
+            + (overs.length ? '\n\nได้เกิน / ไม่ได้สั่ง ' + num(overs.length) + ' รายการ:\n' + overs.slice(0, 8).join('\n') + (overs.length > 8 ? '\n… และอีก ' + num(overs.length - 8) + ' รายการ' : '') : '')
+            + '\n\nยอดสต็อกจะเพิ่มทันที ยืนยัน?')) return;
         busy = true; btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก...';
         try {
             const note = (card.querySelector('[data-rnote]') || {}).value || '';
@@ -662,7 +713,9 @@
             if (error) throw error;
             formOpen = null;
             toast(data.status === 'duplicate' ? 'ℹ️ รอบนี้บันทึกไปแล้ว (ไม่บวกซ้ำ)'
-                : '✅ รับของใบ ' + data.order_no + ' แล้ว ' + num(data.pieces) + ' ท่อน' + (data.left > 0 ? '\nยังค้างอีก ' + num(data.left) + ' ท่อน' : '\nได้ของครบทั้งใบแล้ว'), 5000);
+                : '✅ รับของใบ ' + data.order_no + ' แล้ว ' + num(data.pieces) + ' ท่อน'
+                  + ((data.over || 0) + (data.extra || 0) ? ' (เกินที่สั่ง ' + num((data.over || 0) + (data.extra || 0)) + ')' : '')
+                  + (data.left > 0 ? '\nยังค้างอีก ' + num(data.left) + ' ท่อน' : '\nได้ของครบทั้งใบแล้ว'), 5000);
             await Promise.all([loadStats(), loadOrders()]);
             compute(); renderNeed(); renderOrders();
         } catch (e) {
@@ -719,8 +772,10 @@
         if (o.note) out.push('หมายเหตุ: ' + o.note);
         let model = '';
         groupedLines(o).forEach(g => {
+            const its = g.items.filter(l => l.qty > 0);   // รายการ "ได้เพิ่ม" ไม่ใช่ของที่สั่ง
+            if (!its.length) return;
             if (g.p.model !== model) { model = g.p.model; out.push(''); out.push('[' + (g.p.kind || '-') + (model ? ' ' + model : '') + ']'); }
-            g.items.forEach(l => out.push('• ' + g.p.part + ' ' + (l.p.color ? l.p.color + ' ' + lenText(l.p.len) + ' ซม.' : l.product_name) + ' × ' + num(l.qty) + ' ท่อน'));
+            its.forEach(l => out.push('• ' + g.p.part + ' ' + (l.p.color ? sizeText(l.p) : l.product_name) + ' × ' + num(l.qty) + ' ท่อน'));
         });
         out.push(''); out.push('รวม ' + num(s.n) + ' รายการ ' + num(s.tot) + ' ท่อน');
         return out.join('\n');
@@ -739,20 +794,25 @@
         let i = 0;
         document.getElementById('printArea').innerHTML = '<h1>ใบสั่งตัดอลูมิเนียม ' + esc(o.order_no) + '</h1>'
             + '<div class="pm">CG Alu Tech · วันที่สั่ง ' + fmtDate(o.created_at) + (o.factory_ref ? ' · เลขใบโรงงาน ' + esc(o.factory_ref) : '')
-            + (o.note ? '<br>หมายเหตุ: ' + esc(o.note) : '') + '<br>รวม ' + num(s.n) + ' รายการ · ' + num(s.tot) + ' ท่อน (ความยาวเป็น ซม.)</div>'
-            + '<table><tr><th class="n">#</th><th>สี</th><th class="n">ยาว (ซม.)</th><th class="n">จำนวน (ท่อน)</th><th>รหัส</th><th>✓ ได้รับ</th></tr>'
-            + groupedLines(o).map(g => '<tr class="gh"><td colspan="6">' + esc((g.p.kind ? g.p.kind + ' (' + g.p.model + ') · ' : '') + g.p.part) + '</td></tr>'
-                + g.items.map(l => '<tr><td class="n">' + (++i) + '</td><td>' + esc(l.p.color || '-') + '</td><td class="n">' + (l.p.len ? lenText(l.p.len) : '-') + '</td>'
-                    + '<td class="n"><b>' + num(l.qty) + '</b></td><td>' + esc(l.product_code) + '</td><td></td></tr>').join('')).join('')
+            + (o.note ? '<br>หมายเหตุ: ' + esc(o.note) : '') + '<br>รวม ' + num(s.n) + ' รายการ · ' + num(s.tot) + ' ท่อน (มม. = ตัดทศนิยมทิ้ง)</div>'
+            + '<table><tr><th class="n">#</th><th>สี</th><th class="n">ยาว (มม.)</th><th class="n">ซม.</th><th class="n">จำนวน (ท่อน)</th><th>รหัส</th><th>✓ ได้รับ</th></tr>'
+            + groupedLines(o).map(g => {
+                const its = g.items.filter(l => l.qty > 0);
+                return its.length ? '<tr class="gh"><td colspan="7">' + esc((g.p.kind ? g.p.kind + ' (' + g.p.model + ') · ' : '') + g.p.part) + '</td></tr>'
+                    + its.map(l => '<tr><td class="n">' + (++i) + '</td><td>' + esc(l.p.color || '-') + '</td><td class="n"><b>' + (l.p.len ? mmOf(l.p.len) : '-') + '</b></td>'
+                        + '<td class="n">' + (l.p.len ? lenText(l.p.len) : '-') + '</td>'
+                        + '<td class="n"><b>' + num(l.qty) + '</b></td><td>' + esc(l.product_code) + '</td><td></td></tr>').join('') : '';
+            }).join('')
             + '</table><div class="sign"><div>ผู้สั่ง ______________________</div><div>ผู้รับของ ______________________</div></div>';
         window.print();
     }
     function csvOrder(o) {
         const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
-        const rowsOut = [['ลำดับ', 'รหัส', 'ประเภท', 'ชิ้น', 'สี', 'ยาว (ซม.)', 'สั่ง (ท่อน)', 'ได้แล้ว', 'ค้าง'].map(q).join(',')];
+        const rowsOut = [['ลำดับ', 'รหัส', 'ประเภท', 'ชิ้น', 'สี', 'ยาว (มม.)', 'ยาว (ซม.)', 'สั่ง (ท่อน)', 'ได้แล้ว', 'ค้าง', 'ได้เกิน'].map(q).join(',')];
         let i = 0;
         groupedLines(o).forEach(g => g.items.forEach(l => {
-            rowsOut.push([++i, l.product_code, g.p.kind, g.p.part, l.p.color, l.p.len || '', l.qty, l.received_qty, l.qty - l.received_qty].map(q).join(','));
+            rowsOut.push([++i, l.product_code, g.p.kind, g.p.part, l.p.color, l.p.len ? mmOf(l.p.len) : '', l.p.len || '', l.qty, l.received_qty,
+                Math.max(l.qty - l.received_qty, 0), Math.max(l.received_qty - l.qty, 0)].map(q).join(','));
         }));
         const blob = new Blob(['﻿' + rowsOut.join('\r\n')], { type: 'text/csv;charset=utf-8' });
         const a = document.createElement('a');
@@ -848,9 +908,10 @@
             } else if (act === 'formClose') { formOpen = null; renderOrders(); }
             else if (act === 'recvAll' || act === 'recvZero') {
                 const card = document.getElementById('ord-' + id);
-                card.querySelectorAll('[data-rcode]').forEach(i => { i.value = act === 'recvAll' ? i.dataset.left : 0; });
+                card.querySelectorAll('[data-rcode]').forEach(i => { if (act === 'recvZero' || Number(i.dataset.left) > 0) i.value = act === 'recvAll' ? i.dataset.left : 0; });
                 recvSum(card);
             }
+            else if (act === 'recvAdd') recvAdd(id);
             else if (act === 'recvSave') saveRecv(id, b);
             else if (act === 'editSave') saveEdit(id, b);
             else if (act === 'close' || act === 'cancel') closeOrCancel(id, act);
