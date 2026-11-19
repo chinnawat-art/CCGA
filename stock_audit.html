@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#6366f1">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-180.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Alu ERP">
+    <script src="pwa.js?v=20260918-2" defer></script>
+    <title>ตรวจยอดผิดปกติ | Stock Audit</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="auth.js?v=20261119-1"></script>
+    <link rel="stylesheet" href="theme.css">
+    <script src="theme.js" defer></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin:0; font-family:'Kanit',sans-serif;
+               background: var(--bg-body,#f1f5f9); color: var(--text-main,#0f172a); }
+        .shell { max-width:1040px; margin:0 auto; padding:16px 14px 120px; }
+        .back { color: var(--muted-strong,#64748b); text-decoration:none; font-size:.92rem; }
+        h1 { font-size:1.35rem; margin:10px 0 2px; }
+        .sub { color: var(--muted-strong,#64748b); font-size:.88rem; margin:0 0 14px; line-height:1.55; }
+        .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:9px; margin-bottom:14px; }
+        .kpi { background: var(--surface,#fff); border:1px solid var(--border-strong,#e2e8f0);
+               border-radius:14px; padding:11px 8px; text-align:center; }
+        .kpi b { display:block; font-size:1.4rem; line-height:1.25; color:#2563eb; }
+        .kpi span { font-size:.74rem; color: var(--muted-strong,#64748b); }
+        .card { background: var(--surface,#fff); border:1px solid var(--border-strong,#e2e8f0);
+                border-radius:15px; padding:14px; margin-bottom:12px; }
+        .tabs { display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap; }
+        .tab { padding:9px 14px; border-radius:11px; border:1px solid var(--border-strong,#cbd5e1); cursor:pointer;
+               font:600 .9rem 'Kanit',sans-serif; background: var(--surface,#fff); color: var(--text-main,#0f172a); }
+        .tab.on { background:#2563eb; border-color:#2563eb; color:#fff; }
+        .tab .n { display:inline-block; min-width:20px; padding:0 6px; margin-left:4px; border-radius:99px;
+                  background:rgba(37,99,235,.15); font-size:.78rem; }
+        .tab.on .n { background:rgba(255,255,255,.25); }
+        .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+        .toolbar select, .toolbar input { font-family:inherit; font-size:.9rem; padding:8px 10px;
+               border:1px solid var(--border-strong,#cbd5e1); border-radius:11px;
+               background: var(--surface,#fff); color: var(--text-main,#0f172a); }
+        .toolbar input[type=search] { flex:1 1 180px; min-width:0; }
+        .toolbar input[type=date] { min-width:0; }
+        .toolbar label { display:flex; align-items:center; gap:6px; font-size:.88rem; }
+        .toolbar .num { width:72px; text-align:center; }
+        .btn { padding:7px 11px; border:1px solid var(--border-strong,#cbd5e1); border-radius:10px; cursor:pointer;
+               font:600 .85rem 'Kanit',sans-serif; background:transparent; color: var(--text-main,#0f172a); }
+        .btn:disabled { opacity:.5; cursor:not-allowed; }
+        .btn-main { background: linear-gradient(135deg,#3b82f6,#2563eb); color:#fff; border:0; padding:10px 16px; font-size:.95rem; }
+        .btn-ok { background:#16a34a; color:#fff; border:0; }
+        .btn-fix { color:#c2410c; border-color:#fdba74; }
+        .btn.sm { padding:5px 9px; font-size:.8rem; }
+        .meta { font-size:.82rem; color: var(--muted-strong,#64748b); line-height:1.5; }
+        .pill { display:inline-block; padding:1px 9px; border-radius:99px; font-size:.76rem; font-weight:700;
+                background: rgba(37,99,235,.14); color:#2563eb; white-space:nowrap; }
+        .pill.grn { background: rgba(22,163,74,.14); color:#16a34a; }
+        .pill.amb { background: rgba(217,119,6,.15); color:#d97706; }
+        .pill.red { background: rgba(220,38,38,.13); color:#dc2626; }
+        .pill.gry { background: rgba(100,116,139,.15); color: var(--muted-strong,#64748b); }
+        .pill.org { background: rgba(234,88,12,.13); color:#c2410c; }
+        .empty { text-align:center; padding:26px 12px; color: var(--muted-strong,#64748b); }
+        .day { display:flex; justify-content:space-between; gap:8px; align-items:center; flex-wrap:wrap;
+               padding:7px 10px; border-radius:10px; background: rgba(37,99,235,.07); font-weight:700; margin-top:12px; font-size:.92rem; }
+        .day:first-child { margin-top:0; }
+        .ent { display:flex; gap:10px; padding:10px 4px; border-bottom:1px dashed var(--border-strong,#e2e8f0); flex-wrap:wrap; align-items:flex-start; }
+        .ent:last-child { border-bottom:0; }
+        .ent.done .info { opacity:.6; }
+        .ent .d { flex:0 0 66px; text-align:right; font-weight:700; font-size:1.08rem; }
+        .plus { color:#16a34a; } .minus { color:#dc2626; }
+        .ent .info { flex:1 1 260px; min-width:0; }
+        .ent .nm { font-weight:600; line-height:1.35; }
+        .ent .cd { font-size:.78rem; color: var(--muted-strong,#64748b); word-break:break-all; }
+        .ent .rs { font-size:.86rem; margin-top:2px; word-break:break-word; }
+        .ent .fl { display:flex; gap:5px; flex-wrap:wrap; margin-top:4px; }
+        .ent .act { display:flex; gap:6px; flex-wrap:wrap; flex:0 0 auto; margin-left:auto; align-items:center; }
+        .more { text-align:center; margin-top:10px; }
+        table.t { width:100%; border-collapse:collapse; font-size:.86rem; }
+        table.t th, table.t td { padding:6px 6px; border-bottom:1px solid var(--border-strong,#e2e8f0); text-align:right; white-space:nowrap; }
+        table.t th { font-weight:600; color: var(--muted-strong,#64748b); font-size:.78rem; }
+        table.t th.l, table.t td.l { text-align:left; white-space:normal; }
+        table.t tr.click { cursor:pointer; }
+        table.t tr.click:hover td { background: rgba(37,99,235,.05); }
+        table.t tr.sub td { background: rgba(100,116,139,.06); white-space:normal; text-align:left; }
+        .tbl { overflow-x:auto; }
+        .hist { font-size:.82rem; }
+        .hist div { padding:3px 0; border-bottom:1px dotted var(--border-strong,#e2e8f0); }
+        .hist .man { font-weight:600; }
+        .note { font-size:.84rem; padding:8px 10px; border-radius:10px; background: rgba(217,119,6,.08); border:1px solid rgba(217,119,6,.25); margin-bottom:10px; line-height:1.55; }
+        /* กล่องแก้ลงผิด */
+        .ov { position:fixed; inset:0; background: rgba(5,8,17,.6); display:none; align-items:center; justify-content:center; z-index:1000; padding:12px; }
+        .ov.on { display:flex; }
+        .dlg { background: var(--surface,#fff); color: var(--text-main,#0f172a); border-radius:16px; width:100%; max-width:500px;
+               max-height:92vh; overflow-y:auto; padding:16px; box-shadow:0 25px 50px rgba(0,0,0,.35); }
+        .dlg h2 { font-size:1.12rem; margin:0 0 10px; display:flex; justify-content:space-between; gap:8px; }
+        .dlg h2 button { border:0; background:transparent; font-size:1.2rem; cursor:pointer; color: var(--muted-strong,#64748b); }
+        .orig { padding:9px 10px; border-radius:10px; background: rgba(100,116,139,.08); font-size:.88rem; line-height:1.5; }
+        .kinds { display:grid; gap:7px; margin:12px 0 6px; }
+        .kind { display:flex; gap:8px; align-items:flex-start; padding:9px 10px; border-radius:11px; border:1px solid var(--border-strong,#cbd5e1); cursor:pointer; }
+        .kind.on { border-color:#2563eb; box-shadow:0 0 0 2px rgba(37,99,235,.2); }
+        .kind input { margin-top:4px; accent-color:#2563eb; }
+        .kind small { display:block; color: var(--muted-strong,#64748b); font-size:.78rem; }
+        .fld { margin-top:10px; }
+        .fld > span { display:block; font-size:.86rem; color: var(--muted-strong,#64748b); margin-bottom:4px; }
+        .fld > span em { color:#dc2626; font-style:normal; }
+        .fld input, .fld select { font-family:inherit; font-size:.95rem; padding:8px 10px; border:1px solid var(--border-strong,#cbd5e1);
+               border-radius:10px; background: var(--surface,#fff); color: var(--text-main,#0f172a); width:100%; }
+        .qrow { display:flex; gap:6px; }
+        .qrow select { width:110px; flex:0 0 auto; }
+        .sugg { display:flex; flex-direction:column; gap:4px; margin-top:6px; max-height:220px; overflow-y:auto; }
+        .sugg button { text-align:left; font:inherit; font-size:.85rem; padding:6px 9px; border-radius:9px; cursor:pointer;
+               border:1px solid var(--border-strong,#e2e8f0); background:transparent; color: var(--text-main,#0f172a); }
+        .sugg button.on { border-color:#2563eb; background: rgba(37,99,235,.08); }
+        .prev { margin-top:12px; padding:9px 10px; border-radius:10px; background: rgba(37,99,235,.07); font-size:.9rem; line-height:1.6; }
+        .err { margin-top:10px; padding:8px 10px; border-radius:10px; background: rgba(220,38,38,.1); color:#dc2626; font-size:.88rem; display:none; white-space:pre-line; }
+        .err.on { display:block; }
+        .dlg-act { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; }
+        .toast { position:fixed; left:50%; bottom:90px; transform:translateX(-50%);
+                background:#0f172a; color:#fff; padding:12px 20px; border-radius:13px;
+                font-size:.92rem; z-index:9999; box-shadow:0 12px 30px rgba(0,0,0,.3);
+                max-width:calc(100vw - 32px); text-align:center; white-space:pre-line; }
+        @media (max-width:560px) {
+            .ent .d { flex-basis:54px; font-size:1rem; }
+            .ent .act { margin-left:64px; }
+            table.t { font-size:.8rem; }
+            table.t th, table.t td { padding:5px 3px; }
+        }
+    </style>
+    <link rel="stylesheet" href="mobile-fit.css?v=20261112-1">
+</head>
+<body>
+    <div class="shell">
+        <a href="stock_management.html" class="back">← กลับหน้าจัดการสต็อก</a>
+        <h1>🔎 ตรวจยอดผิดปกติ</h1>
+        <p class="sub" id="sub">รายการที่<b>ปรับยอดด้วยมือ</b> (ไม่ใช่ที่ระบบตัดเองตอนเริ่มผลิต) · ดูว่าใครลง ลงเพราะอะไร ·
+            ลงผิดกด <b>✏️ แก้ลงผิด</b> ระบบปรับยอดให้ถูก และจดไว้ว่าใครลงผิด ใครแก้ · ดูแล้วไม่ผิดกด <b>✔ ตรวจแล้ว</b></p>
+
+        <div id="user-display-area"></div>
+
+        <div class="toolbar">
+            <label>ตั้งแต่ <input type="date" id="fFrom"></label>
+            <label>ถึง <input type="date" id="fTo"></label>
+            <button type="button" class="btn sm" data-range="7">7 วัน</button>
+            <button type="button" class="btn sm" data-range="30">30 วัน</button>
+            <button type="button" class="btn sm" data-range="90">90 วัน</button>
+            <button type="button" class="btn sm" data-range="all">ทั้งหมด</button>
+            <button type="button" class="btn sm" id="btnReload">🔄 โหลดใหม่</button>
+        </div>
+
+        <div class="kpis">
+            <div class="kpi"><b id="kMan">-</b><span>📝 ลงด้วยมือ (รายการ)</span></div>
+            <div class="kpi"><b id="kSus" style="color:#dc2626">-</b><span>⚠️ น่าสงสัย ยังไม่ตรวจ</span></div>
+            <div class="kpi"><b id="kNo" style="color:#d97706">-</b><span>❓ ไม่มีเหตุผล/ไม่รู้ใครลง</span></div>
+            <div class="kpi"><b id="kFix" style="color:#c2410c">-</b><span>✏️ แก้ลงผิดแล้ว</span></div>
+            <div class="kpi"><b id="kPair" style="color:#7c3aed">-</b><span>↕️ คู่ขวางบน/ล่างไม่เท่ากัน</span></div>
+        </div>
+
+        <div class="tabs">
+            <button type="button" class="tab on" data-tab="man">📝 ลงด้วยมือ <span class="n" id="nMan">0</span></button>
+            <button type="button" class="tab" data-tab="pair">↕️ คู่บน/ล่าง <span class="n" id="nPair">0</span></button>
+            <button type="button" class="tab" data-tab="count">🔢 ตรวจนับไม่ตรง <span class="n" id="nCount">0</span></button>
+            <button type="button" class="tab" data-tab="fix">📊 ประวัติลงผิด <span class="n" id="nFix">0</span></button>
+        </div>
+
+        <!-- ───────── ลงด้วยมือ ───────── -->
+        <div id="tabMan" class="card">
+            <div class="toolbar">
+                <select id="fShow">
+                    <option value="sus">⚠️ เฉพาะน่าสงสัย</option>
+                    <option value="all">ทั้งหมด</option>
+                </select>
+                <select id="fType"><option value="">ทุกเหตุผล</option></select>
+                <select id="fWho"><option value="">ทุกคน</option></select>
+                <label><input type="checkbox" id="fHide" checked> ซ่อนที่ตรวจ/แก้แล้ว</label>
+                <label>จำนวนมาก ≥ <input type="number" id="fBig" class="num" min="1" value="50"></label>
+                <input type="search" id="fSearch" placeholder="🔍 ค้นชื่อ / รหัส / เหตุผล / คน">
+            </div>
+            <div class="toolbar" id="markBar" style="display:none;">
+                <label>ชื่อคนตรวจ <input type="text" id="myName" maxlength="60" placeholder="ชื่อคุณ" style="width:140px;"></label>
+                <button type="button" class="btn btn-ok sm" id="btnMarkShown">✔ ติ๊กตรวจแล้ว ทั้งหมดที่เห็น</button>
+                <span class="meta" id="markInfo"></span>
+            </div>
+            <div id="manList"><div class="empty">⏳ กำลังโหลด...</div></div>
+        </div>
+
+        <!-- ───────── คู่ขวางบน/ล่าง ───────── -->
+        <div id="tabPair" class="card" style="display:none;">
+            <div class="note">ขวางบนกับขวางล่าง (รุ่น สี ยาว เดียวกัน) ใช้คู่กัน 1:1 ทุกบาน และสั่งตัดเป็นคู่ → ยอดควรใกล้กัน
+                ต่างกันมาก = น่าจะลงผิดตัว (เช่น รับขวางบนแต่ไปบวกขวางล่าง) หรือนับผิด · กดแถวเพื่อดูประวัติล่าสุดของทั้งคู่</div>
+            <div class="toolbar">
+                <select id="pModel"><option value="">ทุกรุ่น</option><option value="SLD">🚪 ประตู SLD</option><option value="SLWD">🪟 หน้าต่าง SLWD</option></select>
+                <select id="pColor"><option value="">ทุกสี</option></select>
+                <label>ต่างกันตั้งแต่ <input type="number" id="pMin" class="num" min="1" value="1"></label>
+            </div>
+            <div class="tbl" id="pairList"></div>
+        </div>
+
+        <!-- ───────── ตรวจนับไม่ตรง ───────── -->
+        <div id="tabCount" class="card" style="display:none;">
+            <div class="note">จากหน้า 🔢 ตรวจนับสต็อก — ของจริงไม่ตรงกับระบบ (ในช่วงวันที่ที่เลือก) · บวก = ของจริงมากกว่าระบบ · ลบ = ของจริงน้อยกว่าระบบ (หาย/ลงเกิน)</div>
+            <div class="toolbar"><input type="search" id="cSearch" placeholder="🔍 ค้นชื่อ / คนนับ / หมายเหตุ"></div>
+            <div class="tbl" id="countList"></div>
+        </div>
+
+        <!-- ───────── ประวัติลงผิด ───────── -->
+        <div id="tabFix" class="card" style="display:none;">
+            <div class="note">ทุกครั้งที่กด ✏️ แก้ลงผิด ระบบจดไว้ว่า <b>ใครลงผิด เมื่อไหร่ ผิดยังไง ใครแก้</b> · ตารางแรกนับรายคนรายเดือน (ทุกช่วงเวลา) · รายการด้านล่างตามช่วงวันที่ที่เลือก (วันที่ลงผิด)</div>
+            <div class="tbl" id="fixSummary"></div>
+            <div class="tbl" id="fixList" style="margin-top:12px;"></div>
+        </div>
+    </div>
+
+    <!-- กล่องแก้ลงผิด -->
+    <div class="ov" id="fixOv">
+        <div class="dlg" role="dialog" aria-modal="true">
+            <h2><span>✏️ แก้ที่ลงผิด</span><button type="button" data-close aria-label="ปิด">✕</button></h2>
+            <div class="orig" id="fxOrig"></div>
+            <div class="kinds" id="fxKinds">
+                <label class="kind"><input type="radio" name="fxKind" value="qty"><div><b>🔢 จำนวนผิด</b><small>สินค้าถูกแล้ว แต่จำนวนไม่ใช่</small></div></label>
+                <label class="kind"><input type="radio" name="fxKind" value="item"><div><b>🔀 ลงผิดรายการ</b><small>ควรไปลงที่สินค้าตัวอื่น (เช่น ขวางบน ↔ ขวางล่าง / ผิดสี / ผิดขนาด)</small></div></label>
+                <label class="kind"><input type="radio" name="fxKind" value="void"><div><b>🚫 ไม่ควรลงเลย</b><small>ยกเลิกรายการนี้ทั้งหมด (ลงซ้ำ / ลงเล่น / มโน)</small></div></label>
+            </div>
+            <div class="fld" id="fxItemBox" style="display:none;">
+                <span>สินค้าที่ถูก <em>*</em></span>
+                <input type="search" id="fxItemQ" placeholder="พิมพ์ชื่อหรือรหัส เช่น ขวางบน ขาว 78.1" autocomplete="off">
+                <div class="sugg" id="fxSugg"></div>
+            </div>
+            <div class="fld" id="fxQtyBox" style="display:none;">
+                <span id="fxQtyLbl">จำนวนที่ถูก <em>*</em></span>
+                <div class="qrow">
+                    <select id="fxSign"><option value="1">＋ เพิ่ม</option><option value="-1">－ ลด</option></select>
+                    <input type="number" id="fxQty" min="1" max="100000" inputmode="numeric">
+                </div>
+            </div>
+            <div class="fld"><span>ผิดเพราะอะไร <em>*</em></span><input type="text" id="fxNote" maxlength="300" placeholder="เช่น ใบ CO-189 ได้ 42 แต่ลง 72 / ลงซ้ำ 2 รอบ"></div>
+            <div class="fld"><span>ชื่อคนแก้ <em>*</em></span><input type="text" id="fxName" maxlength="60" placeholder="ชื่อคุณ"></div>
+            <div class="prev" id="fxPrev"></div>
+            <div class="err" id="fxErr"></div>
+            <div class="dlg-act">
+                <button type="button" class="btn" data-close>ยกเลิก</button>
+                <button type="button" class="btn btn-main" id="fxSave">💾 บันทึกการแก้</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const TYPE = {
+        legacy:   ['❓ ของเก่า (ก่อนบังคับเหตุผล)', 'gry'],
+        receive:  ['📥 รับของเข้า', 'grn'],
+        issue:    ['📤 เบิกออก', ''],
+        count:    ['🔢 นับจริงไม่ตรง', ''],
+        damage:   ['💥 ของเสีย/หาย', 'amb'],
+        correct:  ['✏️ แก้ที่ลงผิด (มือ)', 'org'],
+        other:    ['📝 อื่น ๆ', 'amb'],
+        auditfix: ['🛠️ รายการแก้จากหน้านี้', 'org']
+    };
+    const KIND_TH = { qty: '🔢 จำนวนผิด', item: '🔀 ลงผิดรายการ', void: '🚫 ไม่ควรลง' };
+    const NAME_KEY = 'ccga_stock_entered_by';
+    const START = '2026-08-01';            // ประวัติสต็อกในระบบเริ่ม 22/08/2569
+    const SHOW_STEP = 300;
+    const PAIR_RE = /^(SLD|SLWD)-ขวาง(บน|ล่าง)-([^-]+)-([0-9]+(?:\.[0-9]+)?)$/;
+    const SYS_RE = /^\s*(คืนสต็อก|ตัดสต็อก|ปรับสต็อกกระจก|ปรับสต็อกอลูมิเนียม|รับกระจกเข้าสต็อก|รับอลูมิเนียมจากใบสั่งตัด|ตรวจนับสต็อก|รวมรหัสอลูมิเนียม|คืนวัสดุเสีย)/;
+
+    let db = null, canFix = false;
+    let list = [], items = [], itemById = new Map(), counts = [], fixes = [];
+    let pairs = [], pairBad = new Set(), pairOf = new Map();
+    let showN = SHOW_STEP, busy = false, again = false;
+    let fx = null;                         // กล่องแก้ที่เปิดอยู่ { row, key, kind, right }
+    let openPair = null;
+
+    function esc(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+    }
+    function toast(msg, ms) {
+        document.querySelectorAll('.toast').forEach(x => x.remove());
+        const t = document.createElement('div');
+        t.className = 'toast'; t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), ms || 3200);
+    }
+    function num(n) { return Number(n || 0).toLocaleString('th-TH'); }
+    function signed(n) { n = Number(n) || 0; return (n > 0 ? '+' : n < 0 ? '−' : '') + num(Math.abs(n)); }
+    function fmt(v, withTime = true) {
+        if (!v) return '-';
+        const o = { day: '2-digit', month: 'short', year: '2-digit' };
+        if (withTime) Object.assign(o, { hour: '2-digit', minute: '2-digit', hour12: false });
+        return new Date(v).toLocaleString('th-TH', o);
+    }
+    function dayKey(v) {
+        const d = new Date(v);
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    function dayLabel(k) {
+        return new Date(k + 'T00:00:00').toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short', year: '2-digit' });
+    }
+    function monthLabel(k) {
+        return new Date(k + '-01T00:00:00').toLocaleDateString('th-TH', { month: 'short', year: '2-digit' });
+    }
+    function acct(op) { const s = String(op || '').trim(); return s ? s.split('@')[0] : '-'; }
+    function who(r) { return (r.entered_by && String(r.entered_by).trim()) || (acct(r.operator) + ' (บัญชี)'); }
+    function newKey() {
+        try { if (crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+        return 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+    }
+    function errText(e) {
+        const m = String((e && (e.message || e.details)) || e || '');
+        if (/Could not find the function|PGRST202|does not exist/i.test(m)) return 'ฐานข้อมูลยังไม่ได้อัปเดต (ต้องรันไฟล์ SQL ก่อน)';
+        if (/Failed to fetch|NetworkError|timeout|timed out|aborted|Load failed/i.test(m)) return 'เน็ตหลุด/ช้า — กดอีกครั้งได้ ระบบไม่แก้ซ้ำ';
+        return m || 'ไม่ทราบสาเหตุ';
+    }
+    function readName() { try { return localStorage.getItem(NAME_KEY) || ''; } catch (e) { return ''; } }
+    function saveName(n) { try { localStorage.setItem(NAME_KEY, n); } catch (e) {} }
+    function cleanText(s) { return String(s || '').replace(/\s+/g, ' ').trim(); }
+    // เหตุผลของเก่าที่ดูไม่ใช่เหตุผลจริง (สั้นมาก / "มโน" = เดาเอา / ไม่มีตัวหนังสือ)
+    function weird(reason) {
+        const s = String(reason || '').trim();
+        return s.length < 5 || /มโน|ใโน/.test(s) || !/[ก-๙a-zA-Z]{2}/.test(s);
+    }
+    // แบบเดียวกับ stock_log_manual_kind ในฐานข้อมูล (ใช้กับประวัติคู่บน/ล่าง)
+    function manualKind(l) {
+        if (l.manual_type) return l.manual_type;
+        if (l.dispatched) return null;
+        if (SYS_RE.test(l.reason || '')) return null;
+        if (/(\bref:|\[ref:|order_id:)/i.test(l.reason || '')) return null;
+        return 'legacy';
+    }
+
+    // ───────── ช่วงวันที่ ─────────
+    function isoDate(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+    function setRange(days) {
+        const to = new Date();
+        document.getElementById('fTo').value = isoDate(to);
+        if (days === 'all') document.getElementById('fFrom').value = START;
+        else { const f = new Date(); f.setDate(f.getDate() - (Number(days) - 1)); document.getElementById('fFrom').value = isoDate(f); }
+    }
+    function rangeTs() {
+        let f = document.getElementById('fFrom').value || START;
+        let t = document.getElementById('fTo').value || isoDate(new Date());
+        if (f > t) { const x = f; f = t; t = x; document.getElementById('fFrom').value = f; document.getElementById('fTo').value = t; }
+        const from = new Date(f + 'T00:00:00');
+        const to = new Date(t + 'T00:00:00'); to.setDate(to.getDate() + 1);
+        if ((to - from) / 86400000 > 400) { from.setTime(to.getTime() - 400 * 86400000); document.getElementById('fFrom').value = isoDate(from); }
+        return { from: from.toISOString(), to: to.toISOString() };
+    }
+
+    // ───────── โหลด ─────────
+    async function pageAll(build) {
+        const out = [];
+        for (let i = 0; i < 200; i++) {
+            const { data, error } = await build().range(i * 1000, i * 1000 + 999);
+            if (error) throw error;
+            out.push(...(data || []));
+            if (!data || data.length < 1000) break;
+        }
+        return out;
+    }
+    async function loadAll() {
+        if (busy) { again = true; return; }   // กำลังโหลดอยู่ → โหลดใหม่อีกรอบหลังเสร็จ (ไม่ทิ้งคำขอ)
+        busy = true; again = false;
+        const r = rangeTs();
+        document.getElementById('manList').innerHTML = '<div class="empty">⏳ กำลังโหลด...</div>';
+        try {
+            const [l, it, c, f] = await Promise.all([
+                pageAll(() => db.rpc('rpc_stock_audit_list', { p_from: r.from, p_to: r.to })
+                    .order('created_at', { ascending: false }).order('id', { ascending: false })),
+                pageAll(() => db.from('stock_items').select('id, product_code, product_name, quantity, unit, category').order('id')),
+                pageAll(() => db.from('stock_count_log').select('id, item_id, item_name, system_qty, counted_qty, diff, note, counted_by, counted_at')
+                    .gte('counted_at', r.from).lt('counted_at', r.to).neq('diff', 0).order('counted_at', { ascending: false }).order('id', { ascending: false })),
+                pageAll(() => db.from('stock_fixes').select('*').order('id', { ascending: false }))
+            ]);
+            list = l; items = it; counts = c; fixes = f;
+            itemById = new Map(items.map(x => [x.id, x]));
+            computePairs();
+            fillFilters();
+            showN = SHOW_STEP;
+            renderAll();
+        } catch (e) {
+            document.getElementById('manList').innerHTML = '<div class="empty">❌ โหลดไม่สำเร็จ: ' + esc(errText(e)) + '</div>';
+        } finally {
+            busy = false;
+            if (again) loadAll();
+        }
+    }
+
+    // ───────── คู่ขวางบน/ล่าง ─────────
+    function computePairs() {
+        const m = new Map();
+        items.forEach(it => {
+            const x = PAIR_RE.exec(it.product_code || '');
+            if (!x || it.category !== 'aluminum') return;
+            const key = x[1] + '|' + x[3] + '|' + x[4];
+            const p = m.get(key) || { key, model: x[1], color: x[3], len: Number(x[4]), top: null, bot: null };
+            if (x[2] === 'บน') p.top = it; else p.bot = it;
+            m.set(key, p);
+        });
+        pairs = [...m.values()].filter(p => p.top && p.bot).map(p => {
+            p.diff = (Number(p.top.quantity) || 0) - (Number(p.bot.quantity) || 0);
+            return p;
+        });
+        pairBad = new Set(); pairOf = new Map();
+        pairs.forEach(p => {
+            pairOf.set(p.top.id, p.bot); pairOf.set(p.bot.id, p.top);
+            if (p.diff !== 0) { pairBad.add(p.top.id); pairBad.add(p.bot.id); }
+        });
+    }
+
+    // ───────── ลงด้วยมือ ─────────
+    function bigN() { const n = parseInt(document.getElementById('fBig').value, 10); return n > 0 ? n : 50; }
+    function flagsOf(r) {
+        const f = [];
+        if (r.manual_type === 'auditfix') return f;
+        const reason = String(r.reason || '').trim();
+        if (r.manual_type === 'legacy') {
+            if (!reason) f.push(['ไม่มีเหตุผล', 'red']);
+            else if (weird(reason)) f.push(['เหตุผลแปลก', 'red']);
+            f.push(['ไม่รู้ใครลง', 'gry']);
+        }
+        if (Math.abs(r.delta) >= bigN()) f.push(['จำนวนมาก ' + signed(r.delta), 'amb']);
+        if (pairBad.has(r.item_id)) f.push(['คู่บน/ล่างไม่เท่ากัน', 'amb']);
+        if (r.manual_type === 'other' || r.manual_type === 'correct') f.push(['ควรดู', 'amb']);
+        return f;
+    }
+    function isSus(r) { return flagsOf(r).some(f => f[1] !== 'gry'); }
+    function isDone(r) { return r.mark_status === 'ok' || r.mark_status === 'fixed' || !!r.fix_id; }
+
+    function fillFilters() {
+        const tSel = document.getElementById('fType'), wSel = document.getElementById('fWho');
+        const tv = tSel.value, wv = wSel.value;
+        const tc = {}, wc = {};
+        list.forEach(r => { tc[r.manual_type] = (tc[r.manual_type] || 0) + 1; const w = who(r); wc[w] = (wc[w] || 0) + 1; });
+        tSel.innerHTML = '<option value="">ทุกเหตุผล</option>' + Object.keys(TYPE).filter(k => tc[k])
+            .map(k => '<option value="' + k + '">' + TYPE[k][0] + ' (' + num(tc[k]) + ')</option>').join('');
+        wSel.innerHTML = '<option value="">ทุกคน</option>' + Object.keys(wc).sort((a, b) => wc[b] - wc[a])
+            .map(w => '<option value="' + esc(w) + '">' + esc(w) + ' (' + num(wc[w]) + ')</option>').join('');
+        if ([...tSel.options].some(o => o.value === tv)) tSel.value = tv;
+        if ([...wSel.options].some(o => o.value === wv)) wSel.value = wv;
+        const colors = [...new Set(pairs.map(p => p.color))].sort();
+        const pc = document.getElementById('pColor'), pcv = pc.value;
+        pc.innerHTML = '<option value="">ทุกสี</option>' + colors.map(c => '<option>' + esc(c) + '</option>').join('');
+        if (colors.includes(pcv)) pc.value = pcv;
+    }
+
+    function shownMan() {
+        const show = document.getElementById('fShow').value, type = document.getElementById('fType').value;
+        const w = document.getElementById('fWho').value, hide = document.getElementById('fHide').checked;
+        const q = document.getElementById('fSearch').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        return list.filter(r => {
+            if (show === 'sus' && !isSus(r)) return false;
+            if (type && r.manual_type !== type) return false;
+            if (w && who(r) !== w) return false;
+            if (hide && isDone(r)) return false;
+            if (q.length) {
+                const hay = [r.item_name, r.product_code, r.reason, r.entered_by, r.operator, '#' + r.id].join(' ').toLowerCase();
+                if (!q.every(t => hay.includes(t))) return false;
+            }
+            return true;
+        });
+    }
+
+    function entHtml(r) {
+        const t = TYPE[r.manual_type] || [r.manual_type, 'gry'];
+        const it = itemById.get(r.item_id);
+        const now = it ? it.quantity : r.quantity_now;
+        const reason = String(r.reason || '').trim();
+        let status = '';
+        if (r.fix_id) {
+            status = '<span class="pill org">✏️ แก้แล้ว: ' + esc(KIND_TH[r.fix_kind] || r.fix_kind)
+                + (r.fix_kind === 'qty' ? ' ที่ถูก ' + signed(r.fix_right_delta) : r.fix_kind === 'item' ? ' → ' + esc(r.fix_right_item_name) + ' ' + signed(r.fix_right_delta) : '')
+                + ' · ' + esc(r.fix_by || '-') + ' ' + fmt(r.fix_at) + '</span>';
+        } else if (r.mark_status === 'ok') {
+            status = '<span class="pill grn">✔ ตรวจแล้ว · ' + esc(r.mark_by || '-') + ' ' + fmt(r.mark_at) + '</span>';
+        }
+        const flags = flagsOf(r).map(f => '<span class="pill ' + f[1] + '">' + esc(f[0]) + '</span>').join('');
+        let act = '';
+        if (canFix) {
+            if (r.manual_type !== 'auditfix' && !r.ref_log_id && !r.fix_id) act += '<button type="button" class="btn btn-fix sm" data-act="fix" data-id="' + r.id + '">✏️ แก้ลงผิด</button>';
+            if (!r.fix_id && r.mark_status !== 'fixed') {
+                act += r.mark_status === 'ok'
+                    ? '<button type="button" class="btn sm" data-act="unmark" data-id="' + r.id + '">↩ ยกเลิกตรวจ</button>'
+                    : '<button type="button" class="btn sm" data-act="mark" data-id="' + r.id + '">✔ ตรวจแล้ว</button>';
+            }
+        }
+        return '<div class="ent' + (isDone(r) ? ' done' : '') + '" data-id="' + r.id + '">'
+            + '<div class="d ' + (r.delta > 0 ? 'plus' : 'minus') + '">' + signed(r.delta) + '</div>'
+            + '<div class="info">'
+            + '<div class="nm">' + esc(r.item_name) + (it ? '' : ' <span class="pill gry">ลบสินค้าแล้ว</span>') + '</div>'
+            + '<div class="cd">' + esc(r.product_code || '') + ' · ' + num(r.old_qty) + ' → ' + num(r.new_qty)
+            + (now != null ? ' · ตอนนี้มี ' + num(now) : '') + ' · #' + r.id + '</div>'
+            + '<div class="rs"><span class="pill ' + t[1] + '">' + esc(t[0]) + '</span> '
+            + '🕘 ' + fmt(r.created_at).split(' ').pop() + ' · 👤 <b>' + esc(who(r)) + '</b>'
+            + (r.entered_by ? ' <span class="meta">(' + esc(acct(r.operator)) + ')</span>' : '')
+            + '<br>' + (reason ? esc(reason) : '<i class="meta">— ไม่ได้ใส่เหตุผล —</i>') + '</div>'
+            + ((flags || status) ? '<div class="fl">' + flags + status + '</div>' : '')
+            + '</div>'
+            + (act ? '<div class="act">' + act + '</div>' : '')
+            + '</div>';
+    }
+
+    function renderMan() {
+        const rows = shownMan();
+        const box = document.getElementById('manList');
+        document.getElementById('markInfo').textContent = rows.length ? 'ที่เห็นตอนนี้ ' + num(rows.length) + ' รายการ' : '';
+        document.getElementById('btnMarkShown').disabled = !rows.some(r => !isDone(r));
+        if (!rows.length) {
+            box.innerHTML = '<div class="empty">' + (list.length ? '✅ ไม่มีรายการตามที่กรอง' : 'ไม่มีการปรับยอดด้วยมือในช่วงนี้') + '</div>';
+            return;
+        }
+        const part = rows.slice(0, showN);
+        const byDay = new Map();
+        part.forEach(r => { const k = dayKey(r.created_at); if (!byDay.has(k)) byDay.set(k, []); byDay.get(k).push(r); });
+        const allDay = new Map();
+        rows.forEach(r => { const k = dayKey(r.created_at); const a = allDay.get(k) || { n: 0, p: 0, m: 0 }; a.n++; if (r.delta > 0) a.p += r.delta; else a.m += r.delta; allDay.set(k, a); });
+        let h = '';
+        byDay.forEach((rs, k) => {
+            const a = allDay.get(k);
+            h += '<div class="day"><span>📅 ' + dayLabel(k) + '</span><span class="meta">' + num(a.n) + ' รายการ'
+                + (a.p ? ' · <span class="plus">' + signed(a.p) + '</span>' : '') + (a.m ? ' · <span class="minus">' + signed(a.m) + '</span>' : '') + '</span></div>';
+            h += rs.map(entHtml).join('');
+        });
+        if (rows.length > showN) h += '<div class="more"><button type="button" class="btn" data-act="more">แสดงเพิ่ม (เหลืออีก ' + num(rows.length - showN) + ')</button></div>';
+        box.innerHTML = h;
+    }
+
+    // ───────── คู่บน/ล่าง ─────────
+    function renderPairs() {
+        const model = document.getElementById('pModel').value, color = document.getElementById('pColor').value;
+        const min = Math.max(1, parseInt(document.getElementById('pMin').value, 10) || 1);
+        const rows = pairs.filter(p => Math.abs(p.diff) >= min && (!model || p.model === model) && (!color || p.color === color))
+            .sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff) || a.model.localeCompare(b.model) || a.len - b.len);
+        const box = document.getElementById('pairList');
+        if (!rows.length) { box.innerHTML = '<div class="empty">✅ ไม่มีคู่ที่ต่างกันตามที่กรอง</div>'; return; }
+        box.innerHTML = '<table class="t"><thead><tr><th class="l">รุ่น · สี · ยาว (ซม.)</th><th>ขวางบน</th><th>ขวางล่าง</th><th>ต่าง</th></tr></thead><tbody>'
+            + rows.map(p => '<tr class="click" data-pair="' + esc(p.key) + '"><td class="l">' + (p.model === 'SLD' ? '🚪 ประตู' : '🪟 หน้าต่าง') + ' · ' + esc(p.color) + ' · <b>' + p.len + '</b></td>'
+                + '<td>' + num(p.top.quantity) + '</td><td>' + num(p.bot.quantity) + '</td>'
+                + '<td><b style="color:' + (Math.abs(p.diff) >= 20 ? '#dc2626' : '#d97706') + '">' + (p.diff > 0 ? 'บนเกิน ' : 'ล่างเกิน ') + num(Math.abs(p.diff)) + '</b></td></tr>'
+                + (openPair === p.key ? '<tr class="sub"><td colspan="4"><div class="hist" id="pairHist">⏳ กำลังโหลดประวัติ...</div></td></tr>' : ''))
+            .join('') + '</tbody></table>';
+        if (openPair) loadPairHist(pairs.find(p => p.key === openPair));
+    }
+    async function loadPairHist(p) {
+        if (!p) return;
+        try {
+            const { data, error } = await db.from('stock_movement_log')
+                .select('id, item_id, old_qty, new_qty, delta, operator, reason, dispatched, created_at, manual_type, entered_by')
+                .in('item_id', [p.top.id, p.bot.id]).order('created_at', { ascending: false }).limit(40);
+            if (error) throw error;
+            const el = document.getElementById('pairHist');
+            if (!el || openPair !== p.key) return;
+            el.innerHTML = '<div class="meta" style="margin-bottom:4px;">40 รายการล่าสุดของคู่นี้ · <b>ตัวหนา</b> = ลงด้วยมือ · ' + esc(p.top.product_code) + ' / ' + esc(p.bot.product_code) + '</div>'
+                + (data || []).map(l => {
+                    const man = manualKind(l);
+                    const side = l.item_id === p.top.id ? 'บน' : 'ล่าง';
+                    const d = l.delta ?? (l.new_qty - l.old_qty);
+                    return '<div class="' + (man ? 'man' : '') + '">' + fmt(l.created_at) + ' · <span class="pill ' + (side === 'บน' ? '' : 'amb') + '">' + side + '</span> '
+                        + '<span class="' + (d > 0 ? 'plus' : 'minus') + '">' + signed(d) + '</span> → ' + num(l.new_qty)
+                        + ' · ' + esc(l.entered_by || acct(l.operator)) + ' · ' + esc(String(l.reason || (man ? '(ไม่มีเหตุผล)' : '')).slice(0, 90)) + '</div>';
+                }).join('');
+        } catch (e) {
+            const el = document.getElementById('pairHist');
+            if (el) el.textContent = '❌ โหลดไม่สำเร็จ: ' + errText(e);
+        }
+    }
+
+    // ───────── ตรวจนับไม่ตรง ─────────
+    function renderCounts() {
+        const q = document.getElementById('cSearch').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        const rows = counts.filter(c => !q.length || q.every(t => [c.item_name, c.counted_by, c.note].join(' ').toLowerCase().includes(t)));
+        const box = document.getElementById('countList');
+        if (!rows.length) { box.innerHTML = '<div class="empty">' + (counts.length ? 'ไม่พบตามที่ค้น' : '✅ ช่วงนี้ตรวจนับแล้วตรงทุกรายการ (หรือยังไม่ได้นับ)') + '</div>'; return; }
+        const plus = rows.reduce((a, c) => a + (c.diff > 0 ? c.diff : 0), 0), minus = rows.reduce((a, c) => a + (c.diff < 0 ? c.diff : 0), 0);
+        box.innerHTML = '<div class="meta" style="margin-bottom:6px;">' + num(rows.length) + ' ครั้ง · ของจริงมากกว่า <span class="plus">' + signed(plus) + '</span> · ของจริงน้อยกว่า <span class="minus">' + signed(minus) + '</span></div>'
+            + '<table class="t"><thead><tr><th class="l">วันที่</th><th class="l">สินค้า</th><th>ระบบมี</th><th>นับได้</th><th>ต่าง</th><th class="l">คนนับ · หมายเหตุ</th></tr></thead><tbody>'
+            + rows.map(c => '<tr><td class="l">' + fmt(c.counted_at) + '</td><td class="l">' + esc(c.item_name) + '</td><td>' + num(c.system_qty) + '</td><td>' + num(c.counted_qty) + '</td>'
+                + '<td><b class="' + (c.diff > 0 ? 'plus' : 'minus') + '">' + signed(c.diff) + '</b></td><td class="l">' + esc(acct(c.counted_by)) + (c.note ? ' · ' + esc(c.note) : '') + '</td></tr>').join('')
+            + '</tbody></table>';
+    }
+
+    // ───────── ประวัติลงผิด ─────────
+    function mistakeWho(f) { return (f.mistake_entered_by && f.mistake_entered_by.trim()) || (acct(f.mistake_operator) + ' (บัญชี)'); }
+    function renderFixes() {
+        const sBox = document.getElementById('fixSummary'), lBox = document.getElementById('fixList');
+        if (!fixes.length) {
+            sBox.innerHTML = '<div class="empty">ยังไม่มีการแก้ลงผิด · เจอรายการผิดในแท็บ 📝 ลงด้วยมือ กด ✏️ แก้ลงผิด แล้วจะมาสรุปที่นี่</div>';
+            lBox.innerHTML = '';
+            return;
+        }
+        const months = [...new Set(fixes.map(f => dayKey(f.mistake_at).slice(0, 7)))].sort().reverse().slice(0, 6);
+        const ppl = new Map();
+        fixes.forEach(f => {
+            const w = mistakeWho(f), m = dayKey(f.mistake_at).slice(0, 7);
+            const p = ppl.get(w) || { total: 0, units: 0, m: {} };
+            const off = f.kind === 'item' ? Math.abs(f.wrong_delta) : Math.abs(f.wrong_delta - f.right_delta);
+            p.total++; p.units += off; p.m[m] = (p.m[m] || 0) + 1;
+            ppl.set(w, p);
+        });
+        sBox.innerHTML = '<table class="t"><thead><tr><th class="l">คนลงผิด</th>' + months.map(m => '<th>' + monthLabel(m) + '</th>').join('')
+            + '<th>รวม (ครั้ง)</th><th>ผิดไป (ชิ้น)</th></tr></thead><tbody>'
+            + [...ppl.entries()].sort((a, b) => b[1].total - a[1].total).map(([w, p]) => '<tr><td class="l"><b>' + esc(w) + '</b></td>'
+                + months.map(m => '<td>' + (p.m[m] ? num(p.m[m]) : '<span class="meta">-</span>') + '</td>').join('')
+                + '<td><b>' + num(p.total) + '</b></td><td>' + num(p.units) + '</td></tr>').join('')
+            + '</tbody></table>';
+        const r = rangeTs();
+        const rows = fixes.filter(f => f.mistake_at >= r.from && f.mistake_at < r.to);
+        lBox.innerHTML = rows.length
+            ? '<table class="t"><thead><tr><th class="l">ลงผิดเมื่อ</th><th class="l">รายการ</th><th class="l">ผิดยังไง</th><th class="l">คนลงผิด</th><th class="l">แก้โดย · ผิดเพราะ</th></tr></thead><tbody>'
+              + rows.map(f => '<tr><td class="l">' + fmt(f.mistake_at) + '<div class="meta">#' + f.log_id + '</div></td><td class="l">' + esc(f.wrong_item_name) + '</td>'
+                + '<td class="l">' + esc(KIND_TH[f.kind] || f.kind) + '<br>ลง <b>' + signed(f.wrong_delta) + '</b> → '
+                + (f.kind === 'void' ? 'ไม่ควรลง' : f.kind === 'item' ? esc(f.right_item_name) + ' <b>' + signed(f.right_delta) + '</b>' : 'ที่ถูก <b>' + signed(f.right_delta) + '</b>') + '</td>'
+                + '<td class="l">' + esc(mistakeWho(f)) + '</td><td class="l">' + esc(f.fixed_entered_by) + ' ' + fmt(f.created_at) + '<br>' + esc(f.note) + '</td></tr>').join('')
+              + '</tbody></table>'
+            : '<div class="empty">ไม่มีรายการลงผิดในช่วงวันที่ที่เลือก</div>';
+    }
+
+    function renderAll() {
+        const sus = list.filter(r => isSus(r) && !isDone(r)).length;
+        document.getElementById('kMan').textContent = num(list.length);
+        document.getElementById('kSus').textContent = num(sus);
+        document.getElementById('kNo').textContent = num(list.filter(r => r.manual_type === 'legacy').length);
+        document.getElementById('kFix').textContent = num(list.filter(r => r.fix_id).length);
+        document.getElementById('kPair').textContent = num(pairs.filter(p => p.diff !== 0).length);
+        document.getElementById('nMan').textContent = num(sus);
+        document.getElementById('nPair').textContent = num(pairs.filter(p => p.diff !== 0).length);
+        document.getElementById('nCount').textContent = num(counts.length);
+        document.getElementById('nFix').textContent = num(fixes.length);
+        renderMan(); renderPairs(); renderCounts(); renderFixes();
+    }
+
+    function switchTab(t) {
+        document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+        ['man', 'pair', 'count', 'fix'].forEach(k => {
+            document.getElementById('tab' + k[0].toUpperCase() + k.slice(1)).style.display = k === t ? '' : 'none';
+        });
+    }
+
+    // ───────── ติ๊กตรวจแล้ว ─────────
+    function needName() {
+        const el = document.getElementById('myName');
+        const n = cleanText(el.value);
+        if (n.length < 2) { toast('ใส่ชื่อคนตรวจก่อน (ช่องด้านบน)'); el.focus(); return null; }
+        saveName(n);
+        return n;
+    }
+    async function mark(ids, on) {
+        const name = on ? needName() : '-';
+        if (!name) return;
+        try {
+            let n = 0;
+            for (let i = 0; i < ids.length; i += 2000) {
+                const part = ids.slice(i, i + 2000);
+                const { data, error } = on
+                    ? await db.rpc('rpc_stock_audit_mark', { p_log_ids: part, p_note: null, p_entered_by: name })
+                    : await db.rpc('rpc_stock_audit_unmark', { p_log_ids: part });
+                if (error) throw error;
+                n += Number(data) || 0;
+            }
+            const set = new Set(ids.map(Number));
+            list.forEach(r => {
+                if (!set.has(Number(r.id))) return;
+                if (on && r.mark_status !== 'fixed' && !r.fix_id) { r.mark_status = 'ok'; r.mark_by = name; r.mark_at = new Date().toISOString(); }
+                if (!on && r.mark_status === 'ok') { r.mark_status = null; r.mark_by = null; r.mark_at = null; }
+            });
+            renderAll();
+            toast(on ? '✔ ติ๊กตรวจแล้ว ' + num(n) + ' รายการ' : '↩ ยกเลิกติ๊ก ' + num(n) + ' รายการ');
+        } catch (e) { toast('❌ ไม่สำเร็จ: ' + errText(e), 6000); }
+    }
+
+    // ───────── กล่องแก้ลงผิด ─────────
+    function openFix(id) {
+        const r = list.find(x => Number(x.id) === Number(id));
+        if (!r) return;
+        const pair = pairOf.get(r.item_id);
+        fx = { row: r, key: newKey(), kind: null, right: pair || null, busy: false };
+        document.getElementById('fxOrig').innerHTML = '<b>' + esc(r.item_name) + '</b> <span class="' + (r.delta > 0 ? 'plus' : 'minus') + '"><b>' + signed(r.delta) + '</b></span><br>'
+            + '<span class="meta">' + fmt(r.created_at) + ' · ' + esc(who(r)) + ' · ' + esc(r.reason || 'ไม่มีเหตุผล') + ' · #' + r.id + '</span>';
+        document.querySelectorAll('input[name=fxKind]').forEach(i => { i.checked = false; });
+        document.getElementById('fxSign').value = r.delta > 0 ? '1' : '-1';
+        document.getElementById('fxQty').value = Math.abs(r.delta);
+        document.getElementById('fxItemQ').value = '';
+        document.getElementById('fxNote').value = '';
+        document.getElementById('fxName').value = cleanText(document.getElementById('myName').value) || readName();
+        setFxErr('');
+        fxRender();
+        document.getElementById('fixOv').classList.add('on');
+    }
+    function closeFix() { document.getElementById('fixOv').classList.remove('on'); fx = null; }
+    function setFxErr(m) { const e = document.getElementById('fxErr'); e.textContent = m || ''; e.classList.toggle('on', !!m); }
+    function fxRight() {
+        const n = parseInt(document.getElementById('fxQty').value, 10);
+        if (!(n > 0) || n > 100000) return null;
+        return n * Number(document.getElementById('fxSign').value);
+    }
+    function fxSuggest() {
+        const q = document.getElementById('fxItemQ').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        const r = fx.row;
+        let cand;
+        if (!q.length) {
+            // ยังไม่พิมพ์: แนะนำคู่บน/ล่าง + ชื่อใกล้เคียง (รหัสเดียวกันแต่ต่างสี/ขนาด)
+            const base = String(r.product_code || '').split('-').slice(0, 2).join('-');
+            cand = items.filter(it => it.id !== r.item_id && (pairOf.get(r.item_id)?.id === it.id || (base.length > 3 && String(it.product_code || '').startsWith(base))));
+            cand.sort((a, b) => (pairOf.get(r.item_id)?.id === b.id) - (pairOf.get(r.item_id)?.id === a.id));
+        } else {
+            cand = items.filter(it => it.id !== r.item_id && q.every(t => (String(it.product_name) + ' ' + String(it.product_code || '')).toLowerCase().includes(t)));
+        }
+        document.getElementById('fxSugg').innerHTML = cand.slice(0, 12).map(it => '<button type="button" data-item="' + esc(it.id) + '" class="' + (fx.right && fx.right.id === it.id ? 'on' : '') + '">'
+            + esc(it.product_name) + ' <span class="meta">' + esc(it.product_code || '') + ' · มี ' + num(it.quantity) + '</span>'
+            + (pairOf.get(r.item_id)?.id === it.id ? ' <span class="pill amb">คู่กัน</span>' : '') + '</button>').join('')
+            || '<div class="meta">ไม่พบสินค้า — ลองพิมพ์คำอื่น</div>';
+    }
+    function fxRender() {
+        if (!fx) return;
+        const r = fx.row;
+        const kind = (document.querySelector('input[name=fxKind]:checked') || {}).value || null;
+        fx.kind = kind;
+        document.querySelectorAll('.kind').forEach(k => k.classList.toggle('on', k.querySelector('input').checked));
+        document.getElementById('fxItemBox').style.display = kind === 'item' ? '' : 'none';
+        document.getElementById('fxQtyBox').style.display = kind === 'qty' || kind === 'item' ? '' : 'none';
+        document.getElementById('fxQtyLbl').innerHTML = (kind === 'item' ? 'จำนวนที่ควรลงที่สินค้าที่ถูก' : 'จำนวนที่ควรลงจริง') + ' <em>*</em>';
+        if (kind === 'item') fxSuggest();
+        const prev = document.getElementById('fxPrev'), save = document.getElementById('fxSave');
+        const cur = itemById.get(r.item_id);
+        const q0 = cur ? Number(cur.quantity) : null;
+        const right = fxRight();
+        let legs = [];
+        if (kind === 'qty' && right != null) legs = [[cur, right - r.delta]];
+        else if (kind === 'void') legs = [[cur, -r.delta]];
+        else if (kind === 'item' && fx.right && right != null) legs = [[cur, -r.delta], [itemById.get(fx.right.id) || fx.right, right]];
+        let ok = !!kind && legs.length > 0 && !!cur;
+        let h = '';
+        if (!kind) h = 'เลือกว่าผิดแบบไหน';
+        else if (!cur) h = '⚠️ สินค้านี้ถูกลบไปแล้ว แก้ไม่ได้';
+        else if (kind === 'qty' && right === r.delta) { h = 'จำนวนเท่ากับที่ลงไว้ — ถ้าถูกแล้วให้กด ✔ ตรวจแล้วแทน'; ok = false; }
+        else if (kind === 'item' && !fx.right) { h = 'เลือกสินค้าที่ถูก'; ok = false; }
+        else if (!legs.length) { h = 'ใส่จำนวนที่ถูก'; ok = false; }
+        else {
+            h = '<b>ระบบจะปรับยอด:</b><br>' + legs.map(([it, d]) => {
+                const a = Number(it.quantity) || 0, b = a + d;
+                if (b < 0) ok = false;
+                return esc(it.product_name) + ': ' + num(a) + ' <span class="' + (d > 0 ? 'plus' : 'minus') + '">' + signed(d) + '</span> → <b style="' + (b < 0 ? 'color:#dc2626' : '') + '">' + num(b) + '</b>'
+                    + (b < 0 ? ' <span class="pill red">ติดลบ — ของอาจถูกใช้ไปแล้ว ตรวจนับก่อน</span>' : '');
+            }).join('<br>');
+            if (legs.some(([, d]) => d < 0) && !window.auth.hasPermission('action_decrease_stock')) {
+                h += '<br><span class="pill red">ต้องมีสิทธิ์ปรับสต็อกลดลงด้วย</span>'; ok = false;
+            }
+        }
+        prev.innerHTML = h;
+        save.disabled = !ok || fx.busy;
+    }
+    async function saveFix() {
+        if (!fx || fx.busy) return;
+        const note = cleanText(document.getElementById('fxNote').value);
+        const name = cleanText(document.getElementById('fxName').value);
+        if (note.length < 3) { setFxErr('บอกว่าผิดเพราะอะไร (อย่างน้อย 3 ตัวอักษร)'); document.getElementById('fxNote').focus(); return; }
+        if (name.length < 2) { setFxErr('ใส่ชื่อคนแก้'); document.getElementById('fxName').focus(); return; }
+        const r = fx.row, kind = fx.kind;
+        const right = kind === 'void' ? 0 : fxRight();
+        if (right == null) { setFxErr('ใส่จำนวนที่ถูก'); return; }
+        const rightItem = kind === 'item' ? fx.right.id : null;
+        const msg = kind === 'void' ? 'ยกเลิกรายการ ' + signed(r.delta) + ' ของ ' + r.item_name
+            : kind === 'qty' ? r.item_name + ': ' + signed(r.delta) + ' → ที่ถูก ' + signed(right)
+            : 'ย้าย ' + signed(r.delta) + ' จาก ' + r.item_name + ' ไป ' + fx.right.product_name + ' (' + signed(right) + ')';
+        if (!confirm('ยืนยันแก้ที่ลงผิด?\n\n' + msg + '\n\nยอดสต็อกจะเปลี่ยนทันที และจดไว้ว่า ' + who(r) + ' ลงผิด')) return;
+        fx.busy = true; setFxErr('');
+        const save = document.getElementById('fxSave');
+        save.disabled = true; save.textContent = '⏳ กำลังบันทึก...';
+        const st = fx;
+        try {
+            const { data, error } = await db.rpc('rpc_stock_fix', {
+                p_log_id: r.id, p_right_item: rightItem, p_right_delta: right, p_note: note, p_entered_by: name, p_key: st.key
+            });
+            if (error) throw error;
+            saveName(name);
+            if (!document.getElementById('myName').value.trim()) document.getElementById('myName').value = name;
+            closeFix();
+            toast(data && data.duplicate ? 'ℹ️ แก้รายการนี้ไปแล้ว (ไม่แก้ซ้ำ)' : '✅ แก้แล้ว — ยอดสต็อกปรับให้ถูกแล้ว และจดไว้ในประวัติลงผิด', 4500);
+            await loadAll();
+        } catch (e) {
+            st.busy = false;
+            if (fx !== st) return;
+            setFxErr('❌ ' + errText(e));
+            save.textContent = '💾 บันทึกอีกครั้ง';
+            fxRender();
+        }
+    }
+
+    window.addEventListener('auth-ready', () => {
+        db = window.auth && window.auth.supabase;
+        if (!db) { document.getElementById('manList').innerHTML = '<div class="empty">❌ เชื่อมต่อฐานข้อมูลไม่ได้</div>'; return; }
+        canFix = window.auth.hasPermission('action_stock_fix');
+        if (!canFix) {
+            document.getElementById('sub').insertAdjacentHTML('beforeend', '<br><span class="pill gry">👁️ ดูอย่างเดียว — แก้ลงผิด/ติ๊กตรวจ ต้องมีสิทธิ์ "✏️ แก้ที่ลงผิด"</span>');
+        } else {
+            document.getElementById('markBar').style.display = '';
+            document.getElementById('myName').value = readName();
+        }
+        setRange(30);
+        loadAll();
+
+        document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+        document.querySelectorAll('[data-range]').forEach(b => b.addEventListener('click', () => { setRange(b.dataset.range); loadAll(); }));
+        ['fFrom', 'fTo'].forEach(id => document.getElementById(id).addEventListener('change', loadAll));
+        document.getElementById('btnReload').addEventListener('click', loadAll);
+        ['fShow', 'fType', 'fWho', 'fHide'].forEach(id => document.getElementById(id).addEventListener('change', () => { showN = SHOW_STEP; renderMan(); }));
+        ['fSearch', 'fBig'].forEach(id => document.getElementById(id).addEventListener('input', () => { showN = SHOW_STEP; renderAll(); }));
+        ['pModel', 'pColor'].forEach(id => document.getElementById(id).addEventListener('change', renderPairs));
+        document.getElementById('pMin').addEventListener('input', renderPairs);
+        document.getElementById('cSearch').addEventListener('input', renderCounts);
+        document.getElementById('btnMarkShown').addEventListener('click', () => {
+            const ids = shownMan().filter(r => !isDone(r)).map(r => r.id);
+            if (!ids.length) return;
+            if (!confirm('ติ๊ก "ตรวจแล้ว" ' + num(ids.length) + ' รายการที่เห็นอยู่?\n\nใช้เมื่อดูแล้วว่าไม่ผิด · ยกเลิกทีหลังได้')) return;
+            mark(ids, true);
+        });
+
+        document.getElementById('manList').addEventListener('click', e => {
+            const b = e.target.closest('button[data-act]');
+            if (!b) return;
+            if (b.dataset.act === 'more') { showN += SHOW_STEP; renderMan(); return; }
+            const id = Number(b.dataset.id);
+            if (b.dataset.act === 'fix') openFix(id);
+            else if (b.dataset.act === 'mark') mark([id], true);
+            else if (b.dataset.act === 'unmark') mark([id], false);
+        });
+        document.getElementById('pairList').addEventListener('click', e => {
+            const tr = e.target.closest('tr[data-pair]');
+            if (!tr) return;
+            openPair = openPair === tr.dataset.pair ? null : tr.dataset.pair;
+            renderPairs();
+        });
+
+        const ov = document.getElementById('fixOv');
+        ov.addEventListener('click', e => { if (e.target === ov || e.target.closest('[data-close]')) closeFix(); });
+        ov.addEventListener('keydown', e => { if (e.key === 'Escape') closeFix(); });
+        document.querySelectorAll('input[name=fxKind]').forEach(i => i.addEventListener('change', () => { setFxErr(''); fxRender(); }));
+        ['fxQty', 'fxSign'].forEach(id => document.getElementById(id).addEventListener('input', fxRender));
+        document.getElementById('fxSign').addEventListener('change', fxRender);
+        document.getElementById('fxItemQ').addEventListener('input', fxSuggest);
+        document.getElementById('fxSugg').addEventListener('click', e => {
+            const b = e.target.closest('button[data-item]');
+            if (!b || !fx) return;
+            fx.right = itemById.get(b.dataset.item) || null;
+            fxRender();
+        });
+        document.getElementById('fxSave').addEventListener('click', saveFix);
+    });
+</script>
+</body>
+</html>

@@ -107,8 +107,8 @@ function scheduleRealtimeRender(delay = 400) {
         const tbody = document.getElementById('stockTableBody');
         const typingInTable = active && tbody && tbody.contains(active)
             && /^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName);
-        // กำลังพิมพ์ในตาราง หรือพักจออยู่ → ยังไม่วาด เช็คใหม่ทุก 1 วิ
-        if (typingInTable || document.hidden) {
+        // กำลังพิมพ์ในตาราง / พักจอ / กล่องเหตุผลปรับยอดเปิดอยู่ → ยังไม่วาด เช็คใหม่ทุก 1 วิ
+        if (typingInTable || document.hidden || adjState) {
             scheduleRealtimeRender(1000);
             return;
         }
@@ -731,38 +731,288 @@ async function quickAdjust(id, delta) {
         return;
     }
 
-    const userName = await getLoggedInUserEmail();
-
-    // ถาม: เหตุผล (ไม่บังคับ — กด OK เปล่าได้)
-    const reason = prompt('📝 เหตุผลในการปรับสต็อก (ระบุหรือเว้นว่างได้):');
-    if (reason === null) {
-        // กด Cancel บน dialog เหตุผล = ยกเลิกทั้งหมด
+    // ต้องเลือกเหตุผล + ใส่ชื่อคนลง · กล่องนี้บันทึกยอด+ประวัติให้ในขั้นเดียว (ปิดกล่อง = ยกเลิก)
+    const res = await openAdjDialog(stock, delta);
+    if (!res) {
         showToast('⚠️ ยกเลิกการปรับจำนวน', 'warning');
         return;
     }
+    applyAdjResult(stock, res, delta);
+}
 
-    const oldQty = stock.quantity;
-    const newQty = Math.max(0, oldQty + delta);
+// ─── ปรับยอดด้วยมือ: ต้องเลือกเหตุผล + ใส่ชื่อคนลงทุกครั้ง (19/11/2569) ──────
+// เจ้าของ: "ถ้าลงของผิด มีระบบป้องกันไหม" → เดิมกด OK เปล่าได้ ประวัติว่าง 1,600+ รายการ ไม่รู้ใครลง
+// บัญชีเดียวใช้หลายคน (เช่น mgstore) → ต้องใส่ชื่อคนลง (จำไว้ในเครื่อง ไม่ต้องพิมพ์ใหม่ทุกครั้ง)
+// ปรับยอด + บันทึกประวัติทำในขั้นเดียวที่ฐานข้อมูล (rpc_stock_manual_adjust) · ลดเกินที่มี = ไม่ให้ลง (เดิมปัดเป็น 0 เงียบ ๆ)
+// กดบันทึกซ้ำ / เน็ตหลุดแล้วกดใหม่ ใช้รหัสเดิม → ไม่บวกซ้ำ
+const ADJ_TYPES = [
+    { key: 'receive', icon: '📥', label: 'รับของเข้า',     hint: 'ของจากโรงงานตัด / ซื้อมา',  sign: 1 },
+    { key: 'issue',   icon: '📤', label: 'เบิกออก',        hint: 'ไม่ผ่านใบผลิต',             sign: -1 },
+    { key: 'count',   icon: '🔢', label: 'นับจริงไม่ตรง',  hint: 'ปรับให้ตรงของจริง',         sign: 0 },
+    { key: 'damage',  icon: '💥', label: 'ของเสีย/หาย',    hint: 'ชำรุด ตัดเสีย หาย',         sign: -1 },
+    { key: 'correct', icon: '✏️', label: 'แก้ที่ลงผิด',     hint: 'ต้องพิมพ์ว่าผิดตรงไหน',      sign: 0, needNote: true },
+    { key: 'other',   icon: '📝', label: 'อื่น ๆ',          hint: 'ต้องพิมพ์เหตุผล',           sign: 0, needNote: true }
+];
+const ADJ_NAME_KEY = 'ccga_stock_entered_by';
+const ADJ_REUSE_MS = 30 * 60 * 1000;   // ลงหลายรายการติดกัน: ใช้เหตุผลเดิมให้ภายใน 30 นาที
+let adjLast = null;                    // { type, note, sign, at }
+let adjState = null;                   // กล่องที่เปิดอยู่
+let adjNamesLoaded = false;
+
+function newAdjKey() {
+    try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+    return 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+}
+
+function adjErrText(err) {
+    const msg = String((err && (err.message || err.details)) || err || '');
+    if (/Could not find the function|PGRST202|function .* does not exist/i.test(msg)) {
+        return 'ฐานข้อมูลยังไม่ได้อัปเดต (ต้องรันไฟล์ SQL ก่อน) — แจ้งเจ้าของระบบ';
+    }
+    if (/Failed to fetch|NetworkError|network|timeout|timed out|aborted|Load failed/i.test(msg)) {
+        return 'เน็ตหลุด/ช้า — กดบันทึกอีกครั้งได้ ระบบไม่บวกซ้ำ';
+    }
+    return msg || 'ไม่ทราบสาเหตุ';
+}
+
+function readAdjName() {
+    try { return localStorage.getItem(ADJ_NAME_KEY) || ''; } catch (e) { return ''; }
+}
+function saveAdjName(name) {
+    try { localStorage.setItem(ADJ_NAME_KEY, name); } catch (e) {}
+}
+
+// รายชื่อคนที่เคยลง (ไว้เลือก ไม่ต้องพิมพ์ · ชื่อจะได้สะกดตรงกัน รายงานรายคนถึงจะนับถูก)
+async function loadAdjNames() {
+    if (adjNamesLoaded || !dbSupabase) return;
+    adjNamesLoaded = true;
     try {
-        const { error } = await dbSupabase
-            .from(STOCK_TABLE_NAME)
-            .update({ quantity: newQty, updated_at: new Date().toISOString() })
-            .eq('id', id);
+        const { data, error } = await dbSupabase
+            .from('stock_movement_log')
+            .select('entered_by')
+            .not('entered_by', 'is', null)
+            .order('id', { ascending: false })
+            .limit(500);
         if (error) throw error;
-        stock.quantity = newQty;
-
-        const tr = document.querySelector(`tr[data-id="${id}"]`);
-        if (tr) tr.outerHTML = buildRow(stock);
-        else renderStockTable();
-
-        updateStatistics();
-        showToast(`✅ ${stock.product_name}: ${delta > 0 ? '+' : ''}${delta} → ${newQty} ${normalizeUnit(stock.unit, 'ชิ้น')}`, delta > 0 ? 'success' : 'warning');
-
-        await logStockMovement(id, stock.product_name, oldQty, newQty, delta, userName, reason);
-    } catch (err) {
-        showToast('❌ ปรับจำนวนล้มเหลว: ' + err.message, 'error');
+        const names = [...new Set((data || []).map(r => String(r.entered_by || '').trim()).filter(Boolean))].slice(0, 40);
+        const list = document.getElementById('adjNameList');
+        if (list) list.innerHTML = names.map(n => `<option value="${escAttr(n)}"></option>`).join('');
+    } catch (e) {
+        adjNamesLoaded = false;   // ฐานข้อมูลยังไม่มีช่องชื่อ → ลองใหม่ครั้งหน้า
     }
 }
+
+function ensureAdjDialog() {
+    if (document.getElementById('adjModal')) return;
+    const style = document.createElement('style');
+    style.id = 'adjModalStyle';
+    style.textContent = `
+        #adjModal .modal-content { max-width: 460px; }
+        #adjModal .adj-item { font-weight: 600; font-size: 1.05rem; color: var(--text); line-height: 1.35; }
+        #adjModal .adj-code { color: var(--muted); font-size: 0.82rem; margin-top: 2px; word-break: break-all; }
+        #adjModal .adj-calc { margin: 0.75rem 0 0.25rem; padding: 0.6rem 0.8rem; border-radius: 10px; background: var(--bg-card-strong);
+            border: 1px solid var(--border); font-size: 1.05rem; display: flex; flex-wrap: wrap; gap: 0.35rem 0.6rem; align-items: baseline; }
+        #adjModal .adj-calc b { font-size: 1.25rem; }
+        #adjModal .adj-plus { color: #10b981; font-weight: 700; }
+        #adjModal .adj-minus { color: #ef4444; font-weight: 700; }
+        #adjModal .adj-lbl { display: block; margin: 0.9rem 0 0.4rem; font-size: 0.9rem; color: var(--muted); }
+        #adjModal .adj-lbl em { color: #ef4444; font-style: normal; }
+        #adjModal .adj-types { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+        #adjModal .adj-type { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; cursor: pointer;
+            padding: 0.55rem 0.65rem; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-card-strong);
+            color: var(--text); font-family: 'Kanit', sans-serif; font-size: 0.95rem; line-height: 1.25; min-height: 52px; }
+        #adjModal .adj-type small { color: var(--muted); font-size: 0.74rem; }
+        #adjModal .adj-type.sel { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-glow); background: var(--surface-strong, rgba(99,102,241,.08)); }
+        #adjModal input[type=text] { width: 100%; box-sizing: border-box; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid var(--border);
+            background: var(--input-bg); color: var(--text); font-family: 'Kanit', sans-serif; font-size: 1rem; }
+        #adjModal input[type=text]:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
+        #adjModal .adj-reuse { margin-top: 0.4rem; font-size: 0.8rem; color: var(--muted); }
+        #adjModal .adj-err { display: none; margin-top: 0.8rem; padding: 0.55rem 0.75rem; border-radius: 8px; font-size: 0.9rem;
+            background: rgba(239, 68, 68, 0.12); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.35); white-space: pre-line; }
+        #adjModal .adj-err.show { display: block; }
+        #adjModal .adj-namehint { margin-top: 0.3rem; font-size: 0.78rem; color: var(--muted); }
+        @media (max-width: 480px) { #adjModal .modal-content { padding: 1.1rem; } #adjModal .adj-type { min-height: 48px; } }
+    `;
+    document.head.appendChild(style);
+
+    const wrap = document.createElement('div');
+    wrap.id = 'adjModal';
+    wrap.className = 'modal';
+    wrap.innerHTML = `
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="adjTitle">
+            <div class="modal-header">
+                <h2 id="adjTitle">📝 ปรับยอดสต็อก</h2>
+                <button type="button" class="close-btn" onclick="closeAdjDialog()" aria-label="ปิด">✕</button>
+            </div>
+            <div class="adj-item" id="adjItem"></div>
+            <div class="adj-code" id="adjCode"></div>
+            <div class="adj-calc" id="adjCalc"></div>
+            <span class="adj-lbl">เหตุผล <em>*</em></span>
+            <div class="adj-types" id="adjTypes"></div>
+            <div class="adj-reuse" id="adjReuse"></div>
+            <label class="adj-lbl" for="adjNote" id="adjNoteLbl">รายละเอียด</label>
+            <input type="text" id="adjNote" maxlength="300" autocomplete="off">
+            <label class="adj-lbl" for="adjName">ชื่อคนลง <em>*</em></label>
+            <input type="text" id="adjName" maxlength="60" list="adjNameList" autocomplete="off" placeholder="ชื่อเล่นก็ได้ เช่น เมย์">
+            <datalist id="adjNameList"></datalist>
+            <div class="adj-namehint">เครื่องนี้จะจำชื่อไว้ · คนอื่นมาใช้เครื่องนี้ ให้เปลี่ยนชื่อก่อนบันทึก</div>
+            <div class="adj-err" id="adjErr"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-cancel" onclick="closeAdjDialog()">ยกเลิก</button>
+                <button type="button" class="btn btn-save" id="adjSave" onclick="submitAdjDialog()">💾 บันทึก</button>
+            </div>
+        </div>`;
+    document.body.appendChild(wrap);
+    wrap.addEventListener('click', e => { if (e.target === wrap) closeAdjDialog(); });
+    wrap.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { e.preventDefault(); closeAdjDialog(); }
+        else if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); submitAdjDialog(); }
+    });
+    document.getElementById('adjNote').addEventListener('input', () => setAdjError(''));
+    document.getElementById('adjName').addEventListener('input', () => setAdjError(''));
+}
+
+function setAdjError(msg) {
+    const el = document.getElementById('adjErr');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.classList.toggle('show', !!msg);
+}
+
+function renderAdjTypes() {
+    const sign = adjState.delta > 0 ? 1 : -1;
+    const box = document.getElementById('adjTypes');
+    box.innerHTML = ADJ_TYPES.filter(t => t.sign === 0 || t.sign === sign).map(t => `
+        <button type="button" class="adj-type${adjState.type === t.key ? ' sel' : ''}" data-type="${t.key}" onclick="pickAdjType('${t.key}')">
+            <span>${t.icon} ${t.label}</span><small>${t.hint}</small>
+        </button>`).join('');
+    const t = ADJ_TYPES.find(x => x.key === adjState.type);
+    const note = document.getElementById('adjNote');
+    const lbl = document.getElementById('adjNoteLbl');
+    if (t && t.needNote) {
+        lbl.innerHTML = 'รายละเอียด <em>*</em>';
+        note.placeholder = t.key === 'correct' ? 'เช่น เมื่อวานลงเกินไป 30 ท่อน' : 'พิมพ์เหตุผล';
+    } else {
+        lbl.textContent = 'รายละเอียด (ถ้ามี)';
+        note.placeholder = t && t.key === 'receive' ? 'เช่น เลขใบ CO-189 / เลขบิล' : 'ถ้ามี เช่น ใช้ทำอะไร / ใครเบิก';
+    }
+}
+
+function pickAdjType(key) {
+    if (!adjState) return;
+    adjState.type = key;
+    document.getElementById('adjReuse').textContent = '';
+    setAdjError('');
+    renderAdjTypes();
+    const t = ADJ_TYPES.find(x => x.key === key);
+    const note = document.getElementById('adjNote');
+    const name = document.getElementById('adjName');
+    if (t && t.needNote && note.value.trim().length < 3) note.focus();
+    else if (!name.value.trim()) name.focus();
+}
+
+// เปิดกล่องเหตุผล → บันทึกที่ฐานข้อมูล → คืนผล ({ quantity, new_qty, duplicate, ... }) หรือ null ถ้ายกเลิก
+// opts.defaultType / opts.defaultNote = ค่าเริ่ม (เช่น สินค้าใหม่ใส่ยอดเริ่มต้น)
+function openAdjDialog(stock, delta, opts = {}) {
+    ensureAdjDialog();
+    if (adjState) closeAdjDialog();
+    const sign = delta > 0 ? 1 : -1;
+    const reuse = adjLast && adjLast.sign === sign && (Date.now() - adjLast.at) < ADJ_REUSE_MS
+        && ADJ_TYPES.some(t => t.key === adjLast.type && (t.sign === 0 || t.sign === sign));
+    return new Promise(resolve => {
+        adjState = {
+            stock, delta, resolve, busy: false, key: newAdjKey(),
+            type: opts.defaultType || (reuse ? adjLast.type : null)
+        };
+        const unit = normalizeUnit(stock.unit, 'ชิ้น');
+        const oldQty = Number(stock.quantity) || 0;
+        const after = oldQty + delta;
+        document.getElementById('adjTitle').textContent = delta > 0 ? '📥 เพิ่มยอดสต็อก' : '📤 ลดยอดสต็อก';
+        document.getElementById('adjItem').textContent = stock.product_name || '';
+        document.getElementById('adjCode').textContent = stock.product_code || '';
+        document.getElementById('adjCalc').innerHTML =
+            `<span>มีอยู่ <b>${oldQty.toLocaleString('th-TH')}</b></span>`
+            + `<span class="${delta > 0 ? 'adj-plus' : 'adj-minus'}">${delta > 0 ? '+' : '−'}${Math.abs(delta).toLocaleString('th-TH')}</span>`
+            + `<span>→ เหลือ <b${after < 0 ? ' style="color:#ef4444"' : ''}>${after.toLocaleString('th-TH')}</b> ${escAttr(unit)}</span>`;
+        document.getElementById('adjNote').value = opts.defaultNote != null ? opts.defaultNote : (reuse ? adjLast.note : '');
+        document.getElementById('adjName').value = readAdjName();
+        document.getElementById('adjReuse').textContent = (reuse && !opts.defaultType)
+            ? '↺ ใช้เหตุผลเดียวกับรายการก่อนหน้า — ถ้าไม่ใช่ กดเลือกใหม่' : '';
+        setAdjError(after < 0 ? `ลดเกินที่มี — มีอยู่ ${oldQty} ลดได้ไม่เกิน ${oldQty}` : '');
+        const save = document.getElementById('adjSave');
+        save.disabled = after < 0;
+        save.textContent = '💾 บันทึก';
+        renderAdjTypes();
+        document.getElementById('adjModal').classList.add('active');
+        loadAdjNames();
+        setTimeout(() => {
+            const name = document.getElementById('adjName');
+            const t = ADJ_TYPES.find(x => x.key === adjState?.type);
+            if (!adjState?.type) document.querySelector('#adjTypes .adj-type')?.focus();
+            else if (t && t.needNote && document.getElementById('adjNote').value.trim().length < 3) document.getElementById('adjNote').focus();
+            else if (!name.value.trim()) name.focus();
+            else save.focus();
+        }, 60);
+    });
+}
+
+function closeAdjDialog(result = null) {
+    const modal = document.getElementById('adjModal');
+    if (modal) modal.classList.remove('active');
+    const st = adjState;
+    adjState = null;
+    if (st) st.resolve(result);
+}
+
+async function submitAdjDialog() {
+    const st = adjState;
+    if (!st || st.busy) return;
+    const t = ADJ_TYPES.find(x => x.key === st.type);
+    const note = document.getElementById('adjNote').value.replace(/\s+/g, ' ').trim();
+    const name = document.getElementById('adjName').value.replace(/\s+/g, ' ').trim();
+    if (!t) { setAdjError('กรุณาเลือกเหตุผล'); return; }
+    if (t.needNote && note.length < 3) { setAdjError(`"${t.label}" ต้องพิมพ์รายละเอียดด้วย (อย่างน้อย 3 ตัวอักษร)`); document.getElementById('adjNote').focus(); return; }
+    if (name.length < 2) { setAdjError('กรุณาใส่ชื่อคนลง'); document.getElementById('adjName').focus(); return; }
+    st.busy = true;
+    const save = document.getElementById('adjSave');
+    save.disabled = true;
+    save.textContent = '⏳ กำลังบันทึก...';
+    setAdjError('');
+    try {
+        const { data, error } = await dbSupabase.rpc('rpc_stock_manual_adjust', {
+            p_item_id: st.stock.id, p_delta: st.delta, p_type: t.key,
+            p_note: note || null, p_entered_by: name, p_key: st.key
+        });
+        if (error) throw error;
+        saveAdjName(name);
+        adjLast = { type: t.key, note, sign: st.delta > 0 ? 1 : -1, at: Date.now() };
+        st.busy = false;
+        closeAdjDialog(data || {});
+    } catch (err) {
+        st.busy = false;
+        if (adjState !== st) return;
+        setAdjError('❌ บันทึกไม่สำเร็จ: ' + adjErrText(err));
+        save.disabled = false;
+        save.textContent = '💾 บันทึกอีกครั้ง';
+    }
+}
+
+// หลังบันทึกสำเร็จ: ใช้ยอดจากฐานข้อมูล (ไม่ใช่ตัวเลขในเครื่องที่อาจเก่า)
+function applyAdjResult(stock, res, delta) {
+    const qty = Number(res && (res.quantity ?? res.new_qty));
+    if (Number.isFinite(qty)) stock.quantity = qty;
+    const tr = document.querySelector(`tr[data-id="${stock.id}"]`);
+    if (tr) tr.outerHTML = buildRow(stock);
+    else renderStockTable();
+    updateStatistics();
+    scheduleMovementLogsReload();
+    if (res && res.duplicate) {
+        showToast(`ℹ️ ${stock.product_name}: รายการนี้บันทึกไปแล้ว (ไม่บวกซ้ำ) → ${stock.quantity}`, 'info');
+    } else {
+        showToast(`✅ ${stock.product_name}: ${delta > 0 ? '+' : ''}${delta} → ${stock.quantity} ${normalizeUnit(stock.unit, 'ชิ้น')}`, delta > 0 ? 'success' : 'warning');
+    }
+}
+
 
 // ─── SEARCH & FILTER ──────────────────────────────────────────────────────
 function searchStocks() {
@@ -872,7 +1122,7 @@ function setAdjustMode(mode) {
     document.getElementById('btnReceive').classList.toggle('selected', mode === 'receive');
     document.getElementById('btnIssue').classList.toggle('selected', mode === 'issue');
     const label = document.getElementById('deltaLabel');
-    if (label) label.textContent = mode === 'receive' ? 'จำนวนที่รับเข้า *' : 'จำนวนที่จ่ายออก *';
+    if (label) label.textContent = (mode === 'receive' ? 'จำนวนที่รับเข้า' : 'จำนวนที่จ่ายออก') + ' (เว้นว่าง = ไม่เปลี่ยนยอด)';
 }
 
 function openAddModal() {
@@ -918,7 +1168,7 @@ async function openEditModal(id) {
     document.getElementById('addQtySection').style.display  = 'none';
     document.getElementById('editQtySection').style.display = '';
     document.getElementById('quantity').required = false;
-    document.getElementById('deltaQty').required = true;
+    document.getElementById('deltaQty').required = false;
     
     document.getElementById('stockModal').classList.add('active');
     document.getElementById('deltaQty').focus();
@@ -961,22 +1211,16 @@ async function handleFormSubmit(e) {
         if (currentEditingId) {
             // Edit Mode - adjust current quantity by delta
             const stock = allStocks.find(s => s.id === currentEditingId);
-            const deltaRaw = parseInt(document.getElementById('deltaQty').value);
-            if (isNaN(deltaRaw) || deltaRaw <= 0) {
-                throw new Error('กรุณาระบุจำนวนสินค้าที่ต้องการปรับปรุงให้ถูกต้อง (ต้องมากกว่า 0)');
+            if (!stock) throw new Error('ไม่พบสินค้านี้ — รีเฟรชหน้าแล้วลองใหม่');
+            const deltaText = document.getElementById('deltaQty').value.trim();
+            const deltaRaw = deltaText ? parseInt(deltaText, 10) : 0;
+            if (deltaText && (isNaN(deltaRaw) || deltaRaw <= 0)) {
+                throw new Error('จำนวนที่ปรับต้องมากกว่า 0 (หรือเว้นว่างถ้าไม่เปลี่ยนยอด)');
             }
             const delta = adjustMode === 'receive' ? deltaRaw : -deltaRaw;
-
-            // ถาม 1: ชื่อ (บังคับ)
-            const userName = await getLoggedInUserEmail();
-
-            // ถาม: เหตุผล (ไม่บังคับ)
-            const reason = prompt('📝 เหตุผลในการปรับสต็อก (ระบุหรือเว้นว่างได้):');
-            if (reason === null) {
-                throw new Error('ยกเลิกการปรับจำนวน');
+            if (delta < 0 && window.auth?.hasPermission?.('action_decrease_stock') !== true) {
+                throw new Error('CEO ยังไม่ได้ให้สิทธิ์ปรับสต็อกลดลง');
             }
-            const oldQty = stock?.quantity || 0;
-            const newQty = Math.max(0, oldQty + delta);
             const unit = normalizeUnit(document.getElementById('unitEdit').value, 'ชิ้น');
 
             const updateData = {
@@ -986,44 +1230,60 @@ async function handleFormSubmit(e) {
                 reorder_point: reorderPoint,
                 near_stock_point: nearStockPoint,
                 unit:         unit,
-                quantity:     newQty,
                 width:        document.getElementById('width').value  ? parseFloat(document.getElementById('width').value)  : null,
                 height:       document.getElementById('height').value ? parseFloat(document.getElementById('height').value) : null,
                 updated_at:   new Date().toISOString()
             };
 
+            // ยอด: ถามเหตุผล+ชื่อ แล้วบันทึกผ่านฐานข้อมูล (ยกเลิก = ไม่แก้อะไรเลย)
+            let adjRes = null;
+            if (delta) {
+                adjRes = await openAdjDialog(stock, delta);
+                if (!adjRes) throw new Error('ยกเลิกการปรับจำนวน');
+            }
             const { error } = await dbSupabase
                 .from(STOCK_TABLE_NAME)
                 .update(updateData)
                 .eq('id', currentEditingId);
             if (error) throw error;
-            
-            const sign = delta > 0 ? '+' : '';
-            showToast(`✅ ${updateData.product_name}: ${sign}${delta} → คงเหลือ ${newQty} ${unit || 'ชิ้น'}`, adjustMode === 'receive' ? 'success' : 'warning');
 
-            // Log movement to stock_movement_log
-            await logStockMovement(currentEditingId, updateData.product_name, oldQty, newQty, delta, userName, reason);
-        } else {
+            const sign = delta > 0 ? '+' : '';
+            showToast(delta
+                ? `✅ ${updateData.product_name}: ${sign}${delta} → คงเหลือ ${adjRes.quantity ?? adjRes.new_qty} ${unit || 'ชิ้น'}`
+                : `✅ บันทึกข้อมูล ${updateData.product_name} แล้ว`, delta >= 0 ? 'success' : 'warning');
+} else {
             // Add Mode - create new item
-            const qtyVal = document.getElementById('quantity').value;
+            const qtyText = document.getElementById('quantity').value.trim();
+            const qtyVal = qtyText ? parseInt(qtyText, 10) : 0;
+            if (isNaN(qtyVal) || qtyVal < 0 || qtyVal > 100000) {
+                throw new Error('จำนวนเริ่มต้นต้องเป็นตัวเลข 0 – 100,000');
+            }
             const formData = {
                 product_name: document.getElementById('productName').value.trim(),
                 product_code: document.getElementById('productCode').value.trim() || null,
                 category:     document.getElementById('category').value,
                 reorder_point: reorderPoint,
                 near_stock_point: nearStockPoint,
-                quantity:     qtyVal ? parseInt(qtyVal) : 0,
+                quantity:     0,
                 unit:         normalizeUnit(document.getElementById('unit').value, 'ชิ้น'),
                 width:        document.getElementById('width').value  ? parseFloat(document.getElementById('width').value)  : null,
                 height:       document.getElementById('height').value ? parseFloat(document.getElementById('height').value) : null,
             };
             
-            const { error } = await dbSupabase
+            const { data: created, error } = await dbSupabase
                 .from(STOCK_TABLE_NAME)
-                .insert([formData]);
+                .insert([formData])
+                .select()
+                .single();
             if (error) throw error;
-            showToast('✅ เพิ่มสินค้าเรียบร้อย', 'success');
-        }
+            if (qtyVal > 0 && created) {
+                const adjRes = await openAdjDialog(created, qtyVal, { defaultType: 'receive', defaultNote: 'ยอดเริ่มต้น (สินค้าใหม่)' });
+                if (adjRes) showToast(`✅ เพิ่มสินค้าแล้ว ยอดเริ่มต้น ${adjRes.quantity ?? adjRes.new_qty} ${formData.unit}`, 'success');
+                else showToast('⚠️ เพิ่มสินค้าแล้ว แต่ยังไม่ได้ลงยอด (ยอด = 0) — ใส่จำนวนในตารางแล้วกด ✓', 'warning');
+            } else {
+                showToast('✅ เพิ่มสินค้าเรียบร้อย', 'success');
+            }
+}
         closeModal();
         await refreshStockList();
     } catch (err) {

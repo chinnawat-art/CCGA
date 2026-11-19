@@ -97,6 +97,7 @@ const PERMISSION_PAGE_CATALOG = [
     ['panels.html', 'สต๊อกบาน', '🪟'],
     ['stock_management.html', 'จัดการสต็อก', '📦'],
     ['stock_count.html', 'ตรวจนับสต็อก', '🔢'],
+    ['stock_audit.html', 'ตรวจยอดผิดปกติ', '🔎'],
     ['backup_stock.html', 'สต็อกสำรอง', '🗄️'],
     ['glass_recut.html', 'ตัดกระจกส่วนเกิน', '✂️'],
     ['glass_order.html', 'สั่งกระจก', '🧾'],
