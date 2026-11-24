@@ -16,6 +16,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <script src="auth.js?v=20261119-1"></script>
+    <script src="alu-cut-plan.js?v=20261124-1"></script>
     <link rel="stylesheet" href="theme.css">
     <script src="theme.js" defer></script>
     <style>
@@ -123,6 +124,25 @@
                 font-size:.92rem; z-index:9999; box-shadow:0 12px 30px rgba(0,0,0,.3);
                 max-width:calc(100vw - 32px); text-align:center; white-space:pre-line; }
         #printArea { display:none; }
+        /* จัดเส้น */
+        .plan { margin-top:10px; border:2px solid #7c3aed; border-radius:12px; padding:10px; background: rgba(124,58,237,.05); }
+        .pgrp { border-top:1px dashed var(--border-strong,#cbd5e1); padding:9px 0 4px; }
+        .pgrp:first-of-type { border-top:0; }
+        .pgrp-head { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; align-items:baseline; }
+        .pgrp-head b { font-size:.98rem; }
+        .pat { display:flex; gap:8px; align-items:baseline; padding:3px 0; font-size:.9rem; flex-wrap:wrap; }
+        .pat .x { flex:0 0 auto; min-width:64px; font-weight:700; color:#7c3aed; }
+        .pat .c { flex:1 1 200px; min-width:0; font-family:ui-monospace,Consolas,monospace; }
+        .pat .w { flex:0 0 auto; font-size:.8rem; color: var(--muted-strong,#64748b); }
+        .barviz { display:flex; height:9px; border-radius:4px; overflow:hidden; margin:2px 0 4px 72px; background: rgba(100,116,139,.18); }
+        .barviz i { display:block; height:100%; border-right:1px solid rgba(255,255,255,.9); }
+        .lt table { width:100%; border-collapse:collapse; font-size:.86rem; }
+        .lt th, .lt td { padding:6px 5px; border-bottom:1px solid var(--border-strong,#e2e8f0); text-align:left; }
+        .lt th { font-weight:600; color: var(--muted-strong,#64748b); font-size:.78rem; }
+        .lt select, .lt input { font-family:inherit; font-size:.88rem; padding:6px 7px; border:1px solid var(--border-strong,#cbd5e1);
+                                border-radius:9px; background: var(--surface,#fff); color: var(--text-main,#0f172a); max-width:100%; }
+        .lt input.n { width:82px; text-align:right; }
+        .lt tr.chg td { background: rgba(217,119,6,.08); }
         @media (max-width:560px) {
             .qty { margin-left:32px; }
             .ord table { font-size:.8rem; }
@@ -165,6 +185,7 @@
         <div class="tabs">
             <button type="button" class="tab on" data-tab="need">💡 ต้องสั่ง</button>
             <button type="button" class="tab" data-tab="orders">📋 ใบสั่งตัด <span class="n" id="nOpen">0</span></button>
+            <button type="button" class="tab" data-tab="lines">📏 เส้นโรงงาน <span class="n" id="nGuess" style="display:none;"></span></button>
         </div>
 
         <!-- ───────── แท็บต้องสั่ง ───────── -->
@@ -230,6 +251,32 @@
                 <datalist id="aluCodes"></datalist>
             </div>
         </div>
+
+        <!-- ───────── แท็บเส้นโรงงาน (ใช้จัดเส้น) ───────── -->
+        <div id="tabLines" style="display:none;">
+            <div class="card">
+                <h2>🧩 ชิ้นใน ERP ตัดจากเส้นไหน</h2>
+                <div class="meta">ใช้ตอนกด <b>🧮 จัดเส้น</b> ในใบสั่งตัด · ชิ้นที่ใช้เส้นเดียวกันจะถูกจัดรวมกัน (เช่น ขวางบนประตู + หน้าต่าง)
+                    <br>⚠️ = ระบบเดาจากชื่อ ยังไม่มีคนยืนยัน · ตรวจแล้วกด <b>💾 บันทึก</b> ด้านล่าง = ยืนยันทุกแถว</div>
+                <div class="toolbar" style="margin-top:8px;">
+                    <select id="lModel"><option value="">ประตู + หน้าต่าง</option><option value="SLD">🚪 ประตู (SLD)</option><option value="SLWD">🪟 หน้าต่าง (SLWD)</option></select>
+                    <select id="lState"><option value="">ทุกแถว</option><option value="guess">⚠️ ยังไม่ยืนยัน</option><option value="none">❓ ยังไม่รู้ว่าตัดจากเส้นไหน</option></select>
+                </div>
+                <div class="tbl lt" id="mapList"><div class="empty">กำลังโหลด...</div></div>
+            </div>
+            <div class="card">
+                <h2>📏 เส้นของโรงงานรับตัด</h2>
+                <div class="meta">รหัสเดียวกับในแอปโรงงาน (เช่น P009) · ความยาวเส้นเต็ม (มม.) ใช้คิดว่าตัดได้กี่ท่อน · เส้นต่อมัดใช้บอกว่ากี่มัด
+                    <br>สูตรเดียวกับแอปโรงงาน: หัวเส้น 50 มม. + ใบตัด 5 มม. ต่อท่อน</div>
+                <div class="tbl lt" id="profList" style="margin-top:8px;"><div class="empty">กำลังโหลด...</div></div>
+                <div class="toolbar" style="margin-top:8px;margin-bottom:0;"><button type="button" class="btn" id="btnProfAdd">➕ เพิ่มเส้นใหม่</button></div>
+            </div>
+            <div class="toolbar">
+                <button type="button" class="btn btn-main" id="btnLinesSave">💾 บันทึก (ใช้ทุกเครื่อง)</button>
+                <button type="button" class="btn" id="btnLinesUndo">↩️ ยกเลิกที่แก้</button>
+                <span class="meta" id="linesNote"></span>
+            </div>
+        </div>
     </div>
 
     <div class="bar" id="bar"><div class="bar-in">
@@ -258,7 +305,14 @@
     let pickInit = false;            // เลือกที่ใกล้หมดให้อัตโนมัติครั้งแรกที่โหลด
     let createKey = null;            // กันกดสร้างใบซ้ำ (ใช้รหัสเดิมจนกว่าจะสร้างสำเร็จ)
     let busy = false, newOrderId = null;
-    let formOpen = null;             // { id, mode:'recv'|'edit', key }
+    let formOpen = null;             // { id, mode:'recv'|'edit'|'plan', key }
+    // จัดเส้น: เส้นของโรงงาน + ชิ้น ERP → เส้นไหน (alu-order-step2.sql)
+    let cut = { ready: false, err: null, profiles: [], map: [] };
+    let cutVer = 0;                  // เปลี่ยนเมื่อโหลด/บันทึกค่าเส้นใหม่ → ผลจัดเส้นที่จำไว้ใช้ไม่ได้
+    const planCache = new Map();     // id ใบ → { ver, fill, res }
+    let planFill = true;             // เติมเศษเป็นท่อน (ไม่เพิ่มเส้น) · จำต่อเครื่อง
+    try { planFill = localStorage.getItem('ccga_alu_plan_fill') !== '0'; } catch (e) {}
+    let lineEdit = null;             // ที่แก้ค้างในแท็บเส้นโรงงาน { prof: Map(code→row), map: Map(key→code|''), added: [] }
 
     function esc(s) {
         return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -297,6 +351,7 @@
     }
     function errText(e) {
         const m = String((e && (e.message || e.details)) || e || '');
+        if (/rpc_alu_cut|alu_cut_/i.test(m)) return 'ฐานข้อมูลยังไม่ได้ติดตั้งส่วนจัดเส้น (alu-order-step2.sql)';
         if (/rpc_alu|alu_order|schema cache|Could not find/i.test(m)) return 'ฐานข้อมูลยังไม่ได้ติดตั้งระบบสั่งตัดอลูมิเนียม (alu-order-step1.sql)';
         if (/Failed to fetch|NetworkError|timeout|aborted/i.test(m)) return 'เน็ตหลุดหรือช้า — ลองใหม่อีกครั้ง (กดซ้ำได้ ระบบไม่บันทึกซ้ำ)';
         return m;
@@ -329,11 +384,25 @@
         if (error) throw error;
         orders = data || [];
     }
+    // ค่าเส้นโหลดไม่ได้ (ยังไม่รัน step2) → หน้าอื่นใช้ได้ตามเดิม แค่จัดเส้นไม่ได้
+    async function loadCut() {
+        try {
+            const { data, error } = await db.rpc('rpc_alu_cut_config');
+            if (error) throw error;
+            cut = { ready: true, err: null, profiles: data.profiles || [], map: data.map || [] };
+        } catch (e) {
+            const m = String((e && (e.message || e.details)) || e || '');
+            cut = { ready: false, profiles: [], map: [],
+                    err: /rpc_alu_cut|schema cache|Could not find/i.test(m) ? 'ฐานข้อมูลยังไม่ได้ติดตั้งส่วนจัดเส้น (alu-order-step2.sql)' : errText(e) };
+        }
+        cutVer++;
+        planCache.clear();
+    }
     async function loadAll() {
         document.getElementById('needList').innerHTML = '<div class="empty">กำลังโหลด...</div>';
         try {
             await loadSettings();
-            await Promise.all([loadStats(), loadOrders()]);
+            await Promise.all([loadStats(), loadOrders(), loadCut()]);
         } catch (e) {
             const msg = '<div class="empty warn">❌ ' + esc(errText(e)) + '</div>';
             document.getElementById('needList').innerHTML = msg;
@@ -344,6 +413,8 @@
         renderSettings();
         renderNeed();
         renderOrders();
+        lineEdit = null;
+        renderLines();
     }
 
     // ───────── คิดยอด ─────────
@@ -609,12 +680,13 @@
             + '<button type="button" class="btn" data-act="copy" data-id="' + o.id + '">📋 คัดลอกรายการ</button>'
             + '<button type="button" class="btn" data-act="print" data-id="' + o.id + '">🖨️ พิมพ์ใบ</button>'
             + '<button type="button" class="btn" data-act="csv" data-id="' + o.id + '">⬇️ ไฟล์ Excel (CSV)</button>'
+            + (o.status !== 'cancelled' ? '<button type="button" class="btn" data-act="plan" data-id="' + o.id + '" style="border-color:#7c3aed;color:#7c3aed;">🧮 จัดเส้น</button>' : '')
             + (waiting && canReceive ? '<button type="button" class="btn btn-ok" data-act="recv" data-id="' + o.id + '">📥 รับของ</button>' : '')
             + (o.status !== 'cancelled' && canOrder ? '<button type="button" class="btn" data-act="edit" data-id="' + o.id + '">✏️ เลขใบโรงงาน / หมายเหตุ</button>' : '')
             + (o.status === 'partial' && canOrder ? '<button type="button" class="btn" data-act="close" data-id="' + o.id + '">📕 ปิดใบ (ไม่รอที่ค้าง)</button>' : '')
             + (o.status === 'open' && !rc.length && canOrder ? '<button type="button" class="btn btn-bad" data-act="cancel" data-id="' + o.id + '">❌ ยกเลิกใบ</button>' : '')
             + '</div>';
-        if (formOpen && formOpen.id === o.id) h += formOpen.mode === 'recv' ? recvFormHtml(o) : editFormHtml(o);
+        if (formOpen && formOpen.id === o.id) h += formOpen.mode === 'recv' ? recvFormHtml(o) : formOpen.mode === 'plan' ? planHtml(o) : editFormHtml(o);
         return h + '</div>';
     }
     function shownOrders() {
@@ -821,10 +893,272 @@
         setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
     }
 
+    // ───────── จัดเส้น (ตัวคิดอยู่ใน alu-cut-plan.js) ─────────
+    const PLAN_TRIM = 50, PLAN_KERF = 5;   // ตรงกับแอปโรงงาน: หัวเส้น 50 มม. + ใบตัด 5 มม. ต่อท่อน
+    const PLAN_COLORS = ['#7c3aed', '#0ea5e9', '#f59e0b', '#ec4899', '#10b981', '#64748b'];
+    const natCmp = (a, b) => String(a).localeCompare(String(b), 'en', { numeric: true });
+    function mapKey(model, part, color) { return model + '|' + part + '|' + color; }
+    function mapRow(model, part, color) { return cut.map.find(m => m.model === model && m.part === part && m.color === color) || null; }
+    function profByCode(code) { return cut.profiles.find(p => p.code === code) || null; }
+    function bundleText(bars, bundle) {
+        if (!(bundle > 1) || bars < bundle) return num(bars) + ' เส้น';
+        const b = Math.floor(bars / bundle), r = bars % bundle;
+        return num(bars) + ' เส้น (' + num(b) + ' มัด' + (r ? ' ' + num(r) + ' เส้น' : '') + ')';
+    }
+    function cutsText(cuts) { return cuts.map(c => c.len + '×' + c.count).join(' + '); }
+    // ใบ 1 ใบ → แยกตามเส้นของโรงงาน (ชิ้นที่ใช้เส้นเดียวกันจัดรวมกัน) → จัดเส้นทีละเส้น · จำผลไว้จนกว่าค่าเส้นจะเปลี่ยน
+    function planOrder(o) {
+        const c = planCache.get(o.id);
+        if (c && c.ver === cutVer && c.fill === planFill) return c.res;
+        const groups = new Map(), unmapped = [];
+        linesOf(o).forEach(l => {
+            if (!(l.qty > 0)) return;   // รายการ "ได้เพิ่ม" ไม่ใช่ของที่สั่ง
+            const p = parse(l.product_code);
+            const m = p && mapRow(p.model, p.part, p.color);
+            const prof = m && m.profile_code ? profByCode(m.profile_code) : null;
+            if (!p || !prof || prof.active === false) {
+                unmapped.push({ l, p, why: !p ? 'รหัสอ่านไม่ออก' : !m || !m.profile_code ? 'ยังไม่ได้ตั้งว่าตัดจากเส้นไหน' : 'เส้น ' + m.profile_code + ' ปิดใช้อยู่' });
+                return;
+            }
+            let g = groups.get(prof.code);
+            if (!g) { g = { prof, items: [], guess: false, parts: [] }; groups.set(prof.code, g); }
+            g.items.push({ l, p, mm: mmOf(p.len) });
+            const pn = (KIND[p.model] || p.model) + ' ' + p.part;
+            if (!g.parts.includes(pn)) g.parts.push(pn);
+            if (!m.confirmed) g.guess = true;
+        });
+        const out = [...groups.values()].sort((a, b) => natCmp(a.prof.code, b.prof.code)).map(g => {
+            const dem = new Map();
+            g.items.forEach(it => dem.set(it.mm, (dem.get(it.mm) || 0) + it.l.qty));
+            g.res = window.AluCutPlan.plan({ barLen: Number(g.prof.bar_mm), trim: PLAN_TRIM, kerf: PLAN_KERF, fill: planFill,
+                demand: [...dem].map(([len, qty]) => ({ len, qty })) });
+            return g;
+        });
+        const res = { groups: out, unmapped, bars: out.reduce((a, g) => a + (g.res.ok ? g.res.bars : 0), 0), guess: out.some(g => g.guess) };
+        planCache.set(o.id, { ver: cutVer, fill: planFill, res });
+        return res;
+    }
+    // แถบเส้น: หัวเส้น (เทา) · ท่อน (สีตามขนาด) · เศษ (พื้น)
+    function patBar(pt, barLen) {
+        const pct = mm => (mm / barLen * 100).toFixed(3) + '%';
+        let h = '<i style="width:' + pct(PLAN_TRIM) + ';background:#94a3b8"></i>';
+        pt.cuts.forEach((c, ci) => { for (let k = 0; k < c.count; k++) h += '<i style="width:' + pct(c.len + PLAN_KERF) + ';background:' + PLAN_COLORS[ci % PLAN_COLORS.length] + '"></i>'; });
+        return '<div class="barviz" aria-hidden="true">' + h + '</div>';
+    }
+    function planHtml(o) {
+        if (!window.AluCutPlan) return '<div class="plan"><span class="warn">❌ โหลดตัวจัดเส้นไม่ได้ (alu-cut-plan.js) — รีเฟรชหน้า</span></div>';
+        if (!cut.ready) return '<div class="plan"><span class="warn">❌ ' + esc(cut.err || 'ยังโหลดค่าเส้นไม่ได้') + '</span></div>';
+        if (!formOpen || !formOpen.ready) return '<div class="plan" data-form="plan">⏳ กำลังจัดเส้น...</div>';
+        const r = planOrder(o);
+        let h = '<div class="plan" data-form="plan"><div class="pgrp-head"><b>🧮 จัดเส้นใบ ' + esc(o.order_no) + '</b>'
+            + '<span class="pill" style="background:rgba(124,58,237,.14);color:#7c3aed;">รวม ' + num(r.bars) + ' เส้น</span></div>'
+            + '<div class="meta">หัวเส้น ' + PLAN_TRIM + ' มม. + ใบตัด ' + PLAN_KERF + ' มม./ท่อน (เหมือนแอปโรงงาน) · ขนาดเป็น มม. ตัดทศนิยมทิ้ง'
+            + '<br>อ่านว่า "12 เส้น : 812×4 + 912×3" = ตัด 12 เส้น แต่ละเส้นได้ 812 มม. 4 ท่อน และ 912 มม. 3 ท่อน</div>'
+            + '<label class="meta" style="display:flex;gap:6px;align-items:center;margin-top:4px;cursor:pointer;"><input type="checkbox" data-planfill' + (planFill ? ' checked' : '') + '> ♻️ เศษที่ยังยาวพอ ตัดเป็นท่อนขนาดในใบเพิ่ม (ไม่เพิ่มเส้น · ได้ของเกินที่สั่ง)</label>';
+        if (r.guess) h += '<div class="meta" style="color:#d97706;font-weight:600;">⚠️ บางชิ้นระบบเดาให้ว่าตัดจากเส้นไหน (ยังไม่มีคนยืนยัน) — ตรวจที่แท็บ 📏 เส้นโรงงาน</div>';
+        r.groups.forEach(g => {
+            const R = g.res;
+            h += '<div class="pgrp"><div class="pgrp-head"><b>' + esc(g.prof.code + ' ' + g.prof.name) + (g.guess ? ' <span class="pill amb">⚠️ เดา</span>' : '') + '</b>'
+                + (R.ok ? '<span class="meta">เส้น ' + num(g.prof.bar_mm) + ' มม. · <b>' + bundleText(R.bars, g.prof.bundle) + '</b> · ' + num(R.patternCount) + ' แบบ · เศษ ' + R.wastePct + '%</span>' : '') + '</div>'
+                + '<div class="meta">' + esc(g.parts.join(' · ')) + '</div>';
+            if (!R.ok) { h += '<div class="warn">❌ ' + esc(R.errors.join(' · ')) + '</div></div>'; return; }
+            R.patterns.forEach(pt => {
+                h += '<div class="pat"><span class="x">' + num(pt.bars) + ' เส้น</span><span class="c">' + cutsText(pt.cuts) + '</span>'
+                    + '<span class="w">เศษ ' + num(pt.wasteMm) + ' มม./เส้น</span></div>' + patBar(pt, Number(g.prof.bar_mm));
+            });
+            if (R.extra.length) h += '<div class="meta over">ได้เกินที่สั่ง (ใช้เศษให้เป็นท่อน ไม่เพิ่มเส้น): ' + R.extra.map(e => e.len + ' มม. +' + num(e.count)).join(' · ') + '</div>';
+            h += '</div>';
+        });
+        if (r.unmapped.length) h += '<div class="pgrp"><div class="warn">❓ จัดเส้นไม่ได้ ' + num(r.unmapped.length) + ' รายการ (ไม่รวมในยอดเส้น)</div>'
+            + r.unmapped.map(u => '<div class="meta">• ' + esc(u.p ? label(u.l.product_code) : u.l.product_code) + ' × ' + num(u.l.qty) + ' — ' + esc(u.why) + '</div>').join('') + '</div>';
+        h += '<div class="toolbar" style="margin:8px 0 0;"><button type="button" class="btn" data-act="planCopy" data-id="' + o.id + '">📋 คัดลอกแบบตัด</button>'
+            + '<button type="button" class="btn" data-act="planPrint" data-id="' + o.id + '">🖨️ พิมพ์แบบตัด</button>'
+            + '<button type="button" class="btn" data-act="formClose" data-id="' + o.id + '">ปิด</button></div></div>';
+        return h;
+    }
+    function planText(o) {
+        const r = planOrder(o), out = ['แบบตัดใบ ' + o.order_no + ' (' + fmtDate(o.created_at) + ') · หัวเส้น ' + PLAN_TRIM + ' + ใบตัด ' + PLAN_KERF + ' มม./ท่อน'];
+        if (o.factory_ref) out.push('เลขใบโรงงาน: ' + o.factory_ref);
+        r.groups.forEach(g => {
+            const R = g.res;
+            out.push('');
+            out.push('[' + g.prof.code + ' ' + g.prof.name + ' · เส้น ' + num(g.prof.bar_mm) + ' มม.]' + (R.ok ? ' รวม ' + bundleText(R.bars, g.prof.bundle) : ''));
+            if (!R.ok) { out.push('❌ ' + R.errors.join(' · ')); return; }
+            R.patterns.forEach(pt => out.push('• ' + num(pt.bars) + ' เส้น: ' + cutsText(pt.cuts) + ' (เศษ ' + num(pt.wasteMm) + ')'));
+            if (R.extra.length) out.push('  ได้เกินที่สั่ง: ' + R.extra.map(e => e.len + ' +' + e.count).join(', '));
+        });
+        if (r.unmapped.length) { out.push(''); out.push('จัดเส้นไม่ได้: ' + r.unmapped.map(u => (u.p ? label(u.l.product_code) : u.l.product_code) + ' ×' + u.l.qty).join(', ')); }
+        out.push(''); out.push('รวม ' + num(r.bars) + ' เส้น');
+        return out.join('\n');
+    }
+    function printPlan(o) {
+        const r = planOrder(o);
+        document.getElementById('printArea').innerHTML = '<h1>แบบตัดอลูมิเนียม ' + esc(o.order_no) + '</h1>'
+            + '<div class="pm">CG Alu Tech · ' + fmtDate(o.created_at) + (o.factory_ref ? ' · เลขใบโรงงาน ' + esc(o.factory_ref) : '')
+            + ' · หัวเส้น ' + PLAN_TRIM + ' มม. + ใบตัด ' + PLAN_KERF + ' มม./ท่อน · รวม ' + num(r.bars) + ' เส้น</div>'
+            + '<table><tr><th>แบบ</th><th class="n">จำนวนเส้น</th><th>ตัด (มม. × ท่อนต่อเส้น)</th><th class="n">เศษ/เส้น (มม.)</th><th>✓ ตัดแล้ว</th></tr>'
+            + r.groups.map(g => '<tr class="gh"><td colspan="5">' + esc(g.prof.code + ' ' + g.prof.name) + ' · เส้น ' + num(g.prof.bar_mm) + ' มม.'
+                + (g.res.ok ? ' · รวม ' + bundleText(g.res.bars, g.prof.bundle) : '') + '</td></tr>'
+                + (g.res.ok ? g.res.patterns.map((pt, i) => '<tr><td>' + (i + 1) + '</td><td class="n"><b>' + num(pt.bars) + '</b></td><td>'
+                        + pt.cuts.map(c => '<b>' + c.len + '</b>×' + c.count).join(' + ') + '</td><td class="n">' + num(pt.wasteMm) + '</td><td></td></tr>').join('')
+                    + (g.res.extra.length ? '<tr><td colspan="5">ได้เกินที่สั่ง: ' + esc(g.res.extra.map(e => e.len + ' +' + e.count).join(', ')) + '</td></tr>' : '')
+                    : '<tr><td colspan="5">❌ ' + esc(g.res.errors.join(' · ')) + '</td></tr>')).join('')
+            + '</table>'
+            + (r.unmapped.length ? '<div class="pm" style="margin-top:3mm;">จัดเส้นไม่ได้: ' + esc(r.unmapped.map(u => (u.p ? label(u.l.product_code) : u.l.product_code) + ' ×' + u.l.qty).join(', ')) + '</div>' : '');
+        window.print();
+    }
+
+    // ───────── แท็บเส้นโรงงาน ─────────
+    // ชิ้นทั้งหมดที่เจอ (จากสต็อก + ที่ตั้งไว้แล้ว)
+    function erpParts() {
+        const m = new Map();
+        rows.forEach(r => {
+            const k = mapKey(r.model, r.part, r.color);
+            if (!m.has(k)) m.set(k, { model: r.model, part: r.part, color: r.color, n: 0 });
+            m.get(k).n++;
+        });
+        cut.map.forEach(x => { const k = mapKey(x.model, x.part, x.color); if (!m.has(k)) m.set(k, { model: x.model, part: x.part, color: x.color, n: 0 }); });
+        return [...m.values()].sort((a, b) => b.model.localeCompare(a.model) || a.part.localeCompare(b.part, 'th') || a.color.localeCompare(b.color, 'th'));
+    }
+    function editState() {
+        if (!lineEdit) lineEdit = { prof: new Map(), map: new Map(), added: [] };
+        return lineEdit;
+    }
+    function savedMap(x) { const m = mapRow(x.model, x.part, x.color); return m && m.profile_code ? m.profile_code : ''; }
+    function curMap(x) {
+        const k = mapKey(x.model, x.part, x.color);
+        return lineEdit && lineEdit.map.has(k) ? lineEdit.map.get(k) : savedMap(x);
+    }
+    function isGuess(x) { const m = mapRow(x.model, x.part, x.color); return !m || !m.confirmed; }
+    function allProfiles() { return cut.profiles.concat(lineEdit ? lineEdit.added : []); }
+    function profVal(p, f) { const e = lineEdit && lineEdit.prof.get(p.code); return e && f in e ? e[f] : p[f]; }
+    function shownParts() {
+        const fm = document.getElementById('lModel').value, fs = document.getElementById('lState').value;
+        return erpParts().filter(x => (!fm || x.model === fm) && (!fs || (fs === 'none' ? !curMap(x) : isGuess(x))));
+    }
+    function linesDirty() { return !!(lineEdit && (lineEdit.prof.size || lineEdit.map.size || lineEdit.added.length)); }
+    function linesButtons() {
+        const parts = cut.ready ? erpParts() : [];
+        const guess = parts.filter(isGuess).length, ng = document.getElementById('nGuess');
+        ng.textContent = '⚠️ ' + guess; ng.style.display = guess ? '' : 'none';
+        const dirty = linesDirty();
+        document.getElementById('btnLinesSave').disabled = !canOrder || !cut.ready || busy;
+        document.getElementById('btnLinesUndo').disabled = !dirty;
+        document.getElementById('btnProfAdd').disabled = !canOrder || !cut.ready;
+        document.getElementById('linesNote').textContent = !canOrder ? '👁️ แก้ต้องมีสิทธิ์ "🪚 สั่งตัดอลูมิเนียม"'
+            : dirty ? '✏️ มีที่แก้ยังไม่บันทึก' : guess ? 'ตรวจแล้วกดบันทึก = ยืนยันทุกแถวที่แสดงอยู่' : '';
+    }
+    function renderLines() { renderLinesPart(true); }
+    // withProf=false วาดแค่ตารางชิ้น→เส้น (ตอนแก้ชื่อ/สี/รหัสเส้น) ตารางเส้นไม่ถูกวาดใหม่ ช่องที่กำลังจะพิมพ์ต่อจะได้ไม่หลุด
+    function renderLinesPart(withProf) {
+        const mapBox = document.getElementById('mapList'), profBox = document.getElementById('profList');
+        if (!cut.ready) {
+            const msg = '<div class="empty warn">❌ ' + esc(cut.err || 'ยังโหลดไม่ได้') + '</div>';
+            mapBox.innerHTML = msg; profBox.innerHTML = msg;
+            linesButtons();
+            return;
+        }
+        const dis = canOrder ? '' : ' disabled';
+        const profs = allProfiles().filter(p => profVal(p, 'active') !== false && String(p.code || '').trim());
+        const shown = shownParts();
+        mapBox.innerHTML = !shown.length ? '<div class="empty">ไม่มีรายการ</div>'
+            : '<table><tr><th>ชิ้นใน ERP</th><th>ตัดจากเส้น</th><th></th></tr>' + shown.map(x => {
+                const m = mapRow(x.model, x.part, x.color), k = mapKey(x.model, x.part, x.color), v = curMap(x);
+                const chg = !!(lineEdit && lineEdit.map.has(k));
+                const opts = profs.slice().sort((a, b) => ((profVal(b, 'color') === x.color) - (profVal(a, 'color') === x.color)) || natCmp(a.code, b.code));
+                if (v && !opts.some(p => p.code === v)) opts.unshift({ code: v, name: '(ปิดใช้อยู่)' });
+                return '<tr' + (chg ? ' class="chg"' : '') + '><td>' + (KIND_ICON[x.model] || '') + ' ' + esc((KIND[x.model] || x.model) + ' ' + x.part + ' ' + x.color)
+                    + (x.n ? ' <span class="meta">(' + num(x.n) + ' ขนาด)</span>' : '') + '</td>'
+                    + '<td><select data-map="' + esc(k) + '"' + dis + '><option value="">— ยังไม่รู้ —</option>'
+                    + opts.map(p => { const c = profVal(p, 'color'); return '<option value="' + esc(p.code) + '"' + (p.code === v ? ' selected' : '') + '>' + esc(p.code + ' ' + (profVal(p, 'name') || ''))
+                        + (c && c !== x.color ? ' (สีไม่ตรง)' : '') + '</option>'; }).join('') + '</select></td>'
+                    + '<td>' + (chg ? '<span class="pill amb">✏️ แก้แล้ว</span>' : !m ? '<span class="pill gry">ใหม่</span>'
+                        : m.confirmed ? '<span class="pill grn">✓ ยืนยันแล้ว</span>' : '<span class="pill amb">⚠️ ระบบเดา</span>') + '</td></tr>';
+            }).join('') + '</table>';
+        if (!withProf) { linesButtons(); return; }
+        const plist = cut.profiles.slice().sort((a, b) => natCmp(a.code, b.code)).concat(lineEdit ? lineEdit.added : []);
+        profBox.innerHTML = '<table><tr><th>รหัส</th><th>ชื่อ (ตามแอปโรงงาน)</th><th>สี</th><th>ยาวเส้น (มม.)</th><th>เส้น/มัด</th><th>ใช้</th></tr>'
+            + plist.map(p => {
+                const ni = lineEdit ? lineEdit.added.indexOf(p) : -1, chg = ni >= 0 || !!(lineEdit && lineEdit.prof.has(p.code));
+                const col = profVal(p, 'color') || '';
+                const cols = ['', 'ขาว', 'ดำ'].concat(col && !['ขาว', 'ดำ'].includes(col) ? [col] : []);
+                return '<tr' + (chg ? ' class="chg"' : '') + (ni >= 0 ? ' data-new="' + ni + '"' : ' data-prof="' + esc(p.code) + '"') + '>'
+                    + '<td>' + (ni >= 0 ? '<input data-pf="code" maxlength="20" placeholder="P035" value="' + esc(p.code) + '" style="width:80px"' + dis + '>' : '<b>' + esc(p.code) + '</b>') + '</td>'
+                    + '<td><input data-pf="name" maxlength="80" value="' + esc(profVal(p, 'name')) + '" style="width:100%;min-width:150px"' + dis + '></td>'
+                    + '<td><select data-pf="color"' + dis + '>' + cols.map(c => '<option value="' + esc(c) + '"' + (c === col ? ' selected' : '') + '>' + esc(c || '-') + '</option>').join('') + '</select></td>'
+                    + '<td><input class="n" data-pf="bar_mm" type="number" inputmode="numeric" min="1000" max="15000" step="1" value="' + esc(profVal(p, 'bar_mm')) + '"' + dis + '></td>'
+                    + '<td><input class="n" data-pf="bundle" type="number" inputmode="numeric" min="1" max="1000" step="1" value="' + esc(profVal(p, 'bundle')) + '" style="width:64px"' + dis + '></td>'
+                    + '<td><input type="checkbox" data-pf="active"' + (profVal(p, 'active') !== false ? ' checked' : '') + dis + '></td></tr>';
+            }).join('') + '</table>';
+        linesButtons();
+    }
+    // แก้ช่องในตารางเส้น (ไม่วาดตารางใหม่ระหว่างพิมพ์ เคอร์เซอร์จะได้ไม่หลุด)
+    function onProfInput(el) {
+        const tr = el.closest('tr'), f = el.dataset.pf, e = editState();
+        const v = f === 'active' ? el.checked : f === 'bar_mm' || f === 'bundle' ? (el.value === '' ? '' : Number(el.value)) : el.value;
+        if (tr.dataset.new !== undefined) { const p = e.added[Number(tr.dataset.new)]; if (p) p[f] = v; }
+        else {
+            const code = tr.dataset.prof, orig = cut.profiles.find(p => p.code === code);
+            if (!orig) return;
+            const ch = Object.assign({}, e.prof.get(code) || {});
+            const same = f === 'color' ? (v || null) === (orig.color || null) : f === 'active' ? v === (orig.active !== false) : String(v) === String(orig[f]);
+            if (same) delete ch[f]; else ch[f] = f === 'color' ? (v || null) : v;
+            if (Object.keys(ch).length) e.prof.set(code, ch); else e.prof.delete(code);
+            tr.classList.toggle('chg', e.prof.has(code));
+        }
+        linesButtons();
+    }
+    async function saveLines(btn) {
+        if (!canOrder || busy || !cut.ready) return;
+        const e = lineEdit || { prof: new Map(), map: new Map(), added: [] };
+        const profs = [];
+        for (const [code, ch] of e.prof) { const p = cut.profiles.find(x => x.code === code); if (p) profs.push(Object.assign({}, p, ch)); }
+        e.added.forEach(p => profs.push(Object.assign({}, p)));
+        for (const p of profs) {
+            p.code = String(p.code || '').trim(); p.name = String(p.name || '').trim();
+            if (!/^[A-Za-z0-9-]{1,20}$/.test(p.code)) { toast('รหัสเส้น "' + p.code + '" ใช้ได้แค่ตัวอังกฤษ ตัวเลข และขีด (เช่น P035)', 5000); return; }
+            if (!p.name) { toast('เส้น ' + p.code + ' ต้องมีชื่อ'); return; }
+            if (!Number.isInteger(p.bar_mm) || p.bar_mm < 1000 || p.bar_mm > 15000) { toast('เส้น ' + p.code + ': ความยาวเส้นต้องเป็นเลขเต็ม 1,000 – 15,000 มม.', 5000); return; }
+            if (!Number.isInteger(p.bundle) || p.bundle < 1 || p.bundle > 1000) { toast('เส้น ' + p.code + ': เส้นต่อมัดต้องเป็นเลขเต็ม 1 – 1,000', 5000); return; }
+        }
+        const newCodes = e.added.map(p => String(p.code || '').trim());
+        if (new Set(newCodes).size !== newCodes.length || newCodes.some(c => cut.profiles.some(p => p.code === c))) { toast('รหัสเส้นใหม่ซ้ำกับที่มีอยู่แล้ว', 5000); return; }
+        // ยืนยันทุกแถวที่แสดงอยู่ + แถวที่แก้ (ถึงจะถูกตัวกรองซ่อน)
+        const keys = new Set(), mapRows = [];
+        const add = x => { const k = mapKey(x.model, x.part, x.color); if (keys.has(k)) return; keys.add(k); mapRows.push({ model: x.model, part: x.part, color: x.color, profile_code: curMap(x) || null }); };
+        shownParts().forEach(add);
+        erpParts().filter(x => e.map.has(mapKey(x.model, x.part, x.color))).forEach(add);
+        const none = mapRows.filter(x => !x.profile_code).length;
+        if (!profs.length && !mapRows.length) { toast('ไม่มีอะไรต้องบันทึก'); return; }
+        if (!confirm('บันทึกค่าเส้น (ใช้ทุกเครื่องทันที)\n'
+            + (profs.length ? '• แก้/เพิ่มเส้นโรงงาน ' + num(profs.length) + ' เส้น\n' : '')
+            + (mapRows.length ? '• ยืนยันชิ้น→เส้น ' + num(mapRows.length) + ' แถว' + (none ? ' (ยังไม่รู้เส้น ' + num(none) + ' แถว — จะจัดเส้นไม่ได้)' : '') + '\n' : '')
+            + '\nยืนยัน?')) return;
+        busy = true; linesButtons();
+        btn.textContent = '⏳ กำลังบันทึก...';
+        try {
+            const { data, error } = await db.rpc('rpc_alu_cut_config_save', {
+                p_profiles: profs.map(p => ({ code: p.code, name: p.name, color: p.color || null, bar_mm: p.bar_mm, bundle: p.bundle, active: p.active !== false })),
+                p_map: mapRows
+            });
+            if (error) throw error;
+            lineEdit = null;
+            await loadCut();
+            renderLines(); renderOrders();
+            toast('✅ บันทึกแล้ว · เส้น ' + num(data.profiles) + ' · ชิ้น→เส้น ' + num(data.map) + ' แถว');
+        } catch (err) {
+            toast('❌ บันทึกไม่สำเร็จ: ' + errText(err), 7000);
+        } finally {
+            busy = false; btn.textContent = '💾 บันทึก (ใช้ทุกเครื่อง)'; linesButtons();
+        }
+    }
+
     function switchTab(t) {
         document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
         document.getElementById('tabNeed').style.display = t === 'need' ? '' : 'none';
         document.getElementById('tabOrders').style.display = t === 'orders' ? '' : 'none';
+        document.getElementById('tabLines').style.display = t === 'lines' ? '' : 'none';
+        if (t === 'lines') renderLines();
         if (t === 'orders') {
             renderOrders();
             if (newOrderId) setTimeout(() => { const el = document.getElementById('ord-' + newOrderId); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
@@ -905,7 +1239,19 @@
                 renderOrders();
                 const card = document.getElementById('ord-' + id);
                 if (card && formOpen) { recvSum(card); const f = card.querySelector('[data-form]'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
-            } else if (act === 'formClose') { formOpen = null; renderOrders(); }
+            } else if (act === 'plan') {
+                if (formOpen && formOpen.id === id && formOpen.mode === 'plan') { formOpen = null; renderOrders(); return; }
+                const c = planCache.get(id);
+                formOpen = { id, mode: 'plan', ready: !!(c && c.ver === cutVer && c.fill === planFill) };
+                renderOrders();
+                const show = () => { const f = document.querySelector('#ord-' + id + ' [data-form]'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); };
+                show();
+                // คิดหลังวาด "กำลังจัดเส้น" ให้เห็นก่อน (ใบใหญ่บนมือถืออาจใช้ 1–2 วินาที)
+                if (!formOpen.ready) setTimeout(() => { if (formOpen && formOpen.id === id && formOpen.mode === 'plan') { formOpen.ready = true; renderOrders(); show(); } }, 40);
+            } else if (act === 'planCopy') {
+                copyText(planText(o)).then(ok => toast(ok ? '📋 คัดลอกแบบตัดใบ ' + o.order_no + ' แล้ว — วางในไลน์หรือใช้ลงแอปโรงงาน' : '❌ คัดลอกไม่ได้ ลองใช้ปุ่มพิมพ์แทน', 4000));
+            } else if (act === 'planPrint') printPlan(o);
+            else if (act === 'formClose') { formOpen = null; renderOrders(); }
             else if (act === 'recvAll' || act === 'recvZero') {
                 const card = document.getElementById('ord-' + id);
                 card.querySelectorAll('[data-rcode]').forEach(i => { if (act === 'recvZero' || Number(i.dataset.left) > 0) i.value = act === 'recvAll' ? i.dataset.left : 0; });
@@ -916,11 +1262,49 @@
             else if (act === 'editSave') saveEdit(id, b);
             else if (act === 'close' || act === 'cancel') closeOrCancel(id, act);
         });
+        ordBox.addEventListener('change', e => {
+            const t = e.target.closest('[data-planfill]');
+            if (!t || !formOpen || formOpen.mode !== 'plan') return;
+            planFill = t.checked;
+            try { localStorage.setItem('ccga_alu_plan_fill', planFill ? '1' : '0'); } catch (x) {}
+            const id = formOpen.id, c = planCache.get(id);
+            formOpen.ready = !!(c && c.ver === cutVer && c.fill === planFill);
+            renderOrders();
+            if (!formOpen.ready) setTimeout(() => { if (formOpen && formOpen.id === id && formOpen.mode === 'plan') { formOpen.ready = true; renderOrders(); } }, 40);
+        });
         ordBox.addEventListener('input', e => {
             if (!e.target.closest('[data-rcode]')) return;
             const card = e.target.closest('.ord');
             if (card) recvSum(card);
         });
+
+        // แท็บเส้นโรงงาน
+        ['lModel', 'lState'].forEach(id => document.getElementById(id).addEventListener('change', renderLines));
+        document.getElementById('btnLinesSave').addEventListener('click', e => saveLines(e.currentTarget));
+        document.getElementById('btnLinesUndo').addEventListener('click', () => { lineEdit = null; renderLines(); });
+        document.getElementById('btnProfAdd').addEventListener('click', () => {
+            editState().added.push({ code: '', name: '', color: '', bar_mm: 6400, bundle: 1, active: true });
+            renderLines();
+            const ins = document.querySelectorAll('#profList [data-new] [data-pf="code"]');
+            if (ins.length) { ins[ins.length - 1].focus(); ins[ins.length - 1].scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+        });
+        document.getElementById('mapList').addEventListener('change', e => {
+            const s = e.target.closest('[data-map]');
+            if (!s) return;
+            const k = s.dataset.map, [model, part, color] = k.split('|'), ed = editState();
+            if (s.value === savedMap({ model, part, color })) ed.map.delete(k); else ed.map.set(k, s.value);
+            renderLines();
+        });
+        const profBox = document.getElementById('profList');
+        profBox.addEventListener('input', e => { const el = e.target.closest('[data-pf]'); if (el && el.type !== 'checkbox' && el.tagName !== 'SELECT') onProfInput(el); });
+        profBox.addEventListener('change', e => {
+            const el = e.target.closest('[data-pf]');
+            if (!el) return;
+            onProfInput(el);
+            // สี/ชื่อ/รหัส/ปิดใช้ มีผลกับตัวเลือกด้านบน → วาดใหม่แค่ตารางด้านบน
+            if (el.tagName === 'SELECT' || el.type === 'checkbox' || el.dataset.pf === 'name' || el.dataset.pf === 'code') renderLinesPart(false);
+        });
+        window.addEventListener('beforeunload', e => { if (linesDirty()) { e.preventDefault(); e.returnValue = ''; } });
     });
 </script>
 </body>
