@@ -130,6 +130,8 @@
         .pgrp:first-of-type { border-top:0; }
         .pgrp-head { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; align-items:baseline; }
         .pgrp-head b { font-size:.98rem; }
+        .lotpick { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:4px 0 2px; color:#7c3aed; font-weight:600; }
+        .lotpick select { max-width:100%; border-color:#7c3aed; }
         .pat { display:flex; gap:8px; align-items:baseline; padding:3px 0; font-size:.9rem; flex-wrap:wrap; }
         .pat .x { flex:0 0 auto; min-width:64px; font-weight:700; color:#7c3aed; }
         .pat .c { flex:1 1 200px; min-width:0; font-family:ui-monospace,Consolas,monospace; }
@@ -267,7 +269,8 @@
             <div class="card">
                 <h2>📏 เส้นของโรงงานรับตัด</h2>
                 <div class="meta">รหัสเดียวกับในแอปโรงงาน (เช่น P009) · ความยาวเส้นเต็ม (มม.) ใช้คิดว่าตัดได้กี่ท่อน · เส้นต่อมัดใช้บอกว่ากี่มัด
-                    <br>สูตรเดียวกับแอปโรงงาน: หัวเส้น 50 มม. + ใบตัด 5 มม. ต่อท่อน</div>
+                    <br>สูตรเดียวกับแอปโรงงาน: หัวเส้น 50 มม. + ใบตัด 5 มม. ต่อท่อน
+                    <br>↔ = เส้นเดียวกันคนละล็อต (ชื่อเหมือนกัน ต่างแค่ความยาว) — ตอนกด 🧮 จัดเส้น เลือกได้ทีละใบว่าโรงงานมีล็อตไหน · ล็อตใหม่ยาวไม่ตรง = ➕ เพิ่มเส้นใหม่ ชื่อเดิม + ความยาวใหม่</div>
                 <div class="tbl lt" id="profList" style="margin-top:8px;"><div class="empty">กำลังโหลด...</div></div>
                 <div class="toolbar" style="margin-top:8px;margin-bottom:0;"><button type="button" class="btn" id="btnProfAdd">➕ เพิ่มเส้นใหม่</button></div>
             </div>
@@ -309,9 +312,12 @@
     // จัดเส้น: เส้นของโรงงาน + ชิ้น ERP → เส้นไหน (alu-order-step2.sql)
     let cut = { ready: false, err: null, profiles: [], map: [] };
     let cutVer = 0;                  // เปลี่ยนเมื่อโหลด/บันทึกค่าเส้นใหม่ → ผลจัดเส้นที่จำไว้ใช้ไม่ได้
-    const planCache = new Map();     // id ใบ → { ver, fill, res }
+    const planCache = new Map();     // id ใบ → { ver, fill, lot, res }
     let planFill = true;             // เติมเศษเป็นท่อน (ไม่เพิ่มเส้น) · จำต่อเครื่อง
     try { planFill = localStorage.getItem('ccga_alu_plan_fill') !== '0'; } catch (e) {}
+    // ล็อตเส้นที่เลือกทีละใบ (เส้นเดียวกันแต่ละล็อตยาวไม่เท่ากัน เช่น P022 6.1 m ↔ P-034 5.9 m) · id ใบ → { ตระกูลเส้น: รหัส } · จำต่อเครื่อง
+    let planLot = {};
+    try { planLot = JSON.parse(localStorage.getItem('ccga_alu_plan_lot') || '{}') || {}; } catch (e) { planLot = {}; }
     let lineEdit = null;             // ที่แก้ค้างในแท็บเส้นโรงงาน { prof: Map(code→row), map: Map(key→code|''), added: [] }
 
     function esc(s) {
@@ -906,22 +912,43 @@
         return num(bars) + ' เส้น (' + num(b) + ' มัด' + (r ? ' ' + num(r) + ' เส้น' : '') + ')';
     }
     function cutsText(cuts) { return cuts.map(c => c.len + '×' + c.count).join(' + '); }
-    // ใบ 1 ใบ → แยกตามเส้นของโรงงาน (ชิ้นที่ใช้เส้นเดียวกันจัดรวมกัน) → จัดเส้นทีละเส้น · จำผลไว้จนกว่าค่าเส้นจะเปลี่ยน
+    // เส้นเดียวกันคนละล็อต = ชื่อเหมือนกันเมื่อตัดความยาว/คำบอกสีออก + สีเดียวกัน
+    // เช่น "เฟรมบนเตี้ย อบขาว 6.1 m" (P022) กับ "เฟรมบนเตี้ย อบขาว 5.9 m" (P-034)
+    function profFam(p) {
+        const stem = String(p && p.name || '').toLowerCase()
+            .replace(/[0-9]+([.,][0-9]+)?\s*(เมตร|ม\.|m\b)?/g, ' ')
+            .replace(/ยาว|สีดำ|สีขาว|อบขาว|สี|ดำ|ขาว/g, ' ').replace(/\s+/g, '');
+        return stem ? stem + '|' + (p.color || '') : '';
+    }
+    function lotsOf(p) {
+        const f = profFam(p);
+        if (!f) return [p];
+        return cut.profiles.filter(x => x.active !== false && profFam(x) === f).sort((a, b) => a.bar_mm - b.bar_mm || natCmp(a.code, b.code));
+    }
+    function lotSig(id) { return JSON.stringify(planLot[id] || {}); }
+    function planFresh(id) { const c = planCache.get(id); return !!(c && c.ver === cutVer && c.fill === planFill && c.lot === lotSig(id)); }
+    // ใบ 1 ใบ → แยกตามเส้นของโรงงาน (ชิ้นที่ใช้เส้นเดียวกันจัดรวมกัน) → จัดเส้นทีละเส้น · จำผลไว้จนกว่าค่าเส้น/ตัวเลือกจะเปลี่ยน
     function planOrder(o) {
-        const c = planCache.get(o.id);
-        if (c && c.ver === cutVer && c.fill === planFill) return c.res;
-        const groups = new Map(), unmapped = [];
+        if (planFresh(o.id)) return planCache.get(o.id).res;
+        const groups = new Map(), unmapped = [], picks = planLot[o.id] || {};
         linesOf(o).forEach(l => {
             if (!(l.qty > 0)) return;   // รายการ "ได้เพิ่ม" ไม่ใช่ของที่สั่ง
             const p = parse(l.product_code);
             const m = p && mapRow(p.model, p.part, p.color);
-            const prof = m && m.profile_code ? profByCode(m.profile_code) : null;
+            let prof = m && m.profile_code ? profByCode(m.profile_code) : null;
             if (!p || !prof || prof.active === false) {
                 unmapped.push({ l, p, why: !p ? 'รหัสอ่านไม่ออก' : !m || !m.profile_code ? 'ยังไม่ได้ตั้งว่าตัดจากเส้นไหน' : 'เส้น ' + m.profile_code + ' ปิดใช้อยู่' });
                 return;
             }
+            const mapped = prof.code, fam = profFam(prof);
+            // ใบนี้เลือกล็อตอื่นไว้ (ต้องเป็นเส้นตระกูลเดียวกันที่ยังเปิดใช้)
+            if (fam && picks[fam] && picks[fam] !== prof.code) {
+                const alt = profByCode(picks[fam]);
+                if (alt && alt.active !== false && profFam(alt) === fam) prof = alt;
+            }
             let g = groups.get(prof.code);
-            if (!g) { g = { prof, items: [], guess: false, parts: [] }; groups.set(prof.code, g); }
+            if (!g) { g = { prof, items: [], guess: false, parts: [], mapped: new Set() }; groups.set(prof.code, g); }
+            g.mapped.add(mapped);
             g.items.push({ l, p, mm: mmOf(p.len) });
             const pn = (KIND[p.model] || p.model) + ' ' + p.part;
             if (!g.parts.includes(pn)) g.parts.push(pn);
@@ -935,7 +962,7 @@
             return g;
         });
         const res = { groups: out, unmapped, bars: out.reduce((a, g) => a + (g.res.ok ? g.res.bars : 0), 0), guess: out.some(g => g.guess) };
-        planCache.set(o.id, { ver: cutVer, fill: planFill, res });
+        planCache.set(o.id, { ver: cutVer, fill: planFill, lot: lotSig(o.id), res });
         return res;
     }
     // แถบเส้น: หัวเส้น (เทา) · ท่อน (สีตามขนาด) · เศษ (พื้น)
@@ -961,6 +988,10 @@
             h += '<div class="pgrp"><div class="pgrp-head"><b>' + esc(g.prof.code + ' ' + g.prof.name) + (g.guess ? ' <span class="pill amb">⚠️ เดา</span>' : '') + '</b>'
                 + (R.ok ? '<span class="meta">เส้น ' + num(g.prof.bar_mm) + ' มม. · <b>' + bundleText(R.bars, g.prof.bundle) + '</b> · ' + num(R.patternCount) + ' แบบ · เศษ ' + R.wastePct + '%</span>' : '') + '</div>'
                 + '<div class="meta">' + esc(g.parts.join(' · ')) + '</div>';
+            const lots = lotsOf(g.prof);
+            if (lots.length > 1) h += '<label class="meta lotpick">ล็อตเส้นที่โรงงานมี <select data-planlot="' + esc(profFam(g.prof)) + '">'
+                + lots.map(x => '<option value="' + esc(x.code) + '"' + (x.code === g.prof.code ? ' selected' : '') + '>' + esc(x.code) + ' · ยาว ' + num(x.bar_mm) + ' มม.'
+                    + (g.mapped.has(x.code) ? ' (ค่าเริ่ม)' : '') + '</option>').join('') + '</select></label>';
             if (!R.ok) { h += '<div class="warn">❌ ' + esc(R.errors.join(' · ')) + '</div></div>'; return; }
             R.patterns.forEach(pt => {
                 h += '<div class="pat"><span class="x">' + num(pt.bars) + ' เส้น</span><span class="c">' + cutsText(pt.cuts) + '</span>'
@@ -1083,7 +1114,8 @@
                 const col = profVal(p, 'color') || '';
                 const cols = ['', 'ขาว', 'ดำ'].concat(col && !['ขาว', 'ดำ'].includes(col) ? [col] : []);
                 return '<tr' + (chg ? ' class="chg"' : '') + (ni >= 0 ? ' data-new="' + ni + '"' : ' data-prof="' + esc(p.code) + '"') + '>'
-                    + '<td>' + (ni >= 0 ? '<input data-pf="code" maxlength="20" placeholder="P035" value="' + esc(p.code) + '" style="width:80px"' + dis + '>' : '<b>' + esc(p.code) + '</b>') + '</td>'
+                    + '<td>' + (ni >= 0 ? '<input data-pf="code" maxlength="20" placeholder="P035" value="' + esc(p.code) + '" style="width:80px"' + dis + '>'
+                        : '<b>' + esc(p.code) + '</b>' + (() => { const o = lotsOf(p).filter(x => x.code !== p.code); return o.length ? '<div class="meta" title="เส้นเดียวกันคนละล็อต (ยาวไม่เท่ากัน) — เลือกล็อตได้ทีละใบตอนจัดเส้น">↔ ' + esc(o.map(x => x.code).join(', ')) + '</div>' : ''; })()) + '</td>'
                     + '<td><input data-pf="name" maxlength="80" value="' + esc(profVal(p, 'name')) + '" style="width:100%;min-width:150px"' + dis + '></td>'
                     + '<td><select data-pf="color"' + dis + '>' + cols.map(c => '<option value="' + esc(c) + '"' + (c === col ? ' selected' : '') + '>' + esc(c || '-') + '</option>').join('') + '</select></td>'
                     + '<td><input class="n" data-pf="bar_mm" type="number" inputmode="numeric" min="1000" max="15000" step="1" value="' + esc(profVal(p, 'bar_mm')) + '"' + dis + '></td>'
@@ -1241,8 +1273,7 @@
                 if (card && formOpen) { recvSum(card); const f = card.querySelector('[data-form]'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
             } else if (act === 'plan') {
                 if (formOpen && formOpen.id === id && formOpen.mode === 'plan') { formOpen = null; renderOrders(); return; }
-                const c = planCache.get(id);
-                formOpen = { id, mode: 'plan', ready: !!(c && c.ver === cutVer && c.fill === planFill) };
+                formOpen = { id, mode: 'plan', ready: planFresh(id) };
                 renderOrders();
                 const show = () => { const f = document.querySelector('#ord-' + id + ' [data-form]'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); };
                 show();
@@ -1263,12 +1294,20 @@
             else if (act === 'close' || act === 'cancel') closeOrCancel(id, act);
         });
         ordBox.addEventListener('change', e => {
-            const t = e.target.closest('[data-planfill]');
-            if (!t || !formOpen || formOpen.mode !== 'plan') return;
-            planFill = t.checked;
-            try { localStorage.setItem('ccga_alu_plan_fill', planFill ? '1' : '0'); } catch (x) {}
-            const id = formOpen.id, c = planCache.get(id);
-            formOpen.ready = !!(c && c.ver === cutVer && c.fill === planFill);
+            const t = e.target.closest('[data-planfill]'), lt = e.target.closest('[data-planlot]');
+            if ((!t && !lt) || !formOpen || formOpen.mode !== 'plan') return;
+            const id = formOpen.id;
+            if (t) {
+                planFill = t.checked;
+                try { localStorage.setItem('ccga_alu_plan_fill', planFill ? '1' : '0'); } catch (x) {}
+            } else {
+                planLot[id] = Object.assign({}, planLot[id] || {}, { [lt.dataset.planlot]: lt.value });
+                // จำไว้แค่ 100 ใบล่าสุด (เลขใบมากสุด)
+                const ids = Object.keys(planLot).map(Number).sort((a, b) => b - a);
+                ids.slice(100).forEach(k => delete planLot[k]);
+                try { localStorage.setItem('ccga_alu_plan_lot', JSON.stringify(planLot)); } catch (x) {}
+            }
+            formOpen.ready = planFresh(id);
             renderOrders();
             if (!formOpen.ready) setTimeout(() => { if (formOpen && formOpen.id === id && formOpen.mode === 'plan') { formOpen.ready = true; renderOrders(); } }, 40);
         });
