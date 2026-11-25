@@ -98,6 +98,7 @@
                             background: var(--surface,#fff); color: var(--text-main,#0f172a); }
         .done-form .area { margin-left:auto; }
         .done-form .area.bad { color:#dc2626; font-weight:700; }
+        .done-form [hidden] { display:none !important; }
         .today { border-width:2px; }
         .today.go { border-color:#16a34a; background: rgba(22,163,74,.06); }
         .today.wait { border-color: var(--border-strong,#e2e8f0); }
@@ -840,7 +841,8 @@
             .map(d => '<li>➕ <b>' + esc(sizeOf(d.code)) + '</b> <span class="meta">' + esc(kindOf(d.code)) + ' · ขนาดนอกแผน</span> <span class="pill grn">ได้จริง ' + num(d.qty) + '</span></li>').join('') : '');
         return '<div class="jl"><div class="pic">' + (Array.isArray(l.layout) && sh.a ? G.svg(sh.a, sh.b, l.layout, { width: 170 }) : '') + '</div>'
             + '<div class="info" style="flex:1 1 220px;"><div><b>' + esc(label(l.source)) + '</b> × <b>' + l.sheets + '</b> แผ่น'
-            + (done ? ' <span class="pill grn">ใช้จริง ' + num(done.sheets_used) + '</span>' : '') + '</div>'
+            + (done ? (done.sheets_used > l.sheets ? ' <span class="pill amb">ใช้จริง ' + num(done.sheets_used) + ' · เกินใบ ' + (done.sheets_used - l.sheets) + '</span>'
+                : ' <span class="pill grn">ใช้จริง ' + num(done.sheets_used) + '</span>') : '') + '</div>'
             + '<div class="meta">' + esc(l.source) + ((byCode[l.source] || {}).loc ? ' · <span class="loc">📍 ' + esc(byCode[l.source].loc) + '</span>' : '') + '</div>'
             + '<ul class="outs">' + outs + '</ul></div></div>';
     }
@@ -924,9 +926,10 @@
         const slot = card.querySelector('.done-slot');
         if (slot.innerHTML) { slot.innerHTML = ''; return; }
         slot.innerHTML = '<div class="done-form"><b>✅ บันทึกที่ตัดได้จริง</b>'
-            + '<div class="meta">ใส่จำนวนจริง — แตกหรือตัดไม่ครบให้ลดจำนวนลง · <b>ตัดเป็นขนาดอื่นแทน</b> (เช่น ขอบบางหักไม่ออก) ให้ลดขนาดเดิม แล้วกด ➕ ได้ขนาดอื่น · แผ่นที่ไม่ได้ใช้ใส่ 0</div>'
+            + '<div class="meta">ใส่จำนวนจริง — แตกหรือตัดไม่ครบให้ลดจำนวนลง · <b>ตัดเป็นขนาดอื่นแทน</b> (เช่น ขอบบางหักไม่ออก) ให้ลดขนาดเดิม แล้วกด ➕ ได้ขนาดอื่น · <b>ช่างตัดแผ่นเกินใบ</b> ใส่จำนวนแผ่นที่ใช้จริงได้ · แผ่นที่ไม่ได้ใช้ใส่ 0</div>'
             + j.lines.map((l, i) => '<div style="margin-top:8px;padding-top:6px;border-top:1px dashed var(--border-strong,#e2e8f0);">'
-                + '<div class="row"><b>' + esc(label(l.source)) + '</b> ใช้ไป <input type="number" min="0" max="' + l.sheets + '" step="1" inputmode="numeric" data-used="' + i + '" value="' + l.sheets + '"> แผ่น <span class="meta">(แผน ' + l.sheets + ')</span></div>'
+                + '<div class="row"><b>' + esc(label(l.source)) + '</b> ใช้ไป <input type="number" min="0" step="1" inputmode="numeric" data-used="' + i + '" value="' + l.sheets + '"> แผ่น <span class="meta">(แผน ' + l.sheets + ')</span>'
+                + ' <span class="pill amb" data-over="' + i + '" hidden></span></div>'
                 + l.outputs.map(o => '<div class="row" style="padding-left:14px;">✂️ ' + esc(sizeOf(o.code)) + ' <span class="meta">' + esc(kindOf(o.code)) + '</span> ได้ '
                     + '<input type="number" min="0" step="1" inputmode="numeric" data-line="' + i + '" data-code="' + esc(o.code) + '" data-per="' + o.per_sheet + '" value="' + (o.per_sheet * l.sheets) + '"> ชิ้น'
                     + ' <span class="meta" data-plan="' + i + '">(แผน ' + (o.per_sheet * l.sheets) + ')</span></div>').join('')
@@ -938,6 +941,26 @@
             + '<button type="button" class="btn btn-ok" data-save="' + id + '">💾 บันทึก ตัดเสร็จ (ปรับยอดสต็อก)</button></div></div>';
         j.lines.forEach((l, i) => showArea(slot, j, i));
     }
+    // ช่างตัดแผ่นเกินใบ (25/11 เจ้าของ: ใส่เกินได้ + ถามยืนยัน) — ด่านจริงคือแผ่นในสต็อกต้องพอ
+    // แผ่นเดียวกันหลายบรรทัด = รวมกันแล้วเทียบสต็อก
+    function stockOf(code) { const it = items.find(x => x.product_code === code); return it ? Number(it.quantity) || 0 : 0; }
+    function usedBySource(slot, j) {
+        const m = {};
+        j.lines.forEach((l, i) => { m[l.source] = (m[l.source] || 0) + Math.max(0, parseInt(slot.querySelector('[data-used="' + i + '"]').value, 10) || 0); });
+        return m;
+    }
+    function showOver(slot, j) {
+        const tot = usedBySource(slot, j);
+        j.lines.forEach((l, i) => {
+            const el = slot.querySelector('[data-over="' + i + '"]');
+            if (!el) return;
+            const u = Math.max(0, parseInt(slot.querySelector('[data-used="' + i + '"]').value, 10) || 0), st = stockOf(l.source);
+            const short = tot[l.source] > st, over = u - l.sheets;
+            el.hidden = !(short || over > 0);
+            el.className = 'pill ' + (short ? 'red' : 'amb');
+            el.textContent = short ? '⚠️ ในสต็อกมีแค่ ' + num(st) + ' แผ่น' : '⚠️ เกินใบ ' + over + ' แผ่น';
+        });
+    }
     // ช่องในฟอร์มตัดเสร็จเปลี่ยน → (แผ่นที่ใช้เปลี่ยน = ปรับชิ้นตามแผนให้) → คิดเนื้อกระจกใหม่
     function onDoneInput(e) {
         const t = e.target, slot = t.closest('.done-slot');
@@ -946,6 +969,7 @@
         if (i === undefined) return;
         const j = jobs.find(x => x.id === Number(slot.closest('[data-job]').dataset.job));
         if (!j) return;
+        if (t.dataset.used !== undefined) showOver(slot, j);
         if (t.dataset.used !== undefined && e.type === 'input') {
             const u = Math.max(0, parseInt(t.value, 10) || 0), plans = slot.querySelectorAll('[data-plan="' + i + '"]');
             slot.querySelectorAll('[data-line="' + i + '"]').forEach((o, k) => {
@@ -977,7 +1001,6 @@
             const uEl = card.querySelector('[data-used="' + i + '"]');
             if (!isInt(uEl.value)) { toast('จำนวนแผ่นต้องเป็นเลข 0 ขึ้นไป'); uEl.focus(); return; }
             const used = parseInt(uEl.value, 10);
-            if (used > l.sheets) { toast(label(l.source) + ': ใช้ได้ไม่เกิน ' + l.sheets + ' แผ่น'); uEl.focus(); return; }
             const outs = [];
             for (const o of card.querySelectorAll('[data-line="' + i + '"]')) {
                 if (!isInt(o.value)) { toast('จำนวนชิ้นต้องเป็นเลข 0 ขึ้นไป'); o.focus(); return; }
@@ -1000,15 +1023,22 @@
         }
         const totalUsed = done.reduce((a, d) => a + d.sheets_used, 0);
         if (!totalUsed) { toast('ยังไม่ได้ใช้แผ่นไหนเลย — ถ้าไม่ตัดแล้วให้กด ❌ ยกเลิกใบ'); return; }
-        const txt = j.lines.map((l, i) => '• ' + label(l.source) + ' −' + done[i].sheets_used + ' แผ่น\n'
+        const tot = usedBySource(card, j);
+        const short = Object.keys(tot).find(c => tot[c] > stockOf(c));
+        if (short) { toast(label(short) + ': ในสต็อกมีแค่ ' + num(stockOf(short)) + ' แผ่น ใช้ ' + tot[short] + ' แผ่นไม่ได้ — ตรวจจำนวนแผ่น', 7000); return; }
+        const overAll = j.lines.reduce((a, l, i) => a + Math.max(0, done[i].sheets_used - l.sheets), 0);
+        const txt = j.lines.map((l, i) => '• ' + label(l.source) + ' −' + done[i].sheets_used + ' แผ่น'
+            + (done[i].sheets_used > l.sheets ? ' ⚠️ เกินใบ ' + (done[i].sheets_used - l.sheets) + ' แผ่น' : '') + '\n'
             + done[i].outputs.filter(o => o.qty > 0).map(o => '   + ' + sizeOf(o.code) + ' ' + o.qty + ' ชิ้น' + (o.extra ? ' (นอกแผน)' : '')).join('\n')).join('\n');
         done.forEach(d => d.outputs.forEach(o => { delete o.extra; }));
-        if (!confirm('ยืนยันตัดเสร็จ ' + j.job_no + ' — ระบบจะปรับยอดสต็อกทันที\n\n' + (txt.length > 1200 ? txt.slice(0, 1200) + '\n…' : txt))) return;
+        if (!confirm('ยืนยันตัดเสร็จ ' + j.job_no + ' — ระบบจะปรับยอดสต็อกทันที'
+            + (overAll ? '\n⚠️ ช่างใช้แผ่นเกินใบรวม ' + overAll + ' แผ่น — ยืนยันว่าตัดเกินจริง' : '')
+            + '\n\n' + (txt.length > 1200 ? txt.slice(0, 1200) + '\n…' : txt))) return;
         btn.disabled = true;
         const { data, error } = await db.rpc('rpc_glass_recut_complete', { p_id: id, p_done: done });
         if (error) { btn.disabled = false; toast('❌ ' + error.message, 7000); return; }
         toast('✅ ' + data.job_no + ' ตัดเสร็จ · ใช้ ' + data.sheets + ' แผ่น ได้ ' + data.pieces + ' ชิ้น'
-            + (data.extra ? ' (ขนาดนอกแผน ' + data.extra + ' ขนาด)' : '') + ' · ปรับยอดแล้ว', 5000);
+            + (data.extra ? ' (นอกแผน ' + data.extra + ' ชิ้น)' : '') + (data.over ? ' · เกินใบ ' + data.over + ' แผ่น' : '') + ' · ปรับยอดแล้ว', 5000);
         await Promise.all([loadItems(), loadJobs(), loadBacklog()]);
         compute();
         renderJobs();
