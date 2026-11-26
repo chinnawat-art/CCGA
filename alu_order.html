@@ -145,6 +145,13 @@
                                 border-radius:9px; background: var(--surface,#fff); color: var(--text-main,#0f172a); max-width:100%; }
         .lt input.n { width:82px; text-align:right; }
         .lt tr.chg td { background: rgba(217,119,6,.08); }
+        /* เส้นเต็มที่โรงงาน */
+        .bq { flex:0 0 auto; margin-left:auto; font-weight:700; font-size:1.05rem; text-align:right; }
+        .bq.low { color:#dc2626; }
+        .bact { display:flex; gap:6px; flex:0 0 auto; }
+        .bhist { flex:1 1 100%; min-width:0; }
+        .bhist td.n, .bhist th.n { text-align:right; }
+        .pshort { color:#dc2626; font-weight:700; font-size:.86rem; }
         @media (max-width:560px) {
             .qty { margin-left:32px; }
             .ord table { font-size:.8rem; }
@@ -188,6 +195,7 @@
             <button type="button" class="tab on" data-tab="need">💡 ต้องสั่ง</button>
             <button type="button" class="tab" data-tab="orders">📋 ใบสั่งตัด <span class="n" id="nOpen">0</span></button>
             <button type="button" class="tab" data-tab="lines">📏 เส้นโรงงาน <span class="n" id="nGuess" style="display:none;"></span></button>
+            <button type="button" class="tab" data-tab="bars">🧱 เส้นเต็มที่โรงงาน <span class="n" id="nBarLow" style="display:none;"></span></button>
         </div>
 
         <!-- ───────── แท็บต้องสั่ง ───────── -->
@@ -280,6 +288,40 @@
                 <span class="meta" id="linesNote"></span>
             </div>
         </div>
+
+        <!-- ───────── แท็บเส้นเต็มที่โรงงาน (alu-bars-step1.sql) ───────── -->
+        <div id="tabBars" style="display:none;">
+            <div class="card">
+                <h2>🧱 เส้นเต็มที่ฝากโรงงานโมดูลาร่า</h2>
+                <div class="meta">เส้นยาวที่ซื้อจาก Alutop ฯลฯ ส่งไปเก็บที่โรงงานรับตัด (ยังไม่ได้ตัด) · ยอดในแท็บนี้แยกจากสต็อกท่อนตัดของ ERP
+                    <br>ทุกครั้งที่บันทึกต้องใส่ชื่อคนทำ (บัญชีเดียวอาจใช้หลายคน) · ยอดต่ำกว่าขั้นต่ำ = 🔴</div>
+                <div id="bxBanner" style="margin-top:10px;"><div class="meta">กำลังโหลด...</div></div>
+            </div>
+            <div class="card">
+                <div class="toolbar">
+                    <label class="meta" style="display:flex;gap:6px;align-items:center;">👤 ชื่อคนทำ <input type="text" id="bName" maxlength="60" placeholder="เช่น เมย์" style="width:140px"></label>
+                    <button type="button" class="btn btn-ok" id="btnBarRecv">📥 รับเส้นเข้า</button>
+                    <button type="button" class="btn" id="btnBarCount">📋 ตั้งยอดเริ่มต้น</button>
+                    <span class="meta" id="bPermNote"></span>
+                </div>
+                <div id="bxForm"></div>
+                <div class="toolbar" style="margin-top:10px;">
+                    <select id="bShow">
+                        <option value="">ทุกรหัส</option>
+                        <option value="low">🔴 ต่ำกว่าขั้นต่ำ</option>
+                        <option value="none">ยังไม่เคยนับ</option>
+                    </select>
+                    <select id="bColor"><option value="">ทุกสี</option></select>
+                    <input type="search" id="bSearch" placeholder="ค้นหา เช่น P009 ขวางบน">
+                </div>
+                <div id="bxList"><div class="empty">กำลังโหลด...</div></div>
+            </div>
+            <div class="card">
+                <h2>🧾 ใบรับเส้นล่าสุด</h2>
+                <div id="bxRcpts"><div class="empty">กำลังโหลด...</div></div>
+                <datalist id="barSup"><option value="Alutop"></option><option value="ตังน้ำ"></option></datalist>
+            </div>
+        </div>
     </div>
 
     <div class="bar" id="bar"><div class="bar-in">
@@ -319,6 +361,11 @@
     let planLot = {};
     try { planLot = JSON.parse(localStorage.getItem('ccga_alu_plan_lot') || '{}') || {}; } catch (e) { planLot = {}; }
     let lineEdit = null;             // ที่แก้ค้างในแท็บเส้นโรงงาน { prof: Map(code→row), map: Map(key→code|''), added: [] }
+    // เส้นเต็มที่ฝากโรงงาน (alu-bars-step1.sql) · โหลดไม่ได้ = แท็บอื่นใช้ได้ตามเดิม
+    let canBarRecv = false, canBarAdj = false, barBusy = false;
+    let bars = { ready: false, err: null, live_at: null, live_by: null, stock: {}, receipts: [] };
+    let barForm = null;              // { mode:'recv', key } | { mode:'count', codes, keys:{code→key} }
+    let barHist = {};                // รหัส → 'loading' | [ประวัติ] | { err }
 
     function esc(s) {
         return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -357,6 +404,7 @@
     }
     function errText(e) {
         const m = String((e && (e.message || e.details)) || e || '');
+        if (/alu_bar|bar_qty|bar_min/i.test(m) && /schema cache|Could not find|does not exist/i.test(m)) return 'ฐานข้อมูลยังไม่ได้ติดตั้งส่วนเส้นเต็ม (alu-bars-step1.sql)';
         if (/rpc_alu_cut|alu_cut_/i.test(m)) return 'ฐานข้อมูลยังไม่ได้ติดตั้งส่วนจัดเส้น (alu-order-step2.sql)';
         if (/rpc_alu|alu_order|schema cache|Could not find/i.test(m)) return 'ฐานข้อมูลยังไม่ได้ติดตั้งระบบสั่งตัดอลูมิเนียม (alu-order-step1.sql)';
         if (/Failed to fetch|NetworkError|timeout|aborted/i.test(m)) return 'เน็ตหลุดหรือช้า — ลองใหม่อีกครั้ง (กดซ้ำได้ ระบบไม่บันทึกซ้ำ)';
@@ -404,15 +452,28 @@
         cutVer++;
         planCache.clear();
     }
+    async function loadBars() {
+        try {
+            const { data, error } = await db.rpc('rpc_alu_bar_state');
+            if (error) throw error;
+            const st = {};
+            (data.stock || []).forEach(s => { st[s.code] = s; });
+            bars = { ready: true, err: null, live_at: data.live_at || null, live_by: data.live_by || null, stock: st, receipts: data.receipts || [] };
+        } catch (e) {
+            bars = { ready: false, err: errText(e), live_at: null, live_by: null, stock: {}, receipts: [] };
+        }
+    }
     async function loadAll() {
         document.getElementById('needList').innerHTML = '<div class="empty">กำลังโหลด...</div>';
         try {
             await loadSettings();
-            await Promise.all([loadStats(), loadOrders(), loadCut()]);
+            await Promise.all([loadStats(), loadOrders(), loadCut(), loadBars()]);
         } catch (e) {
             const msg = '<div class="empty warn">❌ ' + esc(errText(e)) + '</div>';
             document.getElementById('needList').innerHTML = msg;
             document.getElementById('orderList').innerHTML = msg;
+            document.getElementById('bxList').innerHTML = msg;
+            document.getElementById('bxBanner').innerHTML = '';
             return;
         }
         compute();
@@ -421,6 +482,8 @@
         renderOrders();
         lineEdit = null;
         renderLines();
+        barHist = {};
+        renderBars();
     }
 
     // ───────── คิดยอด ─────────
@@ -983,14 +1046,23 @@
             + '<br>อ่านว่า "12 เส้น : 812×4 + 912×3" = ตัด 12 เส้น แต่ละเส้นได้ 812 มม. 4 ท่อน และ 912 มม. 3 ท่อน</div>'
             + '<label class="meta" style="display:flex;gap:6px;align-items:center;margin-top:4px;cursor:pointer;"><input type="checkbox" data-planfill' + (planFill ? ' checked' : '') + '> ♻️ เศษที่ยังยาวพอ ตัดเป็นท่อนขนาดในใบเพิ่ม (ไม่เพิ่มเส้น · ได้ของเกินที่สั่ง)</label>';
         if (r.guess) h += '<div class="meta" style="color:#d97706;font-weight:600;">⚠️ บางชิ้นระบบเดาให้ว่าตัดจากเส้นไหน (ยังไม่มีคนยืนยัน) — ตรวจที่แท็บ 📏 เส้นโรงงาน</div>';
+        // เริ่มใช้ยอดเส้นเต็มแล้ว → บอกว่าโรงงานมีกี่เส้น + เตือนเส้นไม่พอ (ยังไม่หักใบอื่นที่รอตัด)
+        const live = barLive();
+        const short = live ? r.groups.filter(g => g.res.ok && g.res.bars > barHave(g.prof.code)) : [];
+        if (short.length) h += '<div class="pshort">⚠️ เส้นเต็มที่โรงงานไม่พอ ' + num(short.length) + ' รหัส: '
+            + esc(short.map(g => g.prof.code + ' ขาด ' + num(g.res.bars - barHave(g.prof.code))).join(' · ')) + ' — สั่ง Alutop เพิ่ม หรือเลือกล็อตอื่น</div>';
         r.groups.forEach(g => {
-            const R = g.res;
+            const R = g.res, have = live ? barHave(g.prof.code) : null;
             h += '<div class="pgrp"><div class="pgrp-head"><b>' + esc(g.prof.code + ' ' + g.prof.name) + (g.guess ? ' <span class="pill amb">⚠️ เดา</span>' : '') + '</b>'
                 + (R.ok ? '<span class="meta">เส้น ' + num(g.prof.bar_mm) + ' มม. · <b>' + bundleText(R.bars, g.prof.bundle) + '</b> · ' + num(R.patternCount) + ' แบบ · เศษ ' + R.wastePct + '%</span>' : '') + '</div>'
                 + '<div class="meta">' + esc(g.parts.join(' · ')) + '</div>';
+            if (have !== null) h += R.ok && R.bars > have
+                ? '<div class="pshort">🧱 โรงงานมี ' + bundleText(have, g.prof.bundle) + ' · ต้องใช้ ' + num(R.bars) + ' · ขาด ' + num(R.bars - have) + ' เส้น</div>'
+                : '<div class="meta">🧱 โรงงานมี ' + bundleText(have, g.prof.bundle) + ' (ยังไม่หักใบอื่นที่รอตัด)</div>';
             const lots = lotsOf(g.prof);
             if (lots.length > 1) h += '<label class="meta lotpick">ล็อตเส้นที่โรงงานมี <select data-planlot="' + esc(profFam(g.prof)) + '">'
                 + lots.map(x => '<option value="' + esc(x.code) + '"' + (x.code === g.prof.code ? ' selected' : '') + '>' + esc(x.code) + ' · ยาว ' + num(x.bar_mm) + ' มม.'
+                    + (live ? ' · มี ' + num(barHave(x.code)) + ' เส้น' : '')
                     + (g.mapped.has(x.code) ? ' (ค่าเริ่ม)' : '') + '</option>').join('') + '</select></label>';
             if (!R.ok) { h += '<div class="warn">❌ ' + esc(R.errors.join(' · ')) + '</div></div>'; return; }
             R.patterns.forEach(pt => {
@@ -1185,12 +1257,325 @@
         }
     }
 
+    // ───────── แท็บเส้นเต็มที่โรงงาน ─────────
+    const BAR_KIND = { opening: '📋 ตั้งยอดเริ่ม', receive: '📥 รับเข้า', adjust: '✏️ ปรับตามนับจริง', void: '↩️ ยกเลิกใบรับ', cut: '🪚 เบิกไปตัด', cut_undo: '↩️ คืนจากตัด' };
+    function barLive() { return bars.ready && !!bars.live_at; }
+    function barHave(code) { const s = bars.stock[code]; return s ? Number(s.bar_qty) || 0 : 0; }
+    // เส้นที่เปิดใช้ (หรือปิดแล้วแต่ยังมียอด) + ยอดเส้นเต็ม
+    function barProfiles() {
+        return cut.profiles.map(p => {
+            const s = bars.stock[p.code] || {};
+            return Object.assign({}, p, { bar_qty: Number(s.bar_qty) || 0, bar_min: Number(s.bar_min) || 0, bar_counted_at: s.bar_counted_at || null });
+        }).filter(p => p.active !== false || p.bar_qty > 0)
+          .sort((a, b) => natCmp(String(a.code).replace(/-/g, ''), String(b.code).replace(/-/g, '')) || natCmp(a.code, b.code));   // P030 → P-031
+    }
+    function barLow(p) { return p.bar_min > 0 && p.bar_qty < p.bar_min; }   // เหมือนแอปโรงงาน: ต่ำกว่าขั้นต่ำ
+    function shownBars() {
+        const sh = document.getElementById('bShow').value, c = document.getElementById('bColor').value;
+        const q = document.getElementById('bSearch').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        return barProfiles().filter(p => {
+            if (sh === 'low' && !barLow(p)) return false;
+            if (sh === 'none' && p.bar_counted_at) return false;
+            if (c && (p.color || '') !== c) return false;
+            if (q.length) { const hay = (p.code + ' ' + p.name + ' ' + (p.color || '') + ' ' + p.bar_mm).toLowerCase(); if (!q.every(w => hay.includes(w))) return false; }
+            return true;
+        });
+    }
+    function barFormDirty() {
+        return [...document.querySelectorAll('#bxForm [data-brecv], #bxForm [data-bcnt]')].some(i => i.value.trim() !== '');
+    }
+    // ชื่อคนทำ: ต้องใส่ทุกครั้ง · จำไว้ในเครื่องนี้ให้ (เห็นชื่อในหน้ายืนยันทุกครั้ง)
+    function barNameVal() {
+        const el = document.getElementById('bName'), v = el.value.trim();
+        if (!v) { toast('กรุณาใส่ชื่อคนทำก่อน (ช่อง 👤 ชื่อคนทำ)', 4000); el.focus(); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); return ''; }
+        if (v.length > 60) { toast('ชื่อยาวเกินไป (ไม่เกิน 60 ตัว)'); el.focus(); return ''; }
+        try { localStorage.setItem('ccga_alu_bar_name', v); } catch (e) {}
+        return v;
+    }
+    function barButtons() {
+        const ok = bars.ready && cut.ready, live = barLive();
+        const r = document.getElementById('btnBarRecv'), c = document.getElementById('btnBarCount');
+        r.style.display = canBarRecv ? '' : 'none';
+        r.disabled = !ok || !live || barBusy;
+        c.style.display = canBarAdj ? '' : 'none';
+        c.disabled = !ok || barBusy;
+        c.textContent = live ? '✏️ ปรับยอดตามนับจริง (รหัสที่แสดงอยู่)' : '📋 ตั้งยอดเริ่มต้น (รหัสที่แสดงอยู่)';
+        document.getElementById('bPermNote').textContent = !canBarRecv && !canBarAdj
+            ? '👁️ ดูอย่างเดียว — รับเส้นต้องมีสิทธิ์ "📥 รับเส้นเต็มเข้า" · ตั้ง/ปรับยอดต้องมีสิทธิ์ "✏️ ตั้ง/ปรับยอดเส้นเต็ม"'
+            : canBarRecv && ok && !live ? '📥 รับเส้นเข้าได้หลังกด ▶️ เริ่มใช้' : '';
+    }
+    function renderBars() {
+        const ban = document.getElementById('bxBanner'), box = document.getElementById('bxList'), nb = document.getElementById('nBarLow');
+        if (!bars.ready || !cut.ready) {
+            const msg = '❌ ' + esc(bars.err || cut.err || 'ยังโหลดไม่ได้');
+            ban.innerHTML = '<div class="warn">' + msg + '</div>';
+            box.innerHTML = '<div class="empty warn">' + msg + '</div>';
+            document.getElementById('bxRcpts').innerHTML = '';
+            nb.style.display = 'none';
+            barButtons();
+            return;
+        }
+        const all = barProfiles(), live = barLive();
+        const low = live ? all.filter(barLow) : [];
+        nb.textContent = '🔴 ' + low.length; nb.style.display = low.length ? '' : 'none';
+        const counted = all.filter(p => p.bar_counted_at).length, total = all.reduce((a, p) => a + p.bar_qty, 0);
+        const fc = document.getElementById('bColor'), cur = fc.value;
+        const colors = [...new Set(all.map(p => p.color || '').filter(Boolean))].sort();
+        fc.innerHTML = '<option value="">ทุกสี</option>' + colors.map(c => '<option>' + esc(c) + '</option>').join('');
+        fc.value = colors.includes(cur) ? cur : '';
+        ban.innerHTML = live
+            ? '<span class="pill grn">✅ ใช้ยอดเส้นเต็มใน ERP แล้ว</span> <span class="meta">ตั้งแต่ ' + esc(fmtDate(bars.live_at, true)) + ' · ' + esc(bars.live_by || '') + '</span>'
+              + '<div class="meta" style="margin-top:4px;">รวม <b>' + num(total) + '</b> เส้น · ' + num(all.length) + ' รหัส · '
+              + (low.length ? '<span class="warn">🔴 ต่ำกว่าขั้นต่ำ ' + num(low.length) + ' รหัส</span>' : '✅ ไม่มีรหัสต่ำกว่าขั้นต่ำ') + '</div>'
+            : '<span class="pill amb">🕒 ยังไม่เริ่มใช้</span> <span class="meta">ยอดจริงยังอยู่ในแอปโรงงานเดิม · ตอนนี้ตั้งยอดเริ่มต้นได้อย่างเดียว (นับจริงแล้วใส่ · ใส่ซ้ำได้ ยึดครั้งล่าสุด)</span>'
+              + '<div class="meta" style="margin-top:4px;">ตั้งยอดแล้ว <b>' + num(counted) + '</b> / ' + num(all.length) + ' รหัส · รวม ' + num(total) + ' เส้น'
+              + '<br>พร้อมแล้วกด <b>▶️ เริ่มใช้</b> = เลิกใช้ยอดในแอปเดิม → รับเส้นเข้าได้ + เตือนเส้นต่ำกว่าขั้นต่ำ + ปรับยอดต้องใส่เหตุผล</div>'
+              + (canBarAdj ? '<div class="toolbar" style="margin:8px 0 0;"><button type="button" class="btn btn-ok" data-bact="live">▶️ เริ่มใช้ยอดเส้นเต็มใน ERP</button></div>' : '');
+        const list = shownBars();
+        box.innerHTML = !list.length ? '<div class="empty">ไม่มีรายการ</div>' : list.map(barRowHtml).join('');
+        renderBarRcpts();
+        barButtons();
+    }
+    function barRowHtml(p) {
+        const live = barLive(), lowp = live && barLow(p), h = barHist[p.code];
+        const pill = !live && !p.bar_counted_at ? '<span class="pill gry">ยังไม่ได้ตั้งยอด</span>'
+            : lowp ? (p.bar_qty <= 0 ? '<span class="pill red">🔴 หมด</span>' : '<span class="pill red">🔴 ต่ำกว่าขั้นต่ำ</span>')
+            : live ? '<span class="pill grn">✅ พอ</span>' : '<span class="pill">ตั้งยอดแล้ว</span>';
+        return '<div class="row" data-bcode="' + esc(p.code) + '"><div class="info"><div class="nm"><b>' + esc(p.code) + '</b> ' + esc(p.name) + ' ' + pill
+            + (p.active === false ? ' <span class="pill gry">ปิดใช้</span>' : '') + '</div>'
+            + '<div class="meta">ยาว ' + num(p.bar_mm) + ' มม.' + (p.bundle > 1 ? ' · มัดละ ' + num(p.bundle) + ' เส้น' : '') + ' · ขั้นต่ำ ' + num(p.bar_min) + ' เส้น'
+            + (p.bar_counted_at ? ' · นับล่าสุด ' + esc(fmtDate(p.bar_counted_at)) : '') + '</div></div>'
+            + '<div class="bq' + (lowp ? ' low' : '') + '">' + bundleText(p.bar_qty, p.bundle) + '</div>'
+            + '<div class="bact"><button type="button" class="btn" data-bact="hist" data-code="' + esc(p.code) + '">📜 ' + (h ? 'ปิด' : 'ประวัติ') + '</button>'
+            + (canBarAdj ? '<button type="button" class="btn" data-bact="countOne" data-code="' + esc(p.code) + '">✏️ ' + (live ? 'ปรับ' : 'ตั้งยอด') + '</button>' : '') + '</div>'
+            + (h ? '<div class="bhist">' + barHistHtml(h) + '</div>' : '') + '</div>';
+    }
+    function barHistHtml(h) {
+        if (h === 'loading') return '<div class="meta">⏳ กำลังโหลดประวัติ...</div>';
+        if (!Array.isArray(h)) return '<div class="warn">❌ ' + esc(h.err || 'โหลดไม่ได้') + '</div>';
+        if (!h.length) return '<div class="meta">ยังไม่มีประวัติ</div>';
+        return '<div class="tbl lt"><table><tr><th>เมื่อ</th><th>รายการ</th><th class="n">+/−</th><th class="n">คงเหลือ</th><th>รายละเอียด</th><th>ใคร</th></tr>'
+            + h.map(m => '<tr><td>' + esc(fmtDate(m.created_at, true)) + '</td><td>' + esc(BAR_KIND[m.kind] || m.kind) + '</td>'
+                + '<td class="n" style="font-weight:700;color:' + (m.delta < 0 ? '#dc2626' : m.delta > 0 ? '#16a34a' : 'inherit') + '">' + (m.delta > 0 ? '+' : '') + num(m.delta) + '</td>'
+                + '<td class="n">' + num(m.qty_after) + '</td><td>' + esc([m.ref, m.note].filter(Boolean).join(' · ')) + '</td><td>' + esc(m.entered_by || '') + '</td></tr>').join('')
+            + '</table></div>';
+    }
+    async function toggleHist(code) {
+        if (barHist[code]) { delete barHist[code]; renderBars(); return; }
+        barHist[code] = 'loading'; renderBars();
+        let v;
+        try {
+            const { data, error } = await db.rpc('rpc_alu_bar_history', { p_code: code, p_limit: 80 });
+            if (error) throw error;
+            v = data || [];
+        } catch (e) { v = { err: errText(e) }; }
+        if (barHist[code]) { barHist[code] = v; renderBars(); }   // ระหว่างโหลดกดปิดไปแล้ว = ไม่ต้องเปิดใหม่
+    }
+    function renderBarRcpts() {
+        const rc = bars.receipts || [];
+        document.getElementById('bxRcpts').innerHTML = !rc.length ? '<div class="empty">ยังไม่มีใบรับเส้น</div>' : rc.map(r =>
+            '<div class="rcpt"' + (r.voided_at ? ' style="opacity:.6"' : '') + '><b>' + esc(r.receipt_no) + '</b> · ' + esc(fmtDate(r.created_at, true)) + ' · ' + esc(r.supplier)
+            + (r.bill_no ? ' · บิล ' + esc(r.bill_no) : '') + ' · <b>' + num(r.bars) + ' เส้น</b> · ' + esc(r.entered_by)
+            + (r.voided_at ? ' <span class="pill red">ยกเลิกแล้ว</span>'
+                : canBarAdj ? ' <button type="button" class="btn btn-bad" data-bact="void" data-id="' + esc(r.id) + '" style="padding:3px 9px;font-size:.78rem;">↩️ ยกเลิกใบ</button>' : '')
+            + '<div class="meta">' + esc((r.items || []).map(x => x.code + ' ×' + x.bars).join(' · ')) + (r.note ? ' · ' + esc(r.note) : '')
+            + (r.voided_at ? '<br>ยกเลิก ' + esc(fmtDate(r.voided_at, true)) + ' · ' + esc(r.voided_by || '') + ' · ' + esc(r.void_reason || '') : '') + '</div></div>').join('');
+    }
+    function renderBarForm() {
+        const box = document.getElementById('bxForm');
+        if (!barForm || !bars.ready || !cut.ready) { box.innerHTML = ''; return; }
+        const live = barLive(), ps = barProfiles();
+        if (barForm.mode === 'recv') {
+            box.innerHTML = '<div class="form" data-bform="recv"><b>📥 รับเส้นเต็มเข้า (ของที่ส่งมาฝากโรงงาน)</b>'
+                + '<div class="meta">ใส่จำนวน <b>เส้น</b> ที่ได้รับจริง · ช่องว่าง = ไม่ได้รับรหัสนั้น · ลงผิดแก้ได้ด้วย ↩️ ยกเลิกใบ แล้วลงใหม่</div>'
+                + '<div class="frow"><span class="lbl">ผู้ส่ง</span><input type="text" data-bsup maxlength="60" value="Alutop" list="barSup"></div>'
+                + '<div class="frow"><span class="lbl">เลขบิล / ใบส่งของ</span><input type="text" data-bbill maxlength="60" placeholder="ถ้ามี"></div>'
+                + ps.filter(p => p.active !== false).map(p => '<div class="frow"><span class="lbl"><b>' + esc(p.code) + '</b> ' + esc(p.name)
+                    + '<br><span class="meta">มี ' + bundleText(p.bar_qty, p.bundle) + (p.bundle > 1 ? ' · มัดละ ' + num(p.bundle) : '') + '</span></span>'
+                    + '<input type="number" inputmode="numeric" min="0" max="100000" step="1" data-brecv="' + esc(p.code) + '" data-bundle="' + esc(p.bundle || 1) + '" placeholder="0">'
+                    + '<span class="meta" data-bhint style="min-width:70px;"></span></div>').join('')
+                + '<div class="frow"><input type="text" data-bnote maxlength="200" placeholder="หมายเหตุ (ถ้ามี)"></div>'
+                + '<div class="toolbar" style="margin:8px 0 0;"><button type="button" class="btn btn-ok" data-bact="recvSave">💾 บันทึกรับเข้า</button>'
+                + '<button type="button" class="btn" data-bact="formClose">ปิด</button><b data-bsum></b></div></div>';
+            return;
+        }
+        const canMin = canBarAdj || canOrder;
+        box.innerHTML = '<div class="form edit" data-bform="count"><b>' + (live ? '✏️ ปรับยอดตามที่นับจริง' : '📋 ตั้งยอดเริ่มต้น (นับจริงที่โรงงาน)') + '</b>'
+            + '<div class="meta">ใส่จำนวนเส้นที่นับได้จริง · ช่องว่าง = ไม่เปลี่ยน' + (live ? ' · ต้องใส่เหตุผล' : ' · นับแล้วไม่มีให้ใส่ 0 · ใส่ซ้ำได้ ยึดครั้งล่าสุด') + '</div>'
+            + ps.filter(p => barForm.codes.includes(p.code)).map(p => '<div class="frow"><span class="lbl"><b>' + esc(p.code) + '</b> ' + esc(p.name)
+                + '<br><span class="meta">ตอนนี้ ' + bundleText(p.bar_qty, p.bundle) + (p.bundle > 1 ? ' · มัดละ ' + num(p.bundle) : '') + '</span></span>'
+                + '<label class="meta" style="display:flex;gap:5px;align-items:center;">นับได้ <input type="number" inputmode="numeric" min="0" max="100000" step="1" data-bcnt="' + esc(p.code) + '" placeholder="-"></label>'
+                + '<label class="meta" style="display:flex;gap:5px;align-items:center;">ขั้นต่ำ <input type="number" inputmode="numeric" min="0" max="100000" step="1" data-bmin="' + esc(p.code) + '" value="' + esc(p.bar_min) + '"' + (canMin ? '' : ' disabled') + '></label></div>').join('')
+            + '<div class="frow"><input type="text" data-breason maxlength="200" placeholder="' + (live ? 'เหตุผล (ต้องใส่) เช่น นับจริงประจำเดือน / เส้นงอใช้ไม่ได้' : 'หมายเหตุ (ถ้ามี) เช่น นับวันเปลี่ยนระบบ') + '"></div>'
+            + '<div class="toolbar" style="margin:8px 0 0;"><button type="button" class="btn btn-main" data-bact="countSave">💾 บันทึก</button>'
+            + '<button type="button" class="btn" data-bact="formClose">ปิด</button></div></div>';
+    }
+    function openBarForm(f) {
+        if (barFormDirty() && !confirm('ทิ้งตัวเลขที่ใส่ค้างไว้ในฟอร์มเดิม?')) return;
+        barForm = f;
+        renderBarForm();
+        const el = document.querySelector('#bxForm [data-bform]');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    function recvBarSum() {
+        const f = document.querySelector('[data-bform="recv"]');
+        if (!f) return;
+        let t = 0, n = 0;
+        f.querySelectorAll('[data-brecv]').forEach(el => {
+            const v = parseInt(el.value, 10), b = Number(el.dataset.bundle) || 1, hint = el.parentElement.querySelector('[data-bhint]');
+            if (v > 0) { t += v; n++; }
+            if (hint) hint.textContent = v >= b && b > 1 ? '= ' + num(Math.floor(v / b)) + ' มัด' + (v % b ? ' ' + num(v % b) + ' เส้น' : '') : '';
+        });
+        f.querySelector('[data-bsum]').textContent = t ? 'รวม ' + num(t) + ' เส้น · ' + num(n) + ' รหัส' : '';
+    }
+    async function saveBarRecv(btn) {
+        if (barBusy || !barForm || barForm.mode !== 'recv') return;
+        if (!barLive()) { toast('ยังไม่เริ่มใช้ยอดเส้นเต็มใน ERP — รับเส้นเข้าได้หลังกด ▶️ เริ่มใช้', 5000); return; }
+        const name = barNameVal();
+        if (!name) return;
+        const f = document.querySelector('[data-bform="recv"]'), items = [];
+        for (const el of f.querySelectorAll('[data-brecv]')) {
+            const v = el.value.trim();
+            if (v === '' || Number(v) === 0) continue;
+            const n = Number(v);
+            if (!Number.isInteger(n) || n < 1 || n > 100000) { toast('เส้น ' + el.dataset.brecv + ': จำนวนต้องเป็นเลขเต็ม 1 – 100,000', 5000); el.focus(); return; }
+            items.push({ code: el.dataset.brecv, bars: n });
+        }
+        if (!items.length) { toast('ยังไม่ได้ใส่จำนวนเส้นที่รับ'); return; }
+        const sup = f.querySelector('[data-bsup]').value.trim() || 'Alutop';
+        const bill = f.querySelector('[data-bbill]').value.trim(), note = f.querySelector('[data-bnote]').value.trim();
+        const tot = items.reduce((a, x) => a + x.bars, 0);
+        if (!confirm('📥 รับเส้นเต็มเข้า (คนรับ: ' + name + ')\nจาก ' + sup + (bill ? ' · บิล ' + bill : '') + '\n'
+            + items.slice(0, 15).map(x => '• ' + x.code + ' +' + num(x.bars) + ' เส้น').join('\n') + (items.length > 15 ? '\n• ... อีก ' + (items.length - 15) + ' รหัส' : '')
+            + '\nรวม ' + num(tot) + ' เส้น\n\nยืนยัน?')) return;
+        barBusy = true; barButtons();
+        btn.textContent = '⏳ กำลังบันทึก...';
+        try {
+            const { data, error } = await db.rpc('rpc_alu_bar_receive', { p_items: items, p_supplier: sup, p_bill: bill || null, p_note: note || null, p_entered_by: name, p_key: barForm.key });
+            if (error) throw error;
+            barForm = null; renderBarForm();
+            toast(data.status === 'duplicate' ? '✅ ใบนี้บันทึกไปแล้ว (' + data.receipt_no + ' · ' + num(data.bars) + ' เส้น) — ไม่บวกซ้ำ'
+                : '✅ รับเข้าแล้ว ' + data.receipt_no + ' · ' + num(data.bars) + ' เส้น', 5000);
+            barHist = {};
+            await loadBars(); renderBars(); renderOrders();
+        } catch (e) {
+            toast('❌ บันทึกไม่สำเร็จ: ' + errText(e), 7000);
+        } finally {
+            barBusy = false; btn.textContent = '💾 บันทึกรับเข้า'; barButtons();
+        }
+    }
+    async function saveBarCount(btn) {
+        if (barBusy || !barForm || barForm.mode !== 'count') return;
+        const name = barNameVal();
+        if (!name) return;
+        const live = barLive(), f = document.querySelector('[data-bform="count"]');
+        const reason = f.querySelector('[data-breason]').value.trim();
+        const cnt = [], mins = [];
+        for (const el of f.querySelectorAll('[data-bcnt]')) {
+            const code = el.dataset.bcnt, v = el.value.trim(), old = barHave(code);
+            if (v === '') continue;
+            const n = Number(v);
+            if (!Number.isInteger(n) || n < 0 || n > 100000) { toast('เส้น ' + code + ': จำนวนต้องเป็นเลขเต็ม 0 – 100,000', 5000); el.focus(); return; }
+            if (live && n === old) continue;   // หลังเริ่มใช้ ยอดเท่าเดิม = ไม่ต้องปรับ
+            cnt.push({ code, n, old, el });
+        }
+        for (const el of f.querySelectorAll('[data-bmin]')) {
+            if (el.disabled) continue;
+            const code = el.dataset.bmin, s = bars.stock[code] || {}, n = Number(el.value);
+            if (el.value.trim() === '' || !Number.isInteger(n) || n < 0 || n > 100000) { toast('เส้น ' + code + ': ขั้นต่ำต้องเป็นเลขเต็ม 0 – 100,000', 5000); el.focus(); return; }
+            if (n !== Number(s.bar_min)) mins.push({ code, min: n });
+        }
+        if (!cnt.length && !mins.length) { toast(live ? 'ไม่มีอะไรเปลี่ยน (ยอดที่ใส่เท่าเดิม)' : 'ยังไม่ได้ใส่ยอดที่นับได้'); return; }
+        if (cnt.length && live && reason.length < 3) {
+            toast('กรุณาใส่เหตุผลที่ปรับยอด (อย่างน้อย 3 ตัวอักษร)', 4000); f.querySelector('[data-breason]').focus(); return;
+        }
+        const lines = cnt.slice(0, 12).map(c => '• ' + c.code + ': ' + num(c.old) + ' → ' + num(c.n) + ' เส้น' + (live ? ' (' + (c.n > c.old ? '+' : '') + num(c.n - c.old) + ')' : ''));
+        if (cnt.length > 12) lines.push('• ... อีก ' + (cnt.length - 12) + ' รหัส');
+        if (!confirm((live ? '✏️ ปรับยอดเส้นเต็มตามที่นับจริง' : '📋 ตั้งยอดเริ่มต้นเส้นเต็ม') + ' (คนนับ: ' + name + ')\n' + lines.join('\n')
+            + (mins.length ? '\n• แก้ขั้นต่ำ ' + num(mins.length) + ' รหัส' : '') + (live && cnt.length ? '\nเหตุผล: ' + reason : '') + '\n\nยืนยัน?')) return;
+        barBusy = true; barButtons();
+        btn.textContent = '⏳ กำลังบันทึก...';
+        const fails = [];
+        let ok = 0;
+        for (const c of cnt) {
+            try {
+                const { error } = await db.rpc('rpc_alu_bar_adjust', { p_code: c.code, p_counted: c.n, p_reason: reason || null, p_entered_by: name, p_key: barForm.keys[c.code] });
+                if (error) throw error;
+                ok++;
+                barForm.keys[c.code] = newKey();   // สำเร็จแล้ว → ครั้งหน้าเป็นรายการใหม่
+                c.el.value = '';                   // ไม่ส่งซ้ำถ้ากดบันทึกอีก
+            } catch (e) {
+                fails.push(c.code + ': ' + errText(e));
+                if (/Failed to fetch|NetworkError|timeout|aborted/i.test(String((e && e.message) || e))) break;   // เน็ตหลุด หยุดก่อน
+            }
+        }
+        if (mins.length && !fails.length) {
+            try {
+                const { error } = await db.rpc('rpc_alu_bar_set_min', { p_items: mins });
+                if (error) throw error;
+            } catch (e) { fails.push('ขั้นต่ำ: ' + errText(e)); }
+        }
+        barBusy = false; btn.textContent = '💾 บันทึก';
+        await loadBars();
+        if (!fails.length) {
+            barForm = null; renderBarForm();
+            toast('✅ บันทึกแล้ว' + (ok ? ' · ' + (live ? 'ปรับยอด' : 'ตั้งยอด') + ' ' + num(ok) + ' รหัส' : '') + (mins.length ? ' · ขั้นต่ำ ' + num(mins.length) + ' รหัส' : ''), 4000);
+        } else {
+            toast('⚠️ สำเร็จ ' + num(ok) + ' รหัส · ไม่สำเร็จ:\n' + fails.slice(0, 4).join('\n') + (fails.length > 4 ? '\n...' : '') + '\n(กดบันทึกอีกครั้งได้ ระบบไม่บันทึกซ้ำ)', 9000);
+        }
+        barHist = {};
+        renderBars(); renderOrders();
+    }
+    async function goLiveBars() {
+        if (barBusy || barLive() || !canBarAdj) return;
+        const name = barNameVal();
+        if (!name) return;
+        const all = barProfiles().filter(p => p.active !== false), un = all.filter(p => !p.bar_counted_at), tot = all.reduce((a, p) => a + p.bar_qty, 0);
+        if (!confirm('▶️ เริ่มใช้ยอดเส้นเต็มใน ERP (' + name + ')\n'
+            + '• ตั้งยอดแล้ว ' + num(all.length - un.length) + ' / ' + num(all.length) + ' รหัส · รวม ' + num(tot) + ' เส้น\n'
+            + (un.length ? '• ⚠️ ยังไม่ได้ตั้งยอด ' + num(un.length) + ' รหัส (นับเป็น 0): ' + un.slice(0, 10).map(p => p.code).join(', ') + (un.length > 10 ? ' ...' : '') + '\n' : '')
+            + '\nหลังเริ่มใช้:\n• รับเส้นเข้าได้ · เตือนเส้นต่ำกว่าขั้นต่ำ\n• ปรับยอดต้องใส่เหตุผล\n• เลิกใช้ยอดในแอปโรงงานเดิม\n• ย้อนกลับเองจากหน้านี้ไม่ได้\n\nยืนยัน?')) return;
+        if (un.length && !confirm('ยังมี ' + num(un.length) + ' รหัสที่ยังไม่ได้ตั้งยอด — แน่ใจนะว่าจะเริ่มใช้เลย?')) return;
+        barBusy = true; barButtons();
+        try {
+            const { data, error } = await db.rpc('rpc_alu_bar_go_live', { p_entered_by: name });
+            if (error) throw error;
+            toast(data.status === 'already' ? 'เริ่มใช้ไปแล้วก่อนหน้านี้ (' + (data.live_by || '') + ')' : '✅ เริ่มใช้ยอดเส้นเต็มใน ERP แล้ว · รวม ' + num(data.bars) + ' เส้น', 5000);
+        } catch (e) {
+            toast('❌ เริ่มใช้ไม่สำเร็จ: ' + errText(e), 7000);
+        } finally { barBusy = false; }
+        await loadBars(); renderBarForm(); renderBars(); renderOrders();
+    }
+    async function voidBarRcpt(id) {
+        const r = (bars.receipts || []).find(x => Number(x.id) === id);
+        if (!r || barBusy || !canBarAdj) return;
+        const name = barNameVal();
+        if (!name) return;
+        const reason = prompt('ยกเลิกใบ ' + r.receipt_no + ' (' + num(r.bars) + ' เส้น) — ยอดเส้นจะถูกหักคืนตามใบ\nเหตุผลที่ยกเลิก (อย่างน้อย 3 ตัว) เช่น ลงผิดใบ / ลงจำนวนผิด:');
+        if (reason === null) return;
+        if (reason.trim().length < 3) { toast('กรุณาใส่เหตุผล (อย่างน้อย 3 ตัวอักษร)'); return; }
+        if (!confirm('↩️ ยืนยันยกเลิกใบ ' + r.receipt_no + ' (' + name + ')\n' + (r.items || []).map(x => '• ' + x.code + ' −' + num(x.bars) + ' เส้น').join('\n')
+            + '\nเหตุผล: ' + reason.trim())) return;
+        barBusy = true; barButtons();
+        try {
+            const { data, error } = await db.rpc('rpc_alu_bar_receipt_void', { p_id: id, p_reason: reason.trim(), p_entered_by: name });
+            if (error) throw error;
+            toast(data.status === 'already' ? 'ใบ ' + data.receipt_no + ' ถูกยกเลิกไปแล้ว' : '✅ ยกเลิกใบ ' + data.receipt_no + ' แล้ว · หักคืน ' + num(data.bars) + ' เส้น', 5000);
+        } catch (e) {
+            toast('❌ ยกเลิกไม่สำเร็จ: ' + errText(e), 8000);
+        } finally { barBusy = false; }
+        barHist = {};
+        await loadBars(); renderBars(); renderOrders();
+    }
+
     function switchTab(t) {
         document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
         document.getElementById('tabNeed').style.display = t === 'need' ? '' : 'none';
         document.getElementById('tabOrders').style.display = t === 'orders' ? '' : 'none';
         document.getElementById('tabLines').style.display = t === 'lines' ? '' : 'none';
+        document.getElementById('tabBars').style.display = t === 'bars' ? '' : 'none';
         if (t === 'lines') renderLines();
+        if (t === 'bars') renderBars();
         if (t === 'orders') {
             renderOrders();
             if (newOrderId) setTimeout(() => { const el = document.getElementById('ord-' + newOrderId); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
@@ -1205,6 +1590,9 @@
         const has = k => ceo || perms.some(p => p.page_key === k && p.can_access === true);
         canOrder = has('action_alu_order');
         canReceive = has('action_receive_alu');
+        canBarRecv = has('action_alu_bar_receive');
+        canBarAdj = has('action_alu_bar_adjust');
+        try { document.getElementById('bName').value = localStorage.getItem('ccga_alu_bar_name') || ''; } catch (e) {}
         if (!canOrder || !canReceive) {
             document.getElementById('sub').insertAdjacentHTML('beforeend', '<br><span class="pill gry">👁️ '
                 + (!canOrder && !canReceive ? 'ดูอย่างเดียว — สร้างใบต้องมีสิทธิ์ "🪚 สั่งตัดอลูมิเนียม" · รับของต้องมีสิทธิ์ "📥 รับอลูมิเนียมเข้าสต็อก"'
@@ -1343,7 +1731,35 @@
             // สี/ชื่อ/รหัส/ปิดใช้ มีผลกับตัวเลือกด้านบน → วาดใหม่แค่ตารางด้านบน
             if (el.tagName === 'SELECT' || el.type === 'checkbox' || el.dataset.pf === 'name' || el.dataset.pf === 'code') renderLinesPart(false);
         });
-        window.addEventListener('beforeunload', e => { if (linesDirty()) { e.preventDefault(); e.returnValue = ''; } });
+        // แท็บเส้นเต็มที่โรงงาน
+        ['bShow', 'bColor'].forEach(id => document.getElementById(id).addEventListener('change', renderBars));
+        document.getElementById('bSearch').addEventListener('input', renderBars);
+        document.getElementById('btnBarRecv').addEventListener('click', () => {
+            if (barForm && barForm.mode === 'recv') { if (!barFormDirty() || confirm('ปิดฟอร์มรับเส้น? ตัวเลขที่ใส่จะหาย')) { barForm = null; renderBarForm(); } return; }
+            openBarForm({ mode: 'recv', key: newKey() });
+        });
+        document.getElementById('btnBarCount').addEventListener('click', () => {
+            const codes = shownBars().filter(p => p.active !== false || p.bar_qty > 0).map(p => p.code);
+            if (!codes.length) { toast('ไม่มีรหัสที่แสดงอยู่'); return; }
+            const keys = {};
+            codes.forEach(c => { keys[c] = newKey(); });
+            openBarForm({ mode: 'count', codes, keys });
+        });
+        const barsBox = document.getElementById('tabBars');
+        barsBox.addEventListener('click', e => {
+            const b = e.target.closest('button[data-bact]');
+            if (!b) return;
+            const a = b.dataset.bact;
+            if (a === 'hist') toggleHist(b.dataset.code);
+            else if (a === 'countOne') openBarForm({ mode: 'count', codes: [b.dataset.code], keys: { [b.dataset.code]: newKey() } });
+            else if (a === 'countSave') saveBarCount(b);
+            else if (a === 'recvSave') saveBarRecv(b);
+            else if (a === 'formClose') { if (!barFormDirty() || confirm('ปิดฟอร์ม? ตัวเลขที่ใส่จะหาย')) { barForm = null; renderBarForm(); } }
+            else if (a === 'void') voidBarRcpt(Number(b.dataset.id));
+            else if (a === 'live') goLiveBars();
+        });
+        barsBox.addEventListener('input', e => { if (e.target.closest('[data-brecv]')) recvBarSum(); });
+        window.addEventListener('beforeunload', e => { if (linesDirty() || barFormDirty()) { e.preventDefault(); e.returnValue = ''; } });
     });
 </script>
 </body>
