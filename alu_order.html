@@ -170,6 +170,10 @@
             #printArea tr.gh td { background:#eee; font-weight:700; }
             #printArea tr { page-break-inside:avoid; }
             #printArea .sign { display:flex; gap:20mm; margin-top:10mm; font-size:11pt; }
+            #printArea .sign > div { flex:1; text-align:center; line-height:1.6; }
+            #printArea .sign .sl { border-bottom:1px solid #000; height:12mm; margin-bottom:1mm; }
+            #printArea .pn { font-weight:400; font-size:9.5pt; }
+            #printArea td.ck { width:12mm; }
         }
     </style>
     <link rel="stylesheet" href="mobile-fit.css?v=20261112-1">
@@ -255,8 +259,17 @@
                         <option value="cancelled">❌ ยกเลิก</option>
                         <option value="">ทั้งหมด</option>
                     </select>
+                    <select id="fCut" style="display:none;">
+                        <option value="">🪚 งานตัด: ทุกสถานะ</option>
+                        <option value="wait">⏳ รอตัด</option>
+                        <option value="cutting">🪚 กำลังตัด</option>
+                        <option value="done">✅ ตัดเสร็จ รอส่ง</option>
+                        <option value="shipped">🚚 โรงงานส่งแล้ว</option>
+                    </select>
                     <button type="button" class="btn" id="btnReload">🔄 โหลดใหม่</button>
+                    <label id="oNameBox" class="meta" style="display:none;align-items:center;gap:6px;">👤 ชื่อคนกด <input id="oName" maxlength="60" placeholder="ชื่อคนทำ" style="width:130px;"></label>
                 </div>
+                <div id="cutNote"></div>
                 <div id="orderList"><div class="empty">กำลังโหลด...</div></div>
                 <datalist id="aluCodes"></datalist>
             </div>
@@ -362,7 +375,7 @@
     try { planLot = JSON.parse(localStorage.getItem('ccga_alu_plan_lot') || '{}') || {}; } catch (e) { planLot = {}; }
     let lineEdit = null;             // ที่แก้ค้างในแท็บเส้นโรงงาน { prof: Map(code→row), map: Map(key→code|''), added: [] }
     // เส้นเต็มที่ฝากโรงงาน (alu-bars-step1.sql) · โหลดไม่ได้ = แท็บอื่นใช้ได้ตามเดิม
-    let canBarRecv = false, canBarAdj = false, barBusy = false;
+    let canBarRecv = false, canBarAdj = false, barBusy = false, canCut = false;
     let bars = { ready: false, err: null, live_at: null, live_by: null, stock: {}, receipts: [] };
     let barForm = null;              // { mode:'recv', key } | { mode:'count', codes, keys:{code→key} }
     let barHist = {};                // รหัส → 'loading' | [ประวัติ] | { err }
@@ -405,6 +418,7 @@
     function errText(e) {
         const m = String((e && (e.message || e.details)) || e || '');
         if (/alu_bar|bar_qty|bar_min/i.test(m) && /schema cache|Could not find|does not exist/i.test(m)) return 'ฐานข้อมูลยังไม่ได้ติดตั้งส่วนเส้นเต็ม (alu-bars-step1.sql)';
+        if (/alu_cutrun|cut_status|cut_plan/i.test(m) && /schema cache|Could not find|does not exist/i.test(m)) return 'ฐานข้อมูลยังไม่ได้ติดตั้งส่วนงานตัด (alu-cut-run.sql)';
         if (/rpc_alu_cut|alu_cut_/i.test(m)) return 'ฐานข้อมูลยังไม่ได้ติดตั้งส่วนจัดเส้น (alu-order-step2.sql)';
         if (/rpc_alu|alu_order|schema cache|Could not find/i.test(m)) return 'ฐานข้อมูลยังไม่ได้ติดตั้งระบบสั่งตัดอลูมิเนียม (alu-order-step1.sql)';
         if (/Failed to fetch|NetworkError|timeout|aborted/i.test(m)) return 'เน็ตหลุดหรือช้า — ลองใหม่อีกครั้ง (กดซ้ำได้ ระบบไม่บันทึกซ้ำ)';
@@ -721,11 +735,12 @@
         const pct = s.tot ? Math.round((s.tot - s.left) / s.tot * 100) : 0;
         const rc = (o.alu_order_receipts || []).slice().sort((a, b) => new Date(a.received_at) - new Date(b.received_at));
         let h = '<div class="ord' + (o.id === newOrderId ? ' new' : '') + '" id="ord-' + o.id + '">'
-            + '<div class="ord-head"><div><div class="ord-no">🧾 ' + esc(o.order_no) + ' <span class="pill ' + st[1] + '">' + st[0] + '</span></div>'
+            + '<div class="ord-head"><div><div class="ord-no">🧾 ' + esc(o.order_no) + ' <span class="pill ' + st[1] + '">' + st[0] + '</span>' + cutPill(o) + '</div>'
             + '<div class="meta">สร้าง ' + fmtDate(o.created_at, true) + ' · ' + esc(o.created_by || '-')
             + (waiting ? ' · <b>รอมาแล้ว ' + num(days) + ' วัน</b>' : '')
             + (o.received_at ? ' · ได้ครบ ' + fmtDate(o.received_at, true) : '') + '</div>'
             + '<div class="meta">เลขใบในแอปโรงงาน: <b>' + esc(o.factory_ref || '— ยังไม่ได้ใส่') + '</b>' + (o.note ? ' · หมายเหตุ: ' + esc(o.note) : '') + '</div>'
+            + cutInfo(o)
             + (o.status === 'closed' ? '<div class="meta">ปิดใบโดย ' + esc(o.closed_by || '-') + ' ' + fmtDate(o.closed_at, true) + (o.close_reason ? ' · ' + esc(o.close_reason) : '') + '</div>' : '')
             + (o.status === 'cancelled' ? '<div class="meta">ยกเลิกโดย ' + esc(o.cancelled_by || '-') + ' ' + fmtDate(o.cancelled_at, true) + (o.cancel_reason ? ' · ' + esc(o.cancel_reason) : '') + '</div>' : '')
             + '</div><div style="text-align:right;"><b style="font-size:1.05rem;">' + num(s.got) + ' / ' + num(s.tot) + '</b><div class="meta">ท่อน ได้แล้ว · ' + num(s.n) + ' รายการ</div>'
@@ -744,29 +759,39 @@
             + '</table></div>'
             + (rc.length ? '<div style="margin-top:8px;"><b class="meta">ประวัติรับของ</b>' + rc.map((r, i) => '<div class="rcpt">📥 ครั้งที่ ' + (i + 1) + ' · ' + fmtDate(r.received_at, true) + ' · '
                 + esc(r.received_by || '-') + ' · ' + num(r.pieces) + ' ท่อน' + (r.note ? ' · ' + esc(r.note) : '') + '</div>').join('') + '</div>' : '')
+            + cutLogHtml(o)
             + '</details>';
         h += '<div class="ord-actions">'
             + '<button type="button" class="btn" data-act="copy" data-id="' + o.id + '">📋 คัดลอกรายการ</button>'
             + '<button type="button" class="btn" data-act="print" data-id="' + o.id + '">🖨️ พิมพ์ใบ</button>'
             + '<button type="button" class="btn" data-act="csv" data-id="' + o.id + '">⬇️ ไฟล์ Excel (CSV)</button>'
-            + (o.status !== 'cancelled' ? '<button type="button" class="btn" data-act="plan" data-id="' + o.id + '" style="border-color:#7c3aed;color:#7c3aed;">🧮 จัดเส้น</button>' : '')
+            + cutButtons(o)
+            + (o.status !== 'cancelled' ? '<button type="button" class="btn" data-act="plan" data-id="' + o.id + '" style="border-color:#7c3aed;color:#7c3aed;">' + (o.cut_status && o.cut_plan ? '📌 แบบตัด' : '🧮 จัดเส้น') + '</button>' : '')
+            + (o.status !== 'cancelled' ? '<button type="button" class="btn" data-act="planPrint" data-id="' + o.id + '">🖨️ ใบตัด</button>' : '')
             + (waiting && canReceive ? '<button type="button" class="btn btn-ok" data-act="recv" data-id="' + o.id + '">📥 รับของ</button>' : '')
             + (o.status !== 'cancelled' && canOrder ? '<button type="button" class="btn" data-act="edit" data-id="' + o.id + '">✏️ เลขใบโรงงาน / หมายเหตุ</button>' : '')
             + (o.status === 'partial' && canOrder ? '<button type="button" class="btn" data-act="close" data-id="' + o.id + '">📕 ปิดใบ (ไม่รอที่ค้าง)</button>' : '')
-            + (o.status === 'open' && !rc.length && canOrder ? '<button type="button" class="btn btn-bad" data-act="cancel" data-id="' + o.id + '">❌ ยกเลิกใบ</button>' : '')
+            + (o.status === 'open' && !rc.length && !o.cut_status && canOrder ? '<button type="button" class="btn btn-bad" data-act="cancel" data-id="' + o.id + '">❌ ยกเลิกใบ</button>' : '')
             + '</div>';
         if (formOpen && formOpen.id === o.id) h += formOpen.mode === 'recv' ? recvFormHtml(o) : formOpen.mode === 'plan' ? planHtml(o) : editFormHtml(o);
         return h + '</div>';
     }
     function shownOrders() {
-        const f = document.getElementById('fStatus').value;
-        return orders.filter(o => !f || (f === 'wait' ? (o.status === 'open' || o.status === 'partial') : o.status === f));
+        const f = document.getElementById('fStatus').value, fc = cutFilterOn() ? document.getElementById('fCut').value : '';
+        return orders.filter(o => (!f || (f === 'wait' ? (o.status === 'open' || o.status === 'partial') : o.status === f))
+            && (!fc || ((o.cut_status || 'wait') === fc && (o.cut_status || o.status !== 'cancelled'))));
     }
+    // ตัวกรอง/ช่องชื่องานตัด โผล่เมื่อเริ่มใช้ยอดเส้นเต็มแล้ว หรือมีใบที่เริ่มตัดแล้ว
+    function cutFilterOn() { return barLive() || orders.some(o => o.cut_status); }
     function renderOrders() {
         const box = document.getElementById('orderList');
+        document.getElementById('fCut').style.display = cutFilterOn() ? '' : 'none';
+        document.getElementById('oNameBox').style.display = canCut && cutFilterOn() ? 'flex' : 'none';
+        document.getElementById('cutNote').innerHTML = canCut && !barLive() && bars.ready
+            ? '<div class="meta" style="margin:0 0 8px;">🪚 ปุ่มเริ่มตัด/ตัดเสร็จ/ส่งแล้ว จะโผล่หลังกด ▶️ เริ่มใช้ยอดเส้นเต็ม ที่แท็บ 🧱 (วันเปลี่ยนระบบ)</div>' : '';
         const list = shownOrders();
         if (!list.length) {
-            box.innerHTML = '<div class="empty">' + (document.getElementById('fStatus').value === 'wait' ? 'ไม่มีใบที่รอของ' : 'ไม่มีใบสั่งตัด') + '</div>';
+            box.innerHTML = '<div class="empty">' + (cutFilterOn() && document.getElementById('fCut').value ? 'ไม่มีใบในสถานะงานตัดนี้' : document.getElementById('fStatus').value === 'wait' ? 'ไม่มีใบที่รอของ' : 'ไม่มีใบสั่งตัด') + '</div>';
             return;
         }
         box.innerHTML = list.map(orderCard).join('');
@@ -1035,19 +1060,46 @@
         pt.cuts.forEach((c, ci) => { for (let k = 0; k < c.count; k++) h += '<i style="width:' + pct(c.len + PLAN_KERF) + ';background:' + PLAN_COLORS[ci % PLAN_COLORS.length] + '"></i>'; });
         return '<div class="barviz" aria-hidden="true">' + h + '</div>';
     }
+    // ใบที่กดเริ่มตัดแล้ว → ใช้แบบตัดที่เก็บไว้ตอนเริ่มตัด (ตรงกับเส้นที่หักไป) · ยังไม่เริ่ม → คิดสดจากค่าเส้นปัจจุบัน
+    function snapPlan(o) {
+        const s = o.cut_plan || {};
+        const groups = (s.groups || []).map(g => ({
+            prof: { code: g.code, name: g.name || '', color: g.color || '', bar_mm: Number(g.bar_mm), bundle: Number(g.bundle) || 1 },
+            parts: g.parts || [], guess: false, mapped: new Set([g.code]),
+            res: { ok: true, bars: Number(g.bars) || 0, patternCount: (g.patterns || []).length, wastePct: g.waste_pct != null ? g.waste_pct : '-',
+                   patterns: (g.patterns || []).map(p => ({ bars: p.bars, cuts: p.cuts || [], wasteMm: p.waste_mm || 0 })), extra: g.extra || [], errors: [] }
+        }));
+        const unmapped = (s.unmapped || []).map(u => ({ l: { product_code: u.product_code, qty: u.qty }, p: parse(u.product_code), why: u.why || '' }));
+        return { groups, unmapped, bars: groups.reduce((a, g) => a + g.res.bars, 0), guess: false, snap: true };
+    }
+    function planFor(o) { return o.cut_status && o.cut_plan ? snapPlan(o) : planOrder(o); }
+    function toSnap(r) {
+        return {
+            fill: planFill,
+            groups: r.groups.map(g => ({
+                code: g.prof.code, name: g.prof.name, color: g.prof.color || null, bar_mm: Number(g.prof.bar_mm), bundle: Number(g.prof.bundle) || 1,
+                bars: g.res.bars, waste_pct: g.res.wastePct, parts: g.parts,
+                patterns: g.res.patterns.map(p => ({ bars: p.bars, cuts: p.cuts.map(c => ({ len: c.len, count: c.count })), waste_mm: p.wasteMm })),
+                extra: g.res.extra.map(e => ({ len: e.len, count: e.count }))
+            })),
+            unmapped: r.unmapped.map(u => ({ product_code: u.l.product_code, qty: u.l.qty, why: u.why }))
+        };
+    }
+    function byName(s) { return String(s || '-').replace(/\s*\([^()]*@[^()]*\)\s*$/, ''); }   // "เมย์ (admin@…)" → "เมย์"
     function planHtml(o) {
         if (!window.AluCutPlan) return '<div class="plan"><span class="warn">❌ โหลดตัวจัดเส้นไม่ได้ (alu-cut-plan.js) — รีเฟรชหน้า</span></div>';
         if (!cut.ready) return '<div class="plan"><span class="warn">❌ ' + esc(cut.err || 'ยังโหลดค่าเส้นไม่ได้') + '</span></div>';
         if (!formOpen || !formOpen.ready) return '<div class="plan" data-form="plan">⏳ กำลังจัดเส้น...</div>';
-        const r = planOrder(o);
-        let h = '<div class="plan" data-form="plan"><div class="pgrp-head"><b>🧮 จัดเส้นใบ ' + esc(o.order_no) + '</b>'
+        const r = planFor(o), snap = !!r.snap;
+        let h = '<div class="plan" data-form="plan"><div class="pgrp-head"><b>' + (snap ? '📌 แบบตัดใบ ' + esc(o.order_no) + ' (ตามที่กดเริ่มตัด)' : '🧮 จัดเส้นใบ ' + esc(o.order_no)) + '</b>'
             + '<span class="pill" style="background:rgba(124,58,237,.14);color:#7c3aed;">รวม ' + num(r.bars) + ' เส้น</span></div>'
+            + (snap ? '<div class="meta"><b>เริ่มตัด ' + fmtDate(o.cut_started_at, true) + ' · ' + esc(o.cut_started_by || '-') + '</b> · หักเส้นเต็มไปแล้ว — แบบตัดนี้ไม่เปลี่ยนตามค่าเส้นที่แก้ทีหลัง</div>' : '')
             + '<div class="meta">หัวเส้น ' + PLAN_TRIM + ' มม. + ใบตัด ' + PLAN_KERF + ' มม./ท่อน (เหมือนแอปโรงงาน) · ขนาดเป็น มม. ตัดทศนิยมทิ้ง'
             + '<br>อ่านว่า "12 เส้น : 812×4 + 912×3" = ตัด 12 เส้น แต่ละเส้นได้ 812 มม. 4 ท่อน และ 912 มม. 3 ท่อน</div>'
-            + '<label class="meta" style="display:flex;gap:6px;align-items:center;margin-top:4px;cursor:pointer;"><input type="checkbox" data-planfill' + (planFill ? ' checked' : '') + '> ♻️ เศษที่ยังยาวพอ ตัดเป็นท่อนขนาดในใบเพิ่ม (ไม่เพิ่มเส้น · ได้ของเกินที่สั่ง)</label>';
+            + (snap ? '' : '<label class="meta" style="display:flex;gap:6px;align-items:center;margin-top:4px;cursor:pointer;"><input type="checkbox" data-planfill' + (planFill ? ' checked' : '') + '> ♻️ เศษที่ยังยาวพอ ตัดเป็นท่อนขนาดในใบเพิ่ม (ไม่เพิ่มเส้น · ได้ของเกินที่สั่ง)</label>');
         if (r.guess) h += '<div class="meta" style="color:#d97706;font-weight:600;">⚠️ บางชิ้นระบบเดาให้ว่าตัดจากเส้นไหน (ยังไม่มีคนยืนยัน) — ตรวจที่แท็บ 📏 เส้นโรงงาน</div>';
-        // เริ่มใช้ยอดเส้นเต็มแล้ว → บอกว่าโรงงานมีกี่เส้น + เตือนเส้นไม่พอ (ยังไม่หักใบอื่นที่รอตัด)
-        const live = barLive();
+        // ยังไม่เริ่มตัด + เริ่มใช้ยอดเส้นเต็มแล้ว → บอกว่าโรงงานมีกี่เส้น + เตือนเส้นไม่พอ
+        const live = !snap && barLive();
         const short = live ? r.groups.filter(g => g.res.ok && g.res.bars > barHave(g.prof.code)) : [];
         if (short.length) h += '<div class="pshort">⚠️ เส้นเต็มที่โรงงานไม่พอ ' + num(short.length) + ' รหัส: '
             + esc(short.map(g => g.prof.code + ' ขาด ' + num(g.res.bars - barHave(g.prof.code))).join(' · ')) + ' — สั่ง Alutop เพิ่ม หรือเลือกล็อตอื่น</div>';
@@ -1058,8 +1110,8 @@
                 + '<div class="meta">' + esc(g.parts.join(' · ')) + '</div>';
             if (have !== null) h += R.ok && R.bars > have
                 ? '<div class="pshort">🧱 โรงงานมี ' + bundleText(have, g.prof.bundle) + ' · ต้องใช้ ' + num(R.bars) + ' · ขาด ' + num(R.bars - have) + ' เส้น</div>'
-                : '<div class="meta">🧱 โรงงานมี ' + bundleText(have, g.prof.bundle) + ' (ยังไม่หักใบอื่นที่รอตัด)</div>';
-            const lots = lotsOf(g.prof);
+                : '<div class="meta">🧱 โรงงานมี ' + bundleText(have, g.prof.bundle) + ' (หักใบที่เริ่มตัดแล้ว · ยังไม่รวมใบอื่นที่รอตัด)</div>';
+            const lots = snap ? [] : lotsOf(g.prof);
             if (lots.length > 1) h += '<label class="meta lotpick">ล็อตเส้นที่โรงงานมี <select data-planlot="' + esc(profFam(g.prof)) + '">'
                 + lots.map(x => '<option value="' + esc(x.code) + '"' + (x.code === g.prof.code ? ' selected' : '') + '>' + esc(x.code) + ' · ยาว ' + num(x.bar_mm) + ' มม.'
                     + (live ? ' · มี ' + num(barHave(x.code)) + ' เส้น' : '')
@@ -1074,13 +1126,16 @@
         });
         if (r.unmapped.length) h += '<div class="pgrp"><div class="warn">❓ จัดเส้นไม่ได้ ' + num(r.unmapped.length) + ' รายการ (ไม่รวมในยอดเส้น)</div>'
             + r.unmapped.map(u => '<div class="meta">• ' + esc(u.p ? label(u.l.product_code) : u.l.product_code) + ' × ' + num(u.l.qty) + ' — ' + esc(u.why) + '</div>').join('') + '</div>';
-        h += '<div class="toolbar" style="margin:8px 0 0;"><button type="button" class="btn" data-act="planCopy" data-id="' + o.id + '">📋 คัดลอกแบบตัด</button>'
-            + '<button type="button" class="btn" data-act="planPrint" data-id="' + o.id + '">🖨️ พิมพ์แบบตัด</button>'
+        h += '<div class="toolbar" style="margin:8px 0 0;">'
+            + (canCutStart(o) ? '<button type="button" class="btn btn-main" data-act="cutStart" data-id="' + o.id + '">▶️ เริ่มตัด (หักเส้นเต็มตามนี้)</button>' : '')
+            + '<button type="button" class="btn" data-act="planCopy" data-id="' + o.id + '">📋 คัดลอกแบบตัด</button>'
+            + '<button type="button" class="btn" data-act="planPrint" data-id="' + o.id + '">🖨️ พิมพ์ใบตัด</button>'
             + '<button type="button" class="btn" data-act="formClose" data-id="' + o.id + '">ปิด</button></div></div>';
         return h;
     }
     function planText(o) {
-        const r = planOrder(o), out = ['แบบตัดใบ ' + o.order_no + ' (' + fmtDate(o.created_at) + ') · หัวเส้น ' + PLAN_TRIM + ' + ใบตัด ' + PLAN_KERF + ' มม./ท่อน'];
+        const r = planFor(o), out = ['แบบตัดใบ ' + o.order_no + ' (' + fmtDate(o.created_at) + ') · หัวเส้น ' + PLAN_TRIM + ' + ใบตัด ' + PLAN_KERF + ' มม./ท่อน'];
+        if (r.snap) out.push('เริ่มตัด ' + fmtDate(o.cut_started_at, true) + ' · ' + byName(o.cut_started_by));
         if (o.factory_ref) out.push('เลขใบโรงงาน: ' + o.factory_ref);
         r.groups.forEach(g => {
             const R = g.res;
@@ -1094,21 +1149,139 @@
         out.push(''); out.push('รวม ' + num(r.bars) + ' เส้น');
         return out.join('\n');
     }
+    // ใบตัดสำหรับพิมพ์ให้ช่าง (แบบเดียวกับใบสรุปงานตัดของแอปโรงงานเดิม + แยกแบบตัดทีละแบบ + ช่องติ๊ก)
     function printPlan(o) {
-        const r = planOrder(o);
-        document.getElementById('printArea').innerHTML = '<h1>แบบตัดอลูมิเนียม ' + esc(o.order_no) + '</h1>'
-            + '<div class="pm">CG Alu Tech · ' + fmtDate(o.created_at) + (o.factory_ref ? ' · เลขใบโรงงาน ' + esc(o.factory_ref) : '')
-            + ' · หัวเส้น ' + PLAN_TRIM + ' มม. + ใบตัด ' + PLAN_KERF + ' มม./ท่อน · รวม ' + num(r.bars) + ' เส้น</div>'
-            + '<table><tr><th>แบบ</th><th class="n">จำนวนเส้น</th><th>ตัด (มม. × ท่อนต่อเส้น)</th><th class="n">เศษ/เส้น (มม.)</th><th>✓ ตัดแล้ว</th></tr>'
-            + r.groups.map(g => '<tr class="gh"><td colspan="5">' + esc(g.prof.code + ' ' + g.prof.name) + ' · เส้น ' + num(g.prof.bar_mm) + ' มม.'
-                + (g.res.ok ? ' · รวม ' + bundleText(g.res.bars, g.prof.bundle) : '') + '</td></tr>'
-                + (g.res.ok ? g.res.patterns.map((pt, i) => '<tr><td>' + (i + 1) + '</td><td class="n"><b>' + num(pt.bars) + '</b></td><td>'
-                        + pt.cuts.map(c => '<b>' + c.len + '</b>×' + c.count).join(' + ') + '</td><td class="n">' + num(pt.wasteMm) + '</td><td></td></tr>').join('')
-                    + (g.res.extra.length ? '<tr><td colspan="5">ได้เกินที่สั่ง: ' + esc(g.res.extra.map(e => e.len + ' +' + e.count).join(', ')) + '</td></tr>' : '')
-                    : '<tr><td colspan="5">❌ ' + esc(g.res.errors.join(' · ')) + '</td></tr>')).join('')
-            + '</table>'
-            + (r.unmapped.length ? '<div class="pm" style="margin-top:3mm;">จัดเส้นไม่ได้: ' + esc(r.unmapped.map(u => (u.p ? label(u.l.product_code) : u.l.product_code) + ' ×' + u.l.qty).join(', ')) + '</div>' : '');
+        const r = planFor(o), snap = !!r.snap;
+        let n = 0;
+        const rows = r.groups.map(g => {
+            const R = g.res;
+            let h = '<tr class="gh"><td colspan="6">' + esc(g.prof.code + ' ' + g.prof.name) + (g.prof.color ? ' · สี' + esc(g.prof.color) : '') + ' · ยาวเส้น ' + num(g.prof.bar_mm) + ' มม.'
+                + (R.ok ? ' · รวม ' + bundleText(R.bars, g.prof.bundle) : '') + (g.parts.length ? '<div class="pn">' + esc(g.parts.join(' · ')) + '</div>' : '') + '</td></tr>';
+            if (!R.ok) return h + '<tr><td colspan="6">❌ ' + esc(R.errors.join(' · ')) + '</td></tr>';
+            h += R.patterns.map(pt => '<tr><td>' + (++n) + '</td><td class="n"><b>' + num(pt.bars) + '</b></td><td>'
+                + pt.cuts.map(c => '<b>' + c.len + '</b>×' + c.count).join(' + ') + '</td><td class="n">'
+                + pt.cuts.map(c => num(c.count * pt.bars)).join(' + ') + '</td><td class="n">' + num(pt.wasteMm) + '</td><td class="ck"></td></tr>').join('');
+            if (R.extra.length) h += '<tr><td colspan="6">ได้เกินที่สั่ง (จากเศษ): ' + esc(R.extra.map(e => e.len + ' มม. +' + e.count).join(', ')) + '</td></tr>';
+            return h;
+        }).join('');
+        document.getElementById('printArea').innerHTML =
+            '<h1>ใบตัดอลูมิเนียม ' + esc(o.order_no) + (snap ? '' : ' <span style="font-size:12pt;">(ร่าง — ยังไม่กดเริ่มตัด)</span>') + '</h1>'
+            + '<div class="pm">CG Alu Tech · สั่ง ' + fmtDate(o.created_at) + ' โดย ' + esc(o.created_by || '-') + (o.factory_ref ? ' · เลขใบโรงงาน ' + esc(o.factory_ref) : '')
+            + ' · หัวเส้น ' + PLAN_TRIM + ' มม. + ใบตัด ' + PLAN_KERF + ' มม./ท่อน<br>'
+            + (snap ? '<b>เริ่มตัด ' + fmtDate(o.cut_started_at, true) + ' · ' + esc(byName(o.cut_started_by)) + ' · หักเส้นเต็มแล้ว ' + num(r.bars) + ' เส้น</b>'
+                    : 'ยังไม่หักเส้นเต็ม — กด ▶️ เริ่มตัด ในระบบก่อนลงมือตัด แล้วพิมพ์ใหม่') + (o.note ? ' · หมายเหตุ: ' + esc(o.note) : '') + '</div>'
+            + '<table><tr><th>#</th><th class="n">เส้น</th><th>ตัด (มม. × ท่อนต่อเส้น)</th><th class="n">ได้ (ท่อน)</th><th class="n">เศษ/เส้น</th><th>✓</th></tr>'
+            + rows
+            + '<tr class="gh"><td colspan="6" style="text-align:right;">รวมเส้นที่ใช้ทั้งหมด ' + num(r.bars) + ' เส้น</td></tr></table>'
+            + (r.unmapped.length ? '<div class="pm" style="margin-top:3mm;">จัดเส้นไม่ได้ (ไม่อยู่ในใบตัดนี้): ' + esc(r.unmapped.map(u => (u.p ? label(u.l.product_code) : u.l.product_code) + ' ×' + u.l.qty).join(', ')) + '</div>' : '')
+            + '<div class="sign">' + ['ผู้สั่งงาน / CGA Alutech', 'ผู้ตัด / โรงงาน', 'ผู้รับมอบงาน / CGA Alutech']
+                .map(t => '<div><div class="sl"></div>' + t + '<br>วันที่ ....................</div>').join('') + '</div>';
         window.print();
+    }
+
+    // ───────── งานตัดที่โรงงาน (alu-cut-run.sql) ─────────
+    const CUT_ST = { wait: ['⏳ รอตัด', 'gry'], cutting: ['🪚 กำลังตัด', 'amb'], done: ['✅ ตัดเสร็จ รอส่ง', 'grn'], shipped: ['🚚 โรงงานส่งแล้ว', 'grn'] };
+    const CUT_ACT = { start: '▶️ เริ่มตัด', done: '✅ ตัดเสร็จ', ship: '🚚 ส่งแล้ว', back: '↩️ ย้อน' };
+    const cutKeys = new Map();       // id ใบ → รหัสกันกดเริ่มตัดซ้ำ (ใช้รหัสเดิมจนกว่าจะสำเร็จ)
+    function canCutStart(o) { return canCut && barLive() && !o.cut_status && o.status !== 'cancelled'; }
+    function cutPill(o) {
+        if (!o.cut_status && !(barLive() && (o.status === 'open' || o.status === 'partial'))) return '';
+        const s = CUT_ST[o.cut_status || 'wait'];
+        return ' <span class="pill ' + s[1] + '">' + s[0] + '</span>';
+    }
+    function cutInfo(o) {
+        if (!o.cut_status) return '';
+        return '<div class="meta">🪚 เริ่มตัด ' + fmtDate(o.cut_started_at, true) + ' · ' + esc(byName(o.cut_started_by)) + ' · <b>หักเส้นเต็ม ' + num(o.cut_bars) + ' เส้น</b>'
+            + (o.cut_done_at ? ' · ✅ ตัดเสร็จ ' + fmtDate(o.cut_done_at, true) : '')
+            + (o.cut_shipped_at ? ' · 🚚 ส่ง ' + fmtDate(o.cut_shipped_at, true) + ' · ' + esc(byName(o.cut_shipped_by)) : '') + '</div>';
+    }
+    function cutLogHtml(o) {
+        const lg = Array.isArray(o.cut_log) ? o.cut_log : [];
+        if (!lg.length) return '';
+        return '<div style="margin-top:8px;"><b class="meta">ประวัติงานตัด</b>' + lg.map(x => '<div class="rcpt">' + esc(CUT_ACT[x.act] || x.act)
+            + (x.act === 'back' ? ' (' + esc((CUT_ST[x.from] || [x.from])[0]) + ' → ' + esc((CUT_ST[x.to] || [x.to])[0]) + ')' : '')
+            + ' · ' + fmtDate(x.at, true) + ' · ' + esc(byName(x.by)) + (x.bars ? ' · หัก ' + num(x.bars) + ' เส้น' : '') + (x.bars_back ? ' · คืน ' + num(x.bars_back) + ' เส้น' : '')
+            + (x.reason ? ' · ' + esc(x.reason) : '') + '</div>').join('') + '</div>';
+    }
+    function cutButtons(o) {
+        if (!canCut || o.status === 'cancelled') return '';
+        const cs = o.cut_status, live = barLive();
+        return (canCutStart(o) ? '<button type="button" class="btn btn-main" data-act="cutStart" data-id="' + o.id + '" style="padding:7px 11px;font-size:.85rem;">▶️ เริ่มตัด</button>' : '')
+            + (live && cs === 'cutting' ? '<button type="button" class="btn btn-ok" data-act="cutDone" data-id="' + o.id + '">✅ ตัดเสร็จ</button>' : '')
+            + (live && (cs === 'cutting' || cs === 'done') ? '<button type="button" class="btn btn-ok" data-act="cutShip" data-id="' + o.id + '">🚚 ส่งแล้ว</button>' : '')
+            + (cs ? '<button type="button" class="btn btn-bad" data-act="cutBack" data-id="' + o.id + '">↩️ ย้อนสถานะตัด</button>' : '');
+    }
+    async function reloadCut() {
+        await Promise.all([loadOrders(), loadBars()]);
+        compute(); renderOrders(); renderBars();
+    }
+    async function startCut(o, btn) {
+        if (busy || !canCutStart(o)) return;
+        const name = barNameVal('oName');
+        if (!name) return;
+        if (!window.AluCutPlan || !cut.ready) { toast('❌ ยังโหลดค่าเส้นไม่ได้ — กด 🔄 โหลดใหม่', 5000); return; }
+        const label0 = btn.textContent;
+        btn.disabled = true; btn.textContent = '⏳ กำลังจัดเส้น...';
+        await new Promise(r => setTimeout(r, 30));   // ให้เห็นว่ากำลังคิด (ใบใหญ่บนมือถืออาจ 1–2 วิ)
+        let r;
+        try { r = planOrder(o); } finally { btn.disabled = false; btn.textContent = label0; }
+        if (!r.groups.length) { toast('ใบนี้ไม่มีรายการที่จัดเส้นได้ — ตรวจที่แท็บ 📏 เส้นโรงงาน', 5000); return; }
+        const bad = r.groups.filter(g => !g.res.ok);
+        if (bad.length) { toast('❌ จัดเส้นไม่ได้: ' + bad.map(g => g.prof.code + ' ' + g.res.errors.join(' ')).join(' · '), 7000); return; }
+        const short = r.groups.filter(g => g.res.bars > barHave(g.prof.code));
+        if (short.length) {
+            toast('❌ เส้นเต็มไม่พอ: ' + short.map(g => g.prof.code + ' มี ' + num(barHave(g.prof.code)) + ' ต้องใช้ ' + num(g.res.bars)).join(' · ')
+                + '\nถ้านับแล้วมีจริง ให้ปรับยอดที่แท็บ 🧱 ก่อน · หรือกด 🧮 จัดเส้น เลือกล็อตอื่น', 9000);
+            return;
+        }
+        const lines = r.groups.map(g => '• ' + g.prof.code + ' ' + g.prof.name + ': ' + bundleText(g.res.bars, g.prof.bundle) + ' (เหลือ ' + num(barHave(g.prof.code) - g.res.bars) + ')');
+        if (!confirm('▶️ เริ่มตัดใบ ' + o.order_no + ' (คนกด: ' + name + ')\n' + lines.slice(0, 20).join('\n') + (lines.length > 20 ? '\n• ... อีก ' + (lines.length - 20) + ' เส้น' : '')
+            + '\nรวม ' + num(r.bars) + ' เส้น — หักจากเส้นเต็มที่โรงงานทันที'
+            + (r.guess ? '\n\n⚠️ บางชิ้นยังไม่มีคนยืนยันว่าตัดจากเส้นไหน (ระบบเดา)' : '')
+            + (r.unmapped.length ? '\n\n⚠️ จัดเส้นไม่ได้ ' + r.unmapped.length + ' รายการ — ไม่อยู่ในใบตัด ไม่หักเส้น' : '')
+            + '\n\nยืนยัน?')) return;
+        if (!cutKeys.has(o.id)) cutKeys.set(o.id, newKey());
+        busy = true; btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก...';
+        try {
+            const { data, error } = await db.rpc('rpc_alu_cutrun_start', { p_id: o.id, p_plan: toSnap(r), p_entered_by: name, p_key: cutKeys.get(o.id) });
+            if (error) throw error;
+            cutKeys.delete(o.id);
+            toast((data.status === 'duplicate' ? '✅ ใบนี้เริ่มตัดไปแล้ว (ไม่หักซ้ำ)' : '✅ เริ่มตัด ' + data.order_no + ' แล้ว · หักเส้นเต็ม ' + num(data.bars) + ' เส้น'), 5000);
+            formOpen = null;
+            await reloadCut();
+            const o2 = orders.find(x => x.id === o.id);
+            if (o2 && o2.cut_plan && confirm('พิมพ์ใบตัด ' + o2.order_no + ' ให้ช่างเลยไหม?')) printPlan(o2);
+        } catch (e) {
+            toast('❌ เริ่มตัดไม่สำเร็จ: ' + errText(e), 9000);
+        } finally {
+            busy = false; btn.disabled = false; btn.textContent = label0;
+        }
+    }
+    async function cutStep(o, act, btn) {
+        if (busy || !canCut) return;
+        act = act === 'cutDone' ? 'done' : act === 'cutShip' ? 'ship' : act;
+        const name = barNameVal('oName');
+        if (!name) return;
+        const cur = o.cut_status || 'wait';
+        let reason = null;
+        if (act === 'back') {
+            const to = { shipped: 'ตัดเสร็จ รอส่ง', done: 'กำลังตัด', cutting: 'รอตัด (คืนเส้นเต็ม ' + num(o.cut_bars) + ' เส้น)' }[cur];
+            reason = prompt('↩️ ย้อนใบ ' + o.order_no + ' จาก "' + CUT_ST[cur][0] + '" กลับเป็น "' + to + '"\nเหตุผล (อย่างน้อย 3 ตัว) เช่น กดผิดใบ / ยังไม่ได้ตัดจริง:');
+            if (reason === null) return;
+            reason = reason.trim();
+            if (reason.length < 3) { toast('กรุณาใส่เหตุผล (อย่างน้อย 3 ตัวอักษร)'); return; }
+            if (!confirm('↩️ ยืนยันย้อนใบ ' + o.order_no + ' → ' + to + ' (คนกด: ' + name + ')\nเหตุผล: ' + reason)) return;
+        } else if (!confirm((act === 'done' ? '✅ ตัดเสร็จ' : '🚚 ส่งของแล้ว') + ' ใบ ' + o.order_no + ' (คนกด: ' + name + ')\nยืนยัน?')) return;
+        busy = true; btn.disabled = true;
+        try {
+            const { data, error } = await db.rpc('rpc_alu_cutrun_step', { p_id: o.id, p_action: act, p_from: cur, p_reason: reason, p_entered_by: name });
+            if (error) throw error;
+            toast(data.status === 'stale' ? 'ใบ ' + data.order_no + ' มีคนกดเปลี่ยนสถานะไปแล้ว (ตอนนี้ ' + (CUT_ST[data.cut_status] || [data.cut_status])[0] + ') — โหลดใหม่ให้แล้ว'
+                : '✅ ใบ ' + data.order_no + ' → ' + (CUT_ST[data.cut_status] || [data.cut_status])[0] + (data.bars_back ? ' · คืนเส้นเต็ม ' + num(data.bars_back) + ' เส้น' : ''), 5000);
+        } catch (e) {
+            toast('❌ ไม่สำเร็จ: ' + errText(e), 8000);
+        } finally { busy = false; }
+        await reloadCut();
     }
 
     // ───────── แท็บเส้นโรงงาน ─────────
@@ -1285,11 +1458,12 @@
         return [...document.querySelectorAll('#bxForm [data-brecv], #bxForm [data-bcnt]')].some(i => i.value.trim() !== '');
     }
     // ชื่อคนทำ: ต้องใส่ทุกครั้ง · จำไว้ในเครื่องนี้ให้ (เห็นชื่อในหน้ายืนยันทุกครั้ง)
-    function barNameVal() {
-        const el = document.getElementById('bName'), v = el.value.trim();
+    function barNameVal(id) {
+        const el = document.getElementById(id || 'bName'), v = el.value.trim();
         if (!v) { toast('กรุณาใส่ชื่อคนทำก่อน (ช่อง 👤 ชื่อคนทำ)', 4000); el.focus(); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); return ''; }
         if (v.length > 60) { toast('ชื่อยาวเกินไป (ไม่เกิน 60 ตัว)'); el.focus(); return ''; }
         try { localStorage.setItem('ccga_alu_bar_name', v); } catch (e) {}
+        ['bName', 'oName'].forEach(x => { const e2 = document.getElementById(x); if (e2 && e2 !== el) e2.value = v; });
         return v;
     }
     function barButtons() {
@@ -1592,7 +1766,8 @@
         canReceive = has('action_receive_alu');
         canBarRecv = has('action_alu_bar_receive');
         canBarAdj = has('action_alu_bar_adjust');
-        try { document.getElementById('bName').value = localStorage.getItem('ccga_alu_bar_name') || ''; } catch (e) {}
+        canCut = has('action_alu_cut_run');
+        try { document.getElementById('bName').value = document.getElementById('oName').value = localStorage.getItem('ccga_alu_bar_name') || ''; } catch (e) {}
         if (!canOrder || !canReceive) {
             document.getElementById('sub').insertAdjacentHTML('beforeend', '<br><span class="pill gry">👁️ '
                 + (!canOrder && !canReceive ? 'ดูอย่างเดียว — สร้างใบต้องมีสิทธิ์ "🪚 สั่งตัดอลูมิเนียม" · รับของต้องมีสิทธิ์ "📥 รับอลูมิเนียมเข้าสต็อก"'
@@ -1605,6 +1780,8 @@
         ['fShow', 'fModel', 'fColor', 'fSort'].forEach(id => document.getElementById(id).addEventListener('change', renderNeed));
         document.getElementById('fSearch').addEventListener('input', renderNeed);
         document.getElementById('fStatus').addEventListener('change', () => { formOpen = null; renderOrders(); });
+        document.getElementById('fCut').addEventListener('change', () => { formOpen = null; renderOrders(); });
+        ['bName', 'oName'].forEach(x => document.getElementById(x).addEventListener('change', e => { const v = e.target.value.trim(); ['bName', 'oName'].forEach(y => { if (y !== x) document.getElementById(y).value = v; }); }));
         document.getElementById('btnReload').addEventListener('click', async () => { formOpen = null; await loadAll(); });
         document.getElementById('btnSetSave').addEventListener('click', e => saveSettings(e.currentTarget));
         document.getElementById('btnCreate').addEventListener('click', createOrder);
@@ -1680,6 +1857,9 @@
             else if (act === 'recvSave') saveRecv(id, b);
             else if (act === 'editSave') saveEdit(id, b);
             else if (act === 'close' || act === 'cancel') closeOrCancel(id, act);
+            else if (act === 'cutStart') startCut(o, b);
+            else if (act === 'cutDone' || act === 'cutShip') cutStep(o, act, b);
+            else if (act === 'cutBack') cutStep(o, 'back', b);
         });
         ordBox.addEventListener('change', e => {
             const t = e.target.closest('[data-planfill]'), lt = e.target.closest('[data-planlot]');
