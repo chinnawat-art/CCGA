@@ -1238,7 +1238,8 @@ function renderOrderCard(o) {
         badgeHtml = `<span class="badge badge-producing">🔨 กำลังผลิต</span>`
             + (usedPanels ? '<span class="badge badge-panels">🪟 ใช้บานเก็บ</span>' : '')
             + (Number(o.qc_reject_count) > 0 ? `<span class="badge badge-qcreject">🔁 QC ตีกลับ</span>` : '');
-        const canFinish = ['Ceo', 'pdtPerson'].includes(window.auth.role);
+        // 27/11/2569 เดิมผูกกับ role (Ceo/pdtPerson) → เปลี่ยนเป็นช่องติ๊กสิทธิ์ (ตอนเปลี่ยน ให้ทุกบัญชีฝ่ายผลิตเดิม ยกเว้นโมดูลาร่า)
+        const canFinish = canFinishProducing();
         actionsHtml = `
             ${canRevert ? `<button class="btn btn-outline btn-sm" onclick="updateStatus('${o.id}','${STATUS_PENDING}',this)">↩ ย้อนกลับ</button>` : ''}
             <button class="btn btn-sm" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.35);color:#f87171;" onclick="openDamageModal('${o.id}')">⚠️ วัสดุเสีย</button>
@@ -2119,6 +2120,11 @@ async function deleteProductionOrder(id, btnEl) {
     }
 }
 
+// ✅ ผลิตสำเร็จ จากใบกำลังผลิต (กำลังผลิต → รอ QC)
+function canFinishProducing() {
+    return window.auth?.role === 'Ceo' || window.auth?.hasPermission?.('action_complete_production') === true;
+}
+
 async function updateStatus(id, newStatus, btnEl) {
     getAudioContext();
     if (pendingStatusUpdates.has(id)) {
@@ -2141,6 +2147,15 @@ async function updateStatus(id, newStatus, btnEl) {
 
     try {
         const isRevertingFromDone = order?.tracking_status === STATUS_DONE && newStatus !== STATUS_DONE;
+
+        if (order?.tracking_status === STATUS_PRODUCING && newStatus === STATUS_DONE && !canFinishProducing()) {
+            log('❌ คุณไม่มีสิทธิ์กดผลิตสำเร็จ', 'error');
+            alert('❌ บัญชีนี้ไม่มีสิทธิ์กด "ผลิตสำเร็จ" — ผลิตเสร็จแล้วให้แจ้ง CGA กดให้');
+            if (card) card.style.opacity = '1';
+            if (btnEl) btnEl.disabled = false;
+            pendingStatusUpdates.delete(id);
+            return;
+        }
 
         // ตรวจสอบสิทธิ์หากกดผลิตสำเร็จโดยตรงจาก รอผลิต
         if (order?.tracking_status === STATUS_PENDING && newStatus === STATUS_DONE) {
