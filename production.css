@@ -1604,3 +1604,25 @@ body::before {
         .card-img:empty { display: none; }
     }
 }
+
+/* 🚫 ลูกค้ายกเลิกแล้ว ห้ามแพ็ก (27/11/2569) */
+.order-card.is-cancel-req {
+    --card-accent: #dc2626;
+    --card-glow: rgba(220, 38, 38, 0.25);
+    opacity: 1;
+    border-color: rgba(220, 38, 38, 0.7) !important;
+    box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.45);
+}
+.cancel-req-banner {
+    margin: 0 0 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #dc2626;
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.05rem;
+    line-height: 1.45;
+}
+.cancel-req-banner small { display: block; font-weight: 500; font-size: 0.8rem; opacity: 0.95; margin-top: 3px; }
+.badge-cancel-req { background: #dc2626; color: #fff; border: 1px solid #b91c1c; }
+.ship-pick.ship-blocked { background: rgba(220, 38, 38, 0.12); color: #dc2626; border-color: rgba(220, 38, 38, 0.5); cursor: not-allowed; }

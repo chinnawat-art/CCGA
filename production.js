@@ -201,7 +201,7 @@ async function loadProductImage(sku) {
 // ─── LOAD DATA ────────────────────────────
 async function loadData() {
     log('กำลังโหลดข้อมูลจาก Supabase...');
-    const selectColumns = 'id,order_date,platform,order_number,production_number,tracking_number,product_code,product_name,product_size,slots,quantity,buyer_name,tracking_status,note,pattern,production_started_at,production_completed_at,payment_time,ship_by_date,aluminum_color,glass_color,screen_type,stock_deducted,qc_checked_at,qc_checked_by,qc_reject_count,qc_last_reject_reason,qc_last_rejected_at,qc_last_rejected_by,panels_used,custom_width,custom_height,custom_size_by,custom_size_at';
+    const selectColumns = 'id,order_date,platform,order_number,production_number,tracking_number,product_code,product_name,product_size,slots,quantity,buyer_name,tracking_status,note,pattern,production_started_at,production_completed_at,payment_time,ship_by_date,aluminum_color,glass_color,screen_type,stock_deducted,qc_checked_at,qc_checked_by,qc_reject_count,qc_last_reject_reason,qc_last_rejected_at,qc_last_rejected_by,panels_used,custom_width,custom_height,custom_size_by,custom_size_at,cancel_requested_at,cancel_requested_by,cancel_request_reason';
     const fallbackColumns = 'id,order_date,platform,order_number,production_number,tracking_number,product_code,product_name,product_size,slots,quantity,buyer_name,tracking_status,note,pattern,production_started_at,production_completed_at,aluminum_color,glass_color,screen_type,qc_checked_at,qc_checked_by,qc_reject_count,qc_last_reject_reason,qc_last_rejected_at,qc_last_rejected_by';
     const viewableStatuses = getViewableProductionStatuses();
     try {
@@ -1254,11 +1254,12 @@ function renderOrderCard(o) {
             })() : ''}`;  
     } else if (status === STATUS_QC_DONE) {
         badgeHtml = `<span class="badge badge-qcdone">✔️ ตรวจเสร็จรอจัดส่ง</span>`;
-        actionsHtml = canConfirmShipped()
-            ? `<label class="ship-pick${shipSelected.has(o.id) ? ' on' : ''}" title="ติ๊กใบที่ส่งออกไปแล้ว แล้วกดปุ่ม 🚚 ส่งแล้ว ด้านบน">
+        actionsHtml = !canConfirmShipped() ? ''
+            : (o.cancel_requested_at
+                ? `<span class="ship-pick ship-blocked" title="ลูกค้ายกเลิกแล้ว — ห้ามแพ็กส่ง">🚫 ห้ามส่ง</span>`
+                : `<label class="ship-pick${shipSelected.has(o.id) ? ' on' : ''}" title="ติ๊กใบที่ส่งออกไปแล้ว แล้วกดปุ่ม 🚚 ส่งแล้ว ด้านบน">
                    <input type="checkbox" ${shipSelected.has(o.id) ? 'checked' : ''} onchange="toggleShipPick('${o.id}', this.checked, this)"> 🚚 เลือกส่ง
-               </label>`
-            : '';
+               </label>`);
     } else {
         badgeHtml = `<span class="badge badge-proddone">🔍 รอ QC ตรวจ</span>`;
         const targetRevertStatus = (o.stock_deducted === true) ? STATUS_PRODUCING : STATUS_PENDING;
@@ -1361,10 +1362,25 @@ function renderOrderCard(o) {
         }, 0);
     }).catch(err => console.error('Image load error:', err));
 
+    // 🚫 ลูกค้ายกเลิกแล้ว แต่จ่ายวัสดุไปแล้ว → ผลิตให้เสร็จ ห้ามแพ็ก (27/11/2569 · ติดป้ายจากหน้าต่าง ❌ ยกเลิก)
+    const cancelReq = !!o.cancel_requested_at;
+    let cancelReqHtml = '';
+    if (cancelReq) {
+        const cd = new Date(o.cancel_requested_at);
+        const when = isNaN(cd.getTime()) ? '' : `${cd.toLocaleDateString('th-TH')} ${cd.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`;
+        const next = status === STATUS_PRODUCING
+            ? 'ผลิตให้เสร็จตามปกติ · เสร็จแล้วกด ❌ ยกเลิก เก็บเข้าสต็อกสำรอง'
+            : 'ผลิตเสร็จแล้ว → กด ❌ ยกเลิก เพื่อเก็บเข้าสต็อกสำรอง';
+        cancelReqHtml = `<div class="cancel-req-banner">🚫 ลูกค้ายกเลิกแล้ว — ห้ามแพ็กส่ง
+            <small>${next}</small>
+            <small>เหตุผล: ${esc(o.cancel_request_reason || '-')} · ${esc(o.cancel_requested_by || '')}${when ? ' · ' + when : ''}</small></div>`;
+    }
+
     return `
-    <div class="order-card ${cardCls}${panelCls}${o.is_test ? ' is-test' : ''}" id="card_${o.id}">
+    <div class="order-card ${cardCls}${panelCls}${o.is_test ? ' is-test' : ''}${cancelReq ? ' is-cancel-req' : ''}" id="card_${o.id}">
+        ${cancelReqHtml}
         <div class="card-top">
-            <div class="card-badges">${badgeHtml}${hasCustomSize(o) ? '<span class="badge badge-custom">📐 ขนาดพิเศษ</span>' : ''}${o.is_test ? '<span class="badge badge-test">🧪 ใบทดลอง</span>' : ''}</div>
+            <div class="card-badges">${cancelReq ? '<span class="badge badge-cancel-req">🚫 ลูกค้ายกเลิก</span>' : ''}${badgeHtml}${hasCustomSize(o) ? '<span class="badge badge-custom">📐 ขนาดพิเศษ</span>' : ''}${o.is_test ? '<span class="badge badge-test">🧪 ใบทดลอง</span>' : ''}</div>
             <div style="text-align:right;">
                 <span class="plat ${platCls}">${esc(o.platform)}</span>
                 <div class="card-date" style="margin-top:4px;">${(() => {
@@ -1800,7 +1816,7 @@ function canConfirmShipped() {
 
 function renderShipBar(visibleOrders) {
     if (!canConfirmShipped()) return '';
-    shipVisibleIds = visibleOrders.map(o => o.id);
+    shipVisibleIds = visibleOrders.filter(o => !o.cancel_requested_at).map(o => o.id);   // ใบติดป้ายลูกค้ายกเลิก ห้ามส่ง
     const visible = new Set(shipVisibleIds);
     [...shipSelected].forEach(id => { if (!visible.has(id)) shipSelected.delete(id); });
     const n = shipVisibleIds.length;

@@ -43,6 +43,12 @@
 #cipModal .cip-check{display:flex;gap:.5rem;align-items:flex-start;font-size:.86rem;margin:.6rem 0;color:var(--text)}
 #cipModal .cip-check input{width:18px;height:18px;margin-top:.15rem}
 #cipModal details summary{cursor:pointer;font-size:.84rem;color:var(--text);margin:.3rem 0}
+#cipModal .cip-flag{font-size:.88rem;padding:.7rem .85rem;border-radius:10px;margin:.7rem 0;background:#dc2626;color:#fff;line-height:1.5}
+#cipModal .cip-flag small{display:block;opacity:.95;font-size:.78rem}
+#cipModal .cip-flag-form{border:1px dashed rgba(220,38,38,.55);border-radius:10px;padding:.75rem .85rem;margin:.7rem 0}
+#cipModal .cip-flag-form .cip-step{margin-top:0}
+#cipModal .cip-flag-form .btn{margin-top:.55rem}
+#cipModal .cip-link{background:none;border:0;padding:.2rem 0;color:var(--muted);text-decoration:underline;font-size:.8rem;cursor:pointer}
 @media (max-width:640px){
  #cipModal.modal-overlay{padding:.5rem}
  #cipModal .modal-content{padding:1.1rem;max-height:94vh}
@@ -97,6 +103,7 @@
             const d = st.data;
             const canBackup = !d.custom_size && !!(d.order && d.order.product_code);
             st.choice = d.mode === 'finished' ? (canBackup ? 'backup' : 'nostock') : '';
+            st.reason = d.cancel_request_reason || '';   // ติดป้ายไว้แล้ว → ใช้เหตุผลเดิม
             render();
         } catch (e) {
             if (!st) return;
@@ -119,11 +126,29 @@
         const sets = Math.max(Number(o.quantity) || 1, 1);
         const mode = d.mode || (d.allowed ? 'finished' : 'not_allowed');
 
+        // 🚫 ป้ายลูกค้ายกเลิก (ติดไว้แล้ว → แสดง + เอาออกได้)
+        let flagHtml = '';
+        if (d.cancel_requested_at) {
+            const fd = new Date(d.cancel_requested_at);
+            const when = isNaN(fd.getTime()) ? '' : `${fd.toLocaleDateString('th-TH')} ${fd.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`;
+            flagHtml = `<div class="cip-flag">🚫 <b>ติดป้ายลูกค้ายกเลิกไว้แล้ว — ห้ามแพ็กส่ง</b>
+                <small>เหตุผล: ${esc(d.cancel_request_reason || '-')} · ${esc(d.cancel_requested_by || '')}${when ? ' · ' + when : ''}</small></div>
+                <button type="button" class="cip-link" data-cip="unflag">↩ เอาป้ายออก (ลูกค้าเปลี่ยนใจ / ติดผิดใบ)</button>`;
+        }
+
         if (mode === 'must_finish') {
+            const flagForm = d.cancel_requested_at ? '' : `
+                <div class="cip-flag-form">
+                    <div class="cip-step">🚫 ติดป้าย "ลูกค้ายกเลิกแล้ว ห้ามแพ็ก" ไว้ก่อน</div>
+                    <div class="cip-note">ทุกคนจะเห็นป้ายแดงบนการ์ดใบนี้ และระบบจะไม่ให้กด 🚚 ส่งแล้ว</div>
+                    <input type="text" id="cipFlagReason" class="form-field" maxlength="300" placeholder="เหตุผล เช่น ลูกค้ายกเลิกใน Shopee" value="${esc(st.flagReason || '')}">
+                    <button type="button" class="btn btn-danger-soft" data-cip="flag" id="cipFlagBtn" disabled>🚫 ติดป้าย ลูกค้ายกเลิกแล้ว ห้ามแพ็ก</button>
+                </div>`;
             box().innerHTML = header() + orderBox(o, sets) + `
                 <div class="cip-stop">🔧 <b>ใบนี้จ่ายวัสดุให้ช่างแล้ว — ตามกติกาโรงงานต้องผลิตให้เสร็จก่อน</b><br>
                     ผลิตเสร็จแล้ว (กด "ผลิตสำเร็จ") ค่อยกลับมากด ❌ ยกเลิก อีกครั้ง → ระบบจะเก็บบานเป็นสต็อกสำรองให้</div>
-                <div class="cip-note">ระหว่างนี้แจ้งช่างว่าลูกค้ายกเลิกแล้ว ไม่ต้องแพ็กส่ง</div>${closeOnly}`;
+                ${flagHtml}${flagForm}${closeOnly}`;
+            updateFlagBtn();
             return;
         }
         if (mode !== 'return_all' && mode !== 'finished') {
@@ -169,7 +194,7 @@
             body += `<div class="cip-warn">⚠️ มีคำขอวัสดุเสียที่ยังไม่ได้จ่าย ${dmg.length} รายการ (${esc(dmg.map(x => `${x.item} × ${x.qty}`).join(', '))}) — ระบบจะคืนชิ้นทดแทนเข้าสต็อกและยกเลิกคำขอให้เอง</div>`;
         }
 
-        box().innerHTML = header() + orderBox(o, sets) + body + `
+        box().innerHTML = header() + orderBox(o, sets) + flagHtml + body + `
             <div class="cip-step">${step}. เหตุผล <span style="color:#ef4444">*</span></div>
             <input type="text" id="cipReason" class="form-field" maxlength="300" placeholder="เช่น ลูกค้ายกเลิกใน Shopee" value="${esc(st.reason)}">
             <div class="cip-sum" id="cipSum"></div>
@@ -234,10 +259,59 @@
         const a = b.dataset.cip;
         if (a === 'close') { if (!st.busy) close(); return; }
         if (a === 'submit') submit();
+        if (a === 'flag') flag(b);
+        if (a === 'unflag') unflag(b);
+    }
+
+    function updateFlagBtn() {
+        const inp = document.getElementById('cipFlagReason');
+        const btn = document.getElementById('cipFlagBtn');
+        if (inp && btn) btn.disabled = st.busy || inp.value.trim().length < 3;
+    }
+
+    // รันคำสั่งฐานข้อมูลแบบสั้น (ติด/เอาป้ายออก) → ปิดหน้าต่าง + โหลดใหม่ · พลาด = แจ้งแล้วอยู่หน้าต่างเดิม
+    async function quickRpc(btn, fn, args, okMsg) {
+        if (!st || st.busy) return;
+        st.busy = true;
+        const old = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '⏳ กำลังบันทึก...';
+        try {
+            const { error } = await st.db.rpc(fn, args);
+            if (error) throw error;
+            st.log(okMsg, 'success');
+            const done = st.onDone;
+            st.busy = false;
+            close();
+            if (typeof done === 'function') await done({});
+        } catch (e) {
+            st.busy = false;
+            const msg = (e && e.message) ? e.message : String(e);
+            st.log('บันทึกไม่สำเร็จ: ' + msg, 'error');
+            alert('❌ บันทึกไม่สำเร็จ: ' + msg + '\n\nยังไม่ได้บันทึกอะไร');
+            btn.textContent = old;
+            btn.disabled = false;
+            updateFlagBtn();
+        }
+    }
+
+    function flag(btn) {
+        const inp = document.getElementById('cipFlagReason');
+        const reason = inp ? inp.value.trim() : '';
+        if (reason.length < 3) { updateFlagBtn(); return; }
+        quickRpc(btn, 'rpc_flag_customer_cancel', { p_order_id: st.order.id, p_reason: reason },
+            `🚫 ติดป้ายลูกค้ายกเลิก ห้ามแพ็ก ${st.label} (${st.order.order_number || st.order.id})`);
+    }
+
+    function unflag(btn) {
+        if (!confirm(`เอาป้าย "ลูกค้ายกเลิกแล้ว ห้ามแพ็ก" ออกจากใบ ${st.label}?\n\nใบนี้จะกลับมาแพ็กส่งได้ตามปกติ`)) return;
+        quickRpc(btn, 'rpc_unflag_customer_cancel', { p_order_id: st.order.id },
+            `↩ เอาป้ายลูกค้ายกเลิกออก ${st.label} (${st.order.order_number || st.order.id})`);
     }
 
     function onInput(e) {
         if (!st || !st.data) return;
+        if (e.target.id === 'cipFlagReason') { st.flagReason = e.target.value; updateFlagBtn(); return; }
         if (e.target.name === 'cipChoice') {
             const r = document.getElementById('cipReason');
             if (r) st.reason = r.value;

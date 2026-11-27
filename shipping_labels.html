@@ -489,7 +489,8 @@ function renderBatch(){
     <div style="display:flex;gap:9px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px">
       <input type="checkbox" ${it.checked?"checked":""} onchange="batchItems[${i}].checked=this.checked;updateBatchCount()" style="margin-top:3px;width:18px;height:18px;accent-color:var(--accent)">
       <span style="flex:1;min-width:0"><b>${esc(it.order)||"(ไม่มีเลขออเดอร์)"}</b>
-        ${it.cod==="cod"?'<span class="chip cod">COD</span>':""} <span id="bst${i}" style="font-weight:600"></span><br>
+        ${it.cod==="cod"?'<span class="chip cod">COD</span>':""} <span id="bst${i}" style="font-weight:600"></span>
+        ${it.cancelReq?'<br><span style="display:inline-block;margin:3px 0;padding:2px 8px;border-radius:6px;background:#dc2626;color:#fff;font-weight:700">🚫 ลูกค้ายกเลิกแล้ว ห้ามแพ็ก</span>':""}<br>
         <span style="color:var(--muted)">${esc(it.name)||"-"}${it.qty?" · จำนวน "+esc(it.qty):""} · หน้า ${it.page}${it.part==="top"?" บน":it.part==="bottom"?" ล่าง":""}</span></span>
       <span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
         <input type="text" placeholder="เลขผลิต" value="${esc(it.prodNo||"")}" oninput="batchItems[${i}].prodNo=this.value.trim();batchItems[${i}].prodSrc='manual';batchItems[${i}].prodWarn=''"
@@ -554,7 +555,7 @@ function prodNoSort(a,b){
 async function fetchErpRows(orders, tracks){
   const db = window.auth && window.auth.supabase;
   if(!db) throw new Error("no-db");
-  const cols = "id,order_number,tracking_number,production_number,tracking_status,product_name,quantity";
+  const cols = "id,order_number,tracking_number,production_number,tracking_status,product_name,quantity,cancel_requested_at";
   const rows = [], seen = new Set();
   const pull = async (col, vals) => {
     for(let i=0;i<vals.length;i+=100){
@@ -677,6 +678,9 @@ async function erpMatch(){
   for(const it of batchItems){
     const a = res.get(it);
     it.erpRows = a ? a.rows : [];
+    // 🚫 ใบที่ติดป้ายลูกค้ายกเลิก (ผลิตให้เสร็จแล้วเก็บสต็อกสำรอง) — ติ๊กออกให้ ห้ามแพ็ก
+    it.cancelReq = !!(a && a.rows.some(r => r.cancel_requested_at));
+    if(it.cancelReq) it.checked = false;
     if(!a){ it.prodSrc = ""; continue; }
     it.prodNo = [...new Set(a.rows.map(r=>r.production_number))].sort(prodNoSort).join(", ");
     it.prodSrc = a.src;
@@ -696,9 +700,12 @@ async function erpMatch(){
     out.textContent = "⚠️ ไม่พบออเดอร์เหล่านี้ใน ERP — อาจยังไม่ได้อัปโหลดไฟล์ออเดอร์เข้า ERP หรือบัญชีนี้ไม่มีสิทธิ์อ่านออเดอร์ (ต้องมีสิทธิ์หน้าแดชบอร์ดออเดอร์/บันทึกออเดอร์/ฝ่ายผลิต อย่างน้อย 1 หน้า)";
     return;
   }
+  const nCancel = batchItems.filter(i=>i.cancelReq).length;
+  if(nCancel && typeof updateBatchCount === "function") updateBatchCount();
   out.textContent = "✅ เลขผลิตจาก ERP: ตรงกล่อง (เลขพัสดุ/ขนาดสินค้า/ออเดอร์กล่องเดียว) "+nTrack+" ใบ"
     + (nOrder? " · จากเลขออเดอร์ (เรียงลำดับ) "+nOrder+" ใบ — ตรวจสอบก่อนพิมพ์" : "")
-    + (nMiss? " · ไม่พบ "+nMiss+" ใบ (ยังไม่ออกเลขผลิต — กรอกเองได้)" : "");
+    + (nMiss? " · ไม่พบ "+nMiss+" ใบ (ยังไม่ออกเลขผลิต — กรอกเองได้)" : "")
+    + (nCancel? " · 🚫 ลูกค้ายกเลิกแล้ว "+nCancel+" ใบ (ติ๊กออกให้แล้ว ห้ามแพ็ก)" : "");
 }
 /* โหมดทีละใบ: เติมเลขผลิตจาก ERP ให้ฟอร์ม (ไม่ทับค่าที่ผู้ใช้พิมพ์) */
 async function erpLookupSingle(){
@@ -708,6 +715,7 @@ async function erpLookupSingle(){
     const rows = await fetchErpRows(order?[order]:[], track?[track]:[]);
     const t = track ? rows.filter(r=>normKey(r.tracking_number)===normKey(track)) : [];
     const pick = t.length ? t : rows.filter(r=>normKey(r.order_number)===normKey(order));
+    if(pick.some(r=>r.cancel_requested_at)) alert("🚫 ออเดอร์นี้ลูกค้ายกเลิกแล้ว — ห้ามแพ็กส่ง\n(ผลิตให้เสร็จแล้วเก็บเข้าสต็อกสำรอง)");
     if(pick.length && !$("fProdNo").value) $("fProdNo").value = [...new Set(pick.map(r=>r.production_number))].sort(prodNoSort).join(", ");
     // ลาเบลที่ไม่มีชื่อสินค้า (TikTok) — เติมจาก ERP
     if(pick.length && !$("fProd").value) $("fProd").value = [...new Set(pick.map(r=>r.product_name).filter(Boolean))].join(" | ");
