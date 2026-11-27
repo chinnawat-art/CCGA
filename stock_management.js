@@ -260,6 +260,109 @@ let selectedCategory = ''; // active tab category
 let showOnlyLowStock = false;
 let showOnlyNearStock = false;
 
+// ─── จุดเก็บวัสดุ ──────────────────────────────────────────────────────────
+// จุดที่ 2 = วัสดุในสูตรบานกระทุ้ง/บานเปิด (ANWD, CMWD) เก็บที่โรงงานโมดูลาร่า · ที่เหลือ = จุดที่ 1
+// ชุดเดียวกับหน้าเตรียมวัสดุ/ตรวจนับ · สูตร ~15,000 แถว โหลดครั้งแรก ~5 วิ → จำในเครื่อง 12 ชม. (ใช้ร่วมกับหน้าตรวจนับ)
+const SITE2_SKUS = ['ANWD', 'CMWD'];
+const SITE_LABEL = { '1': 'จุดที่ 1', '2': 'จุดที่ 2 · บานกระทุ้ง/บานเปิด' };
+const SITE2_CACHE = 'ccga_site2_codes_v1';
+const SITE2_TTL = 12 * 3600 * 1000;
+let selectedSite = '';
+let site2Set = null;
+
+async function loadSite2Set() {
+    if (site2Set) return site2Set;
+    try {
+        const c = JSON.parse(localStorage.getItem(SITE2_CACHE) || 'null');
+        if (c && Array.isArray(c.codes) && c.codes.length && Date.now() - c.at < SITE2_TTL) {
+            site2Set = new Set(c.codes);
+            return site2Set;
+        }
+    } catch (e) { /* เครื่องไม่ให้เก็บ — โหลดใหม่ */ }
+    const orF = SITE2_SKUS.map(p => 'product_code.ilike.' + p + '%').join(',');
+    const head = await dbSupabase.from('stock_bom').select('id', { count: 'exact', head: true }).or(orF);
+    if (head.error) throw head.error;
+    const reqs = [];
+    for (let from = 0; from < (head.count || 0); from += 1000)   // ฐานข้อมูลส่งได้ครั้งละ 1,000 แถว
+        reqs.push(dbSupabase.from('stock_bom').select('component_product_code').or(orF).order('id').range(from, from + 999));
+    const set = new Set();
+    (await Promise.all(reqs)).forEach(r => {
+        if (r.error) throw r.error;
+        (r.data || []).forEach(x => { if (x.component_product_code) set.add(x.component_product_code); });
+    });
+    try { localStorage.setItem(SITE2_CACHE, JSON.stringify({ at: Date.now(), codes: [...set] })); } catch (e) { /* ไม่เป็นไร */ }
+    site2Set = set;
+    return site2Set;
+}
+
+function inSelectedSite(stock) {
+    if (!selectedSite || !site2Set) return true;
+    const isSite2 = site2Set.has(stock.product_code);
+    return selectedSite === '2' ? isSite2 : !isSite2;
+}
+
+async function selectSite(value) {
+    const sel = document.getElementById('siteSelect');
+    if (value && !site2Set) {
+        if (sel) sel.disabled = true;
+        showToast('⏳ กำลังโหลดรายการวัสดุของแต่ละจุด...', 'info');
+        try {
+            await loadSite2Set();
+        } catch (err) {
+            showToast('❌ โหลดรายการจุดไม่สำเร็จ: ' + err.message, 'error');
+            if (sel) sel.value = selectedSite;
+            return;
+        } finally {
+            if (sel) sel.disabled = false;
+        }
+    }
+    selectedSite = value;
+    if (sel) sel.classList.toggle('active', !!value);
+    currentStockPage = 1;
+    renderStockTable();
+    updateStatistics();
+}
+
+// คัดลอกรายการที่แสดงอยู่ (ตามจุด/หมวด/ค้นหา/ต่ำกว่าเตือน/ใกล้หมด) ไปวางใน LINE
+async function copyFilteredList() {
+    const rows = getSorted(getFiltered());
+    if (!rows.length) { showToast('ไม่มีรายการให้คัดลอก', 'warning'); return; }
+    const MAX = 300;
+    const tags = [];
+    if (selectedSite) tags.push(SITE_LABEL[selectedSite]);
+    if (showOnlyLowStock) tags.push('ต่ำกว่าระดับเตือน');
+    if (showOnlyNearStock) tags.push('ใกล้หมด');
+    const lines = rows.slice(0, MAX).map((s, i) => {
+        const unit = normalizeUnit(s.unit, 'ชิ้น');
+        return (i + 1) + '. ' + (s.product_name || '-') + (s.product_code ? ' [' + s.product_code + ']' : '')
+            + ' — เหลือ ' + (Number(s.quantity) || 0).toLocaleString('th-TH') + ' ' + unit
+            + ' (เตือนที่ ' + getReorderPoint(s) + ')' + (s.storage_location ? ' · ช่อง ' + s.storage_location : '');
+    });
+    const text = ['รายการวัสดุ' + (tags.length ? ' · ' + tags.join(' · ') : '') + ' — '
+            + rows.length.toLocaleString('th-TH') + ' รายการ · ' + new Date().toLocaleDateString('th-TH')]
+        .concat(lines)
+        .concat(rows.length > MAX ? ['… และอีก ' + (rows.length - MAX).toLocaleString('th-TH') + ' รายการ (กรองให้แคบลงก่อนคัดลอก)'] : [])
+        .join('\n');
+    let ok = false;
+    try {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+    } catch (e) {
+        // เครื่อง/เบราว์เซอร์เก่าไม่ให้ใช้คลิปบอร์ดแบบใหม่ → คัดลอกแบบเดิม
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
+        ta.remove();
+    }
+    showToast(ok ? '📋 คัดลอกแล้ว ' + Math.min(rows.length, MAX).toLocaleString('th-TH') + ' รายการ — วางใน LINE ได้เลย'
+                 : '❌ คัดลอกไม่สำเร็จ ลองอีกครั้ง', ok ? 'success' : 'error');
+}
+
 function selectCategoryTab(element, category) {
     document.querySelectorAll('.category-tab').forEach(tab => {
         tab.classList.remove('active');
@@ -287,7 +390,7 @@ function getFiltered() {
         const matchLow = !showOnlyLowStock || isLow;
         const matchNear = !showOnlyNearStock || isNear;
         
-        return matchName && matchCat && matchLow && matchNear;
+        return matchName && matchCat && matchLow && matchNear && inSelectedSite(s);
     });
 }
 
@@ -1100,13 +1203,15 @@ function toggleNearStockFilterFromCard() {
 
 // ─── STATISTICS ───────────────────────────────────────────────────────────
 function updateStatistics() {
-    const total    = allStocks.length;
-    const lowStock = allStocks.filter((stock) => {
+    // ตัวเลขบนการ์ดนับตามจุดที่เลือก (ทุกจุด = ทั้งหมด)
+    const stocks   = allStocks.filter(inSelectedSite);
+    const total    = stocks.length;
+    const lowStock = stocks.filter((stock) => {
         const quantity = Number(stock.quantity) || 0;
         return quantity <= getReorderPoint(stock);
     }).length;
-    const nearStock = allStocks.filter((stock) => getStockLevel(stock) === 'near').length;
-    const totalQty = allStocks.reduce((sum, stock) => sum + (Number(stock.quantity) || 0), 0);
+    const nearStock = stocks.filter((stock) => getStockLevel(stock) === 'near').length;
+    const totalQty = stocks.reduce((sum, stock) => sum + (Number(stock.quantity) || 0), 0);
 
     document.getElementById('totalItems').textContent    = total;
     document.getElementById('lowStockItems').textContent = lowStock;
