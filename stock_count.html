@@ -84,6 +84,38 @@
                 background:#0f172a; color:#fff; padding:12px 20px; border-radius:13px;
                 font-size:.92rem; z-index:9999; box-shadow:0 12px 30px rgba(0,0,0,.3);
                 max-width:calc(100vw - 32px); text-align:center; }
+        .print-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:-4px 0 14px; }
+        .print-row input[type=text] { flex:1 1 220px; min-width:0; font-family:inherit; font-size:.92rem; padding:10px 12px;
+               border:1px solid var(--border-strong,#cbd5e1); border-radius:12px;
+               background: var(--surface,#fff); color: var(--text-main,#0f172a); }
+        .print-row label { font-size:.85rem; color: var(--muted-strong,#64748b); display:flex; gap:6px; align-items:center; cursor:pointer; }
+        .btn-print { padding:10px 16px; border:1px solid #6366f1; border-radius:12px; cursor:pointer;
+               background: var(--surface,#fff); color:#6366f1; font:600 .92rem 'Kanit',sans-serif; white-space:nowrap; }
+        .btn-print:disabled { opacity:.5; cursor:default; }
+        #printArea { display:none; }
+        @media print {
+            @page { size: A4; margin: 10mm; }
+            body { background:#fff !important; color:#000 !important; }
+            .shell, .toast, #user-display-area, nav, header, .navbar, .menu-btn, .theme-toggle-button, #ccga-alert-host { display:none !important; }
+            #printArea { display:block !important; font-family:'Kanit',sans-serif; color:#000; }
+            #printArea h1 { font-size:16pt; margin:0 0 1mm; }
+            #printArea .pm { font-size:10pt; margin:0 0 2.5mm; line-height:1.5; }
+            #printArea table { width:100%; border-collapse:collapse; font-size:10pt; }
+            #printArea td, #printArea th { border:1px solid #000; padding:1.3mm 2mm; text-align:left; vertical-align:middle; }
+            #printArea th { background:#eee; }
+            #printArea thead { display:table-header-group; }
+            #printArea td.n, #printArea th.n { text-align:right; }
+            #printArea tbody td { height:8mm; }   /* สูงพอเขียนตัวเลขด้วยมือ */
+            #printArea td.c { width:34mm; font-size:8.5pt; word-break:break-all; }
+            #printArea td.box { width:24mm; }
+            #printArea td.loc { width:16mm; }
+            #printArea td.memo { width:24mm; }
+            #printArea tr.gh td { background:#eee; font-weight:700; }
+            #printArea tr { page-break-inside:avoid; }
+            #printArea .sign { display:flex; gap:14mm; margin-top:9mm; font-size:10.5pt; page-break-inside:avoid; }
+            #printArea .sign > div { flex:1; text-align:center; line-height:1.6; }
+            #printArea .sign .sl { border-bottom:1px solid #000; height:12mm; margin-bottom:1mm; }
+        }
         @media (max-width:640px) {
             .kpi b { font-size:1.25rem; }
             .count-input { font-size:1.45rem; padding:13px 8px; }
@@ -108,6 +140,11 @@
 
         <div class="toolbar">
             <input id="q" type="text" placeholder="🔍 ค้นหาชื่อวัสดุ หรือรหัส" inputmode="search">
+            <select id="site">
+                <option value="">ทุกจุด</option>
+                <option value="1">จุดที่ 1</option>
+                <option value="2">จุดที่ 2 · บานกระทุ้ง/บานเปิด</option>
+            </select>
             <select id="cat">
                 <option value="">ทุกหมวด</option>
                 <option value="glass">🪟 กระจก</option>
@@ -135,6 +172,12 @@
             </select>
         </div>
 
+        <div class="print-row">
+            <button id="printBtn" class="btn-print" type="button">🖨️ พิมพ์ใบนับ (ตามตัวกรอง)</button>
+            <label><input id="printSys" type="checkbox"> ใส่ยอดในระบบในใบ</label>
+            <input id="counter" type="text" maxlength="60" placeholder="👤 ชื่อคนนับ — ใส่เมื่อลงยอดจากใบนับของคนอื่น">
+        </div>
+
         <div id="resultInfo" class="result-info"></div>
         <div id="list"><div class="empty">กำลังโหลด...</div></div>
         <button id="moreBtn" class="more" style="display:none;">โหลดเพิ่ม</button>
@@ -144,6 +187,7 @@
             <div id="hist"><div class="empty">ยังไม่มีประวัติ</div></div>
         </div>
     </div>
+    <div id="printArea"></div>
 <script>
     const PAGE_SIZE = 40;
     let db = null, offset = 0, loading = false, countedToday = 0;
@@ -184,40 +228,89 @@
         document.getElementById('kpiToday').textContent = countedToday.toLocaleString('th-TH');
     }
 
+    // ── จุดเก็บวัสดุ ─────────────────────────────────────────────────
+    // จุดที่ 2 = วัสดุในสูตรบานกระทุ้ง/บานเปิด (ANWD, CMWD) เก็บที่โรงงานโมดูลาร่า · ที่เหลือ = จุดที่ 1
+    // (ชุดเดียวกับหน้าเตรียมวัสดุ · ตรวจ 27/11/2569: 127 รายการ ไม่ใช้ร่วมกับสินค้ากลุ่มอื่น)
+    const SITE2_SKUS = ['ANWD', 'CMWD'];
+    const SITE_LABEL = { '1': 'จุดที่ 1', '2': 'จุดที่ 2 · บานกระทุ้ง/บานเปิด' };
+    let site2Codes = null;
+
+    // สูตรมี ~15,000 แถว โหลดครั้งแรก ~5 วิ → จำไว้ในเครื่อง 12 ชม. (สูตรไม่ค่อยเปลี่ยน)
+    const SITE2_CACHE = 'ccga_site2_codes_v1', SITE2_TTL = 12 * 3600 * 1000;
+    async function getSite2Codes() {
+        if (site2Codes) return site2Codes;
+        try {
+            const c = JSON.parse(localStorage.getItem(SITE2_CACHE) || 'null');
+            if (c && Array.isArray(c.codes) && c.codes.length && Date.now() - c.at < SITE2_TTL) return (site2Codes = c.codes);
+        } catch (e) { /* เครื่องไม่ให้เก็บ — โหลดใหม่ */ }
+        const orF = SITE2_SKUS.map(p => 'product_code.ilike.' + p + '%').join(',');
+        const head = await db.from('stock_bom').select('id', { count: 'exact', head: true }).or(orF);
+        if (head.error) throw head.error;
+        const reqs = [];
+        for (let from = 0; from < (head.count || 0); from += 1000)   // ฐานข้อมูลส่งได้ครั้งละ 1,000 แถว
+            reqs.push(db.from('stock_bom').select('component_product_code').or(orF).order('id').range(from, from + 999));
+        const set = new Set();
+        (await Promise.all(reqs)).forEach(r => {
+            if (r.error) throw r.error;
+            (r.data || []).forEach(x => { if (x.component_product_code) set.add(x.component_product_code); });
+        });
+        site2Codes = [...set];
+        try { localStorage.setItem(SITE2_CACHE, JSON.stringify({ at: Date.now(), codes: site2Codes })); } catch (e) { /* ไม่เป็นไร */ }
+        return site2Codes;
+    }
+
+    function pgQuote(s) { return '"' + String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"'; }
+
+    function currentFilters() {
+        return {
+            q: document.getElementById('q').value.trim(),
+            site: document.getElementById('site').value,
+            cat: document.getElementById('cat').value,
+            color: document.getElementById('color').value,
+            never: document.getElementById('sortBy').value === 'never'
+        };
+    }
+
+    // ใส่ตัวกรองให้คำสั่งดึงข้อมูล (ฟังก์ชันธรรมดา — ห้ามทำเป็น async เพราะคำสั่งดึงข้อมูลจะถูกยิงทันทีตอน return)
+    function applyFilters(query, f, codes) {
+        // หมวด: ใช้ช่อง category ในฐานข้อมูลตรง ๆ (glass / aluminum / tools ใส่ไว้ครบทุกรายการ)
+        if (f.cat) query = query.eq('category', f.cat);
+
+        // สี: เขียนอยู่ในชื่อวัสดุ เช่น "กระจกสีฟ้า ..." / "เสากุญแจ สีขาว ..."
+        // ใช้คำว่า "สี" นำหน้า เพื่อไม่ให้ "ดำ" ไปติด "ชาดำ"
+        // และกระจกบางตัวเขียนว่า "กระจกฝ้า" โดยไม่มีคำว่าสี จึงรวมแบบนั้นด้วย
+        if (f.color) query = query.or('product_name.ilike.%สี' + f.color + '%,product_name.ilike.%กระจก' + f.color + '%');
+
+        if (f.q) query = query.or('product_name.ilike.%' + f.q + '%,product_code.ilike.%' + f.q + '%');
+        if (f.never) query = query.is('last_stock_check', null);
+
+        if (f.site === '2') query = query.in('product_code', codes && codes.length ? codes : ['-']);
+        else if (f.site === '1' && codes && codes.length)
+            query = query.or('product_code.is.null,product_code.not.in.(' + codes.map(pgQuote).join(',') + ')');
+        return query;
+    }
+
     // ── โหลดรายการวัสดุ ──────────────────────────────────────────────
     async function loadItems(reset) {
         if (loading) return;
         loading = true;
         if (reset) { offset = 0; document.getElementById('list').innerHTML = '<div class="empty">กำลังโหลด...</div>'; }
 
-        const q = document.getElementById('q').value.trim();
+        const f = currentFilters();
         const sortBy = document.getElementById('sortBy').value;
-
-        const cat = document.getElementById('cat').value;
-        const color = document.getElementById('color').value;
-
-        let query = db.from('stock_items')
-            .select('id, product_code, product_name, quantity, unit, category, reorder_point, last_stock_check',
-                    { count: 'exact' });
-
-        // หมวด: ใช้ช่อง category ในฐานข้อมูลตรง ๆ (glass / aluminum / tools ใส่ไว้ครบทุกรายการ)
-        if (cat) query = query.eq('category', cat);
-
-        // สี: เขียนอยู่ในชื่อวัสดุ เช่น "กระจกสีฟ้า ..." / "เสากุญแจ สีขาว ..."
-        // ใช้คำว่า "สี" นำหน้า เพื่อไม่ให้ "ดำ" ไปติด "ชาดำ"
-        // และกระจกบางตัวเขียนว่า "กระจกฝ้า" โดยไม่มีคำว่าสี จึงรวมแบบนั้นด้วย
-        if (color) query = query.or('product_name.ilike.%สี' + color + '%,product_name.ilike.%กระจก' + color + '%');
-
-        if (q) query = query.or('product_name.ilike.%' + q + '%,product_code.ilike.%' + q + '%');
-        if (sortBy === 'never') query = query.is('last_stock_check', null);
-
-        if (sortBy === 'name') query = query.order('product_name', { ascending: true });
-        else if (sortBy === 'low') query = query.order('quantity', { ascending: true });
-        else query = query.order('last_stock_check', { ascending: true, nullsFirst: true })
-                          .order('product_name', { ascending: true });
 
         let data = null, error = null, count = null;
         try {
+            const codes = f.site ? await getSite2Codes() : null;
+            let query = applyFilters(db.from('stock_items')
+                .select('id, product_code, product_name, quantity, unit, category, reorder_point, last_stock_check, storage_location',
+                        { count: 'exact' }), f, codes);
+
+            if (sortBy === 'name') query = query.order('product_name', { ascending: true });
+            else if (sortBy === 'low') query = query.order('quantity', { ascending: true });
+            else query = query.order('last_stock_check', { ascending: true, nullsFirst: true })
+                              .order('product_name', { ascending: true });
+
             ({ data, error, count } = await query.range(offset, offset + PAGE_SIZE - 1));
         } catch (e) {
             error = e;
@@ -225,7 +318,7 @@
             // ปลดล็อกเสมอ ถึงโหลดพลาด — ไม่งั้นค้นหา/กรอง/โหลดเพิ่ม จะกดไม่ติดไปตลอด (อาการค้างบน iPhone)
             loading = false;
         }
-        if (reset) showResultInfo(error ? null : count, q, cat, color);
+        if (reset) showResultInfo(error ? null : count, f);
 
         if (error) {
             const msg = '❌ โหลดไม่สำเร็จ: ' + esc(error.message || String(error))
@@ -241,22 +334,30 @@
 
     const CAT_LABEL = { glass: 'กระจก', aluminum: 'อลูมิเนียม', tools: 'อะไหล่' };
 
-    function showResultInfo(count, q, cat, color) {
+    function filterParts(f) {
+        const parts = [];
+        if (f.site) parts.push(esc(SITE_LABEL[f.site] || f.site));
+        if (f.cat) parts.push(esc(CAT_LABEL[f.cat] || f.cat));
+        if (f.color) parts.push('สี' + esc(f.color));
+        if (f.q) parts.push('"' + esc(f.q) + '"');
+        if (f.never) parts.push('ยังไม่เคยนับ');
+        return parts;
+    }
+
+    function showResultInfo(count, f) {
         const box = document.getElementById('resultInfo');
-        ['cat', 'color'].forEach(id => {
+        ['site', 'cat', 'color'].forEach(id => {
             const el = document.getElementById(id);
             el.classList.toggle('active', !!el.value);
         });
         if (count == null) { box.innerHTML = ''; return; }
-        const parts = [];
-        if (cat) parts.push(CAT_LABEL[cat] || cat);
-        if (color) parts.push('สี' + color);
-        if (q) parts.push('"' + esc(q) + '"');
+        const parts = filterParts(Object.assign({}, f, { never: false }));
         box.innerHTML = 'พบ <b>' + count.toLocaleString('th-TH') + '</b> รายการ'
             + (parts.length ? ' · ' + parts.join(' · ') + '<a id="clearFilters">ล้างตัวกรอง</a>' : '');
         const clr = document.getElementById('clearFilters');
         if (clr) clr.onclick = () => {
             document.getElementById('q').value = '';
+            document.getElementById('site').value = '';
             document.getElementById('cat').value = '';
             document.getElementById('color').value = '';
             loadItems(true);
@@ -276,7 +377,8 @@
                 : '<span class="never">⚠️ ยังไม่เคยนับ</span>';
             return '<div class="item" id="it_' + esc(it.id) + '">'
                 + '<div class="item-name">' + esc(it.product_name) + '</div>'
-                + (it.product_code ? '<div class="item-code">รหัส: ' + esc(it.product_code) + '</div>' : '')
+                + (it.product_code ? '<div class="item-code">รหัส: ' + esc(it.product_code)
+                    + (it.storage_location ? ' · 📍 ' + esc(it.storage_location) : '') + '</div>' : '')
                 + '<div class="item-meta">' + last + '</div>'
                 + '<div class="count-row">'
                 +   '<span class="sys-qty">ระบบมี <b>' + Number(it.quantity).toLocaleString('th-TH') + '</b> ' + esc(it.unit || 'ชิ้น') + '</span>'
@@ -321,10 +423,12 @@
         btn.textContent = 'กำลังบันทึก...';
 
         try {
+            // ลงยอดจากใบนับของคนอื่น (เช่น โรงงานจุดที่ 2 นับ · ฝ่ายสต็อกลง) → เก็บชื่อคนนับไว้ในประวัติ
+            const counter = document.getElementById('counter').value.trim();
             const { data, error } = await db.rpc('rpc_record_stock_count', {
                 p_item_id: itemId,
                 p_counted_qty: counted,
-                p_note: null
+                p_note: counter ? 'คนนับ: ' + counter : null
             });
             if (error) throw error;
 
@@ -356,10 +460,90 @@
         }
     }
 
+    // ── ใบนับสำหรับพิมพ์ (ตามตัวกรองที่เลือก · ทุกรายการ ไม่ใช่แค่ที่โหลดบนจอ) ─────────
+    // ค่าเริ่มต้นไม่ใส่ยอดในระบบ → คนนับต้องนับของจริง ไม่ลอกตัวเลข
+    const CAT_ORDER = { glass: 1, aluminum: 2, tools: 3 };
+    const CAT_HEAD = { glass: '🪟 กระจก', aluminum: '📐 อลูมิเนียม', tools: '🔩 อะไหล่' };
+    const coll = new Intl.Collator('th', { numeric: true, sensitivity: 'base' });
+
+    async function printSheet() {
+        const btn = document.getElementById('printBtn');
+        const label0 = btn.textContent;
+        const f = currentFilters();
+        btn.disabled = true;
+        btn.textContent = 'กำลังเตรียมใบนับ...';
+        try {
+            const codes = f.site ? await getSite2Codes() : null;
+            const head = await applyFilters(db.from('stock_items').select('id', { count: 'exact', head: true }), f, codes);
+            if (head.error) throw head.error;
+            const n = head.count || 0;
+            if (!n) { toast('ไม่มีรายการตามตัวกรองนี้'); return; }
+            if (n > 400 && !confirm('ใบนับจะมี ' + n.toLocaleString('th-TH') + ' รายการ (หลายสิบหน้า)\n\n'
+                    + 'แนะนำให้เลือก "จุด" หรือ "หมวด" ก่อน จะได้ใบที่สั้นลง\n\nพิมพ์ทั้งหมดเลยไหม?')) return;
+
+            const reqs = [];
+            for (let from = 0; from < n; from += 1000)
+                reqs.push(applyFilters(db.from('stock_items')
+                    .select('id, product_code, product_name, unit, category, quantity, storage_location'), f, codes)
+                    .order('id').range(from, from + 999));
+            let rows = [];
+            (await Promise.all(reqs)).forEach(r => { if (r.error) throw r.error; rows = rows.concat(r.data || []); });
+
+            // เรียง: หมวด → ช่องเก็บ (ที่ยังไม่มีช่องไว้ท้าย) → ชื่อ (เลขเรียงแบบคน: 34 ก่อน 187.6)
+            rows.sort((a, b) => (CAT_ORDER[a.category] || 9) - (CAT_ORDER[b.category] || 9)
+                || (!a.storage_location - !b.storage_location)
+                || coll.compare(a.storage_location || '', b.storage_location || '')
+                || coll.compare(a.product_name || '', b.product_name || ''));
+
+            const showSys = document.getElementById('printSys').checked;
+            const cols = showSys ? 8 : 7;
+            const now = new Date().toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short', hour12: false });
+            let i = 0, lastCat = null, body = '';
+            rows.forEach(r => {
+                if (r.category !== lastCat) {
+                    lastCat = r.category;
+                    const nCat = rows.filter(x => x.category === lastCat).length;
+                    body += '<tr class="gh"><td colspan="' + cols + '">' + esc(CAT_HEAD[lastCat] || lastCat || 'อื่น ๆ')
+                        + ' · ' + nCat.toLocaleString('th-TH') + ' รายการ</td></tr>';
+                }
+                body += '<tr><td class="n">' + (++i) + '</td>'
+                    + '<td class="loc">' + esc(r.storage_location || '') + '</td>'
+                    + '<td class="c">' + esc(r.product_code || '') + '</td>'
+                    + '<td>' + esc(r.product_name || '') + '</td>'
+                    + '<td>' + esc(r.unit || 'ชิ้น') + '</td>'
+                    + (showSys ? '<td class="n">' + Number(r.quantity || 0).toLocaleString('th-TH') + '</td>' : '')
+                    + '<td class="box"></td><td class="memo"></td></tr>';
+            });
+
+            const parts = filterParts(f);
+            document.getElementById('printArea').innerHTML =
+                '<h1>ใบตรวจนับสต็อก' + (f.site ? ' — ' + esc(SITE_LABEL[f.site]) : '') + '</h1>'
+                + '<div class="pm">CG Alu Tech · พิมพ์ ' + esc(now) + ' · ' + rows.length.toLocaleString('th-TH') + ' รายการ'
+                + (parts.length ? ' · ' + parts.join(' · ') : '') + '<br>'
+                + 'เขียน<b>จำนวนที่นับได้จริง</b>ทุกบรรทัด · ไม่มีของให้เขียน <b>0</b> · ช่อง "ช่องเก็บ" ว่าง = เขียนช่องที่เจอของ (เช่น A01) · '
+                + 'ระหว่างนับอย่าเพิ่งหยิบของไปผลิต</div>'
+                + '<div class="pm">ผู้นับ ........................................ วันที่ .................... '
+                + 'เริ่มนับ เวลา ............ นับเสร็จ เวลา ............</div>'
+                + '<table><thead><tr><th class="n">#</th><th>ช่องเก็บ</th><th>รหัส</th><th>ชื่อวัสดุ</th><th>หน่วย</th>'
+                + (showSys ? '<th class="n">ระบบมี</th>' : '') + '<th>นับได้</th><th>หมายเหตุ</th></tr></thead><tbody>'
+                + body + '</tbody></table>'
+                + '<div class="pm" style="margin-top:3mm;">นับเสร็จส่งใบนี้ให้ฝ่ายสต็อก CGA ลงยอดในหน้า 📋 ตรวจนับสต็อก'
+                + (f.site ? ' (เลือก ' + esc(SITE_LABEL[f.site]) + ')' : '') + ' ภายในวันที่นับ · ใส่ชื่อคนนับในช่อง 👤 ก่อนลง</div>'
+                + '<div class="sign">' + ['ผู้นับ', 'ผู้ลงยอดในระบบ / ฝ่ายสต็อก CGA', 'ผู้ตรวจ']
+                    .map(t => '<div><div class="sl"></div>' + t + '<br>วันที่ ....................</div>').join('') + '</div>';
+            window.print();
+        } catch (e) {
+            toast('❌ เตรียมใบนับไม่สำเร็จ: ' + ((e && e.message) || String(e)), 6000);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = label0;
+        }
+    }
+
     // ── ประวัติการนับล่าสุด ──────────────────────────────────────────
     async function loadHistory() {
         const { data, error } = await db.from('stock_count_log')
-            .select('item_name, system_qty, counted_qty, diff, counted_by, counted_at')
+            .select('item_name, system_qty, counted_qty, diff, counted_by, counted_at, note')
             .order('counted_at', { ascending: false })
             .limit(20);
         const box = document.getElementById('hist');
@@ -372,7 +556,7 @@
                 + '<div style="font-weight:600;">' + esc(r.item_name) + '</div>'
                 + '<div style="color:var(--muted-strong,#64748b);font-size:.79rem;">'
                 +   r.system_qty + ' → ' + r.counted_qty + ' · '
-                +   esc(r.counted_by) + ' · '
+                +   esc(r.counted_by) + (r.note ? ' (' + esc(r.note) + ')' : '') + ' · '
                 +   new Date(r.counted_at).toLocaleString('th-TH', { hour12: false })
                 + '</div></div>'
                 + '<span class="pill ' + cls + '">' + txt + '</span></div>';
@@ -394,6 +578,8 @@
             timer = setTimeout(() => loadItems(true), 400);
         });
         document.getElementById('sortBy').addEventListener('change', () => loadItems(true));
+        document.getElementById('site').addEventListener('change', () => loadItems(true));
+        document.getElementById('printBtn').addEventListener('click', printSheet);
         document.getElementById('cat').addEventListener('change', () => loadItems(true));
         document.getElementById('color').addEventListener('change', () => loadItems(true));
         document.getElementById('moreBtn').addEventListener('click', () => loadItems(false));
