@@ -1270,6 +1270,12 @@ function renderOrderCard(o) {
             <button class="btn btn-sm btn-qc-pass" onclick="qcPass('${o.id}',this)">✔️ ตรวจเสร็จรอจัดส่ง</button>` : ''}`;
     }
 
+    // ❌ ลูกค้ายกเลิกระหว่างผลิต (27/11/2569) — เลือกคืนวัสดุ / เก็บเป็นสต็อกสำรอง ในหน้าต่างเดียว
+    if (canCancel && [STATUS_PRODUCING, STATUS_DONE, STATUS_QC_DONE].includes(status)) {
+        actionsHtml += `
+        <button class="btn btn-outline btn-sm" style="color:#f87171;border-color:rgba(239,68,68,0.35);" title="ลูกค้ายกเลิกระหว่างผลิต — เลือกคืนวัสดุ / เก็บเป็นสต็อกสำรอง" onclick="openCancelInProduction('${o.id}')">❌ ยกเลิก</button>`;
+    }
+
     actionsHtml += `
         ${canDelete ? `<button class="btn btn-outline btn-sm" style="color:#f87171;border-color:rgba(239,68,68,0.45);" title="ลบออเดอร์ออกจาก Supabase" onclick="deleteProductionOrder('${o.id}',this)">🗑️ ลบ</button>` : ''}
         <button class="btn btn-outline btn-sm" title="ดูประวัติ" onclick="viewHistory('${o.id}')">📜</button>`;
@@ -2035,6 +2041,30 @@ function cancelProductionOrder(id, btnEl) {
 
     updateStatus(id, 'ยกเลิก', btnEl);
 }
+
+// ❌ ยกเลิกใบ กำลังผลิต / รอ QC / ตรวจเสร็จรอจัดส่ง (หน้าต่างอยู่ใน cancel-in-production.js)
+function openCancelInProduction(id) {
+    if (window.auth?.hasPermission?.('action_cancel_order') !== true) {
+        alert('❌ คุณไม่มีสิทธิ์ยกเลิกออเดอร์');
+        return;
+    }
+    const order = allOrders.find(item => item.id === id);
+    if (!order) {
+        alert('❌ ไม่พบออเดอร์ที่ต้องการยกเลิก');
+        return;
+    }
+    if (!window.CancelInProduction) {
+        alert('หน้าโหลดไม่ครบ กรุณารีเฟรชหน้าแล้วลองใหม่');
+        return;
+    }
+    window.CancelInProduction.open(order, {
+        db,
+        log,
+        label: formatProductionNumberLabel(order),
+        onDone: () => loadData()
+    });
+}
+window.openCancelInProduction = openCancelInProduction;
 
 async function deleteProductionOrder(id, btnEl) {
     if (window.auth?.hasPermission?.('action_delete_order') !== true) {
