@@ -1,17 +1,14 @@
 // ❌ ยกเลิกระหว่างผลิต (27/11/2569)
 // ใช้กับใบ กำลังผลิต / รอ QC / ตรวจเสร็จรอจัดส่ง ที่ลูกค้ายกเลิก
-// เลือกว่าวัสดุชิ้นไหนเอากลับขึ้นชั้นได้ · บานเสร็จแล้วเก็บเป็นสต็อกสำรอง · กดยืนยันครั้งเดียว
-// ฐานข้อมูลทำทุกอย่างในฟังก์ชันเดียว (rpc_cancel_in_production) — พลาดข้อไหน = ไม่บันทึกอะไรเลย
+// กติกาโรงงาน: จ่ายวัสดุให้ช่างแล้ว = ผลิตให้เสร็จก่อน แล้วค่อยยกเลิกเก็บเป็นสต็อกสำรอง
+//   · กำลังผลิต + ยังไม่จ่ายวัสดุ → คืนวัสดุทั้งหมดเข้าสต็อก
+//   · กำลังผลิต + จ่ายแล้ว → ยังยกเลิกไม่ได้ (บอกให้ผลิตให้เสร็จก่อน)
+//   · ผลิตเสร็จแล้ว → เก็บเป็นสต็อกสำรอง หรือ ไม่เข้าสต็อก (ขนาดพิเศษ / บานเสีย)
+// ฐานข้อมูลตัดสินเองและทำทุกอย่างในฟังก์ชันเดียว (rpc_cancel_in_production) — พลาดข้อไหน = ไม่บันทึกอะไรเลย
 (function () {
     'use strict';
 
-    const MODES = {
-        unfinished: { icon: '🔧', title: 'ยังผลิตไม่เสร็จ', sub: 'คืนวัสดุที่ยังไม่ได้ใช้เข้าสต็อก (ชิ้นที่ตัด/ประกอบไปแล้วไม่คืน)' },
-        backup: { icon: '📦', title: 'ผลิตเสร็จแล้ว — เก็บเป็นสต็อกสำรอง', sub: 'ออเดอร์ SKU เดียวกันครั้งหน้าดึงไปใช้ได้ · ระบบไม่ตัดวัสดุซ้ำ' },
-        scrap: { icon: '🗑️', title: 'ทำไปแล้ว ใช้ต่อไม่ได้', sub: 'ไม่คืนวัสดุ ไม่เก็บ (วัสดุถือว่าใช้ไปแล้วทั้งหมด)' }
-    };
-
-    let st = null;   // { db, order, data, onDone, log, busy }
+    let st = null;   // { db, order, data, onDone, log, label, busy, choice, reason }
 
     function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -25,35 +22,30 @@
     function injectStyle() {
         if (document.getElementById('cipStyle')) return;
         const css = `
-#cipModal .modal-content{max-width:640px}
+#cipModal .modal-content{max-width:600px}
 #cipModal .cip-step{font-weight:600;color:var(--text);margin:.9rem 0 .45rem;font-size:.95rem}
 #cipModal .cip-mode{display:flex;gap:.6rem;align-items:flex-start;padding:.65rem .8rem;border:1px solid var(--border);border-radius:10px;margin-bottom:.45rem;cursor:pointer;background:var(--input-bg)}
 #cipModal .cip-mode input{margin-top:.25rem;flex:0 0 auto;width:18px;height:18px}
 #cipModal .cip-mode.on{border-color:rgba(239,68,68,.55);box-shadow:0 0 0 1px rgba(239,68,68,.35)}
+#cipModal .cip-mode.off{opacity:.55;cursor:not-allowed}
 #cipModal .cip-mode b{display:block;color:var(--text)}
 #cipModal .cip-mode small{color:var(--muted);font-size:.8rem}
-#cipModal .cip-quick{display:flex;gap:.5rem;flex-wrap:wrap;margin:.3rem 0 .6rem}
-#cipModal .cip-row{display:flex;gap:.6rem;align-items:center;justify-content:space-between;padding:.55rem .1rem;border-bottom:1px dashed var(--border)}
-#cipModal .cip-row.miss{background:rgba(245,158,11,.08)}
+#cipModal .cip-row{display:flex;gap:.6rem;align-items:center;justify-content:space-between;padding:.45rem .1rem;border-bottom:1px dashed var(--border)}
 #cipModal .cip-name{flex:1 1 auto;min-width:0;font-size:.86rem;color:var(--text);line-height:1.35}
 #cipModal .cip-name code{font-size:.72rem;color:var(--muted);word-break:break-all}
+#cipModal .cip-qty{flex:0 0 auto;font-size:.86rem;font-weight:600;color:var(--status-success-text)}
 #cipModal .cip-meta{font-size:.75rem;color:var(--muted)}
-#cipModal .cip-tag{display:inline-block;font-size:.7rem;padding:0 .4rem;border-radius:6px;margin-left:.25rem}
-#cipModal .cip-tag.shelf{background:var(--status-success-bg);color:var(--status-success-text)}
-#cipModal .cip-tag.out{background:var(--status-pending-bg);color:var(--status-pending-text)}
-#cipModal .cip-in{flex:0 0 auto;display:flex;align-items:center;gap:.3rem}
-#cipModal .cip-in input{width:64px;margin:0;text-align:center;padding:.4rem .3rem}
-#cipModal .cip-in button{padding:.3rem .45rem;font-size:.72rem}
 #cipModal .cip-note{font-size:.8rem;color:var(--muted);margin:.4rem 0}
+#cipModal .cip-ok{font-size:.88rem;padding:.65rem .8rem;border-radius:8px;margin:.7rem 0;background:var(--status-success-bg);color:var(--status-success-text)}
+#cipModal .cip-stop{font-size:.9rem;padding:.8rem .9rem;border-radius:10px;margin:.7rem 0;background:var(--status-pending-bg);color:var(--status-pending-text);line-height:1.55}
 #cipModal .cip-warn{font-size:.82rem;padding:.55rem .75rem;border-radius:8px;margin:.6rem 0;background:var(--status-pending-bg);color:var(--status-pending-text)}
 #cipModal .cip-sum{font-size:.86rem;padding:.6rem .8rem;border-radius:8px;margin:.8rem 0;background:var(--bg-card-strong,rgba(148,163,184,.08));color:var(--text)}
 #cipModal .cip-check{display:flex;gap:.5rem;align-items:flex-start;font-size:.86rem;margin:.6rem 0;color:var(--text)}
 #cipModal .cip-check input{width:18px;height:18px;margin-top:.15rem}
+#cipModal details summary{cursor:pointer;font-size:.84rem;color:var(--text);margin:.3rem 0}
 @media (max-width:640px){
  #cipModal.modal-overlay{padding:.5rem}
  #cipModal .modal-content{padding:1.1rem;max-height:94vh}
- #cipModal .cip-row{flex-wrap:wrap}
- #cipModal .cip-in{width:100%;justify-content:flex-end}
  #cipModal .modal-actions{flex-direction:column-reverse}
  #cipModal .modal-actions .btn{width:100%}
 }`;
@@ -88,11 +80,13 @@
         </div>`;
     }
 
+    const closeOnly = '<div class="modal-actions"><button type="button" class="btn btn-outline" data-cip="close">ปิด</button></div>';
+
     async function open(order, opts) {
         if (!order || !opts || !opts.db) return;
-        st = { db: opts.db, order, data: null, onDone: opts.onDone, log: opts.log || function () {}, label: opts.label || order.production_number || '-', busy: false, mode: '' };
+        st = { db: opts.db, order, data: null, onDone: opts.onDone, log: opts.log || function () {}, label: opts.label || order.production_number || '-', busy: false, choice: '', reason: '' };
         const el = ensureModal();
-        box().innerHTML = header() + '<div class="cip-note">⏳ กำลังโหลดรายการวัสดุของใบนี้...</div>';
+        box().innerHTML = header() + '<div class="cip-note">⏳ กำลังตรวจใบนี้...</div>';
         el.style.display = 'flex';
         document.addEventListener('keydown', onKey);
         try {
@@ -100,12 +94,20 @@
             if (error) throw error;
             if (!st || st.order.id !== order.id) return;
             st.data = data || {};
+            const d = st.data;
+            const canBackup = !d.custom_size && !!(d.order && d.order.product_code);
+            st.choice = d.mode === 'finished' ? (canBackup ? 'backup' : 'nostock') : '';
             render();
         } catch (e) {
             if (!st) return;
-            box().innerHTML = header() + `<div class="modal-info-box">❌ โหลดไม่สำเร็จ: ${esc(e.message || e)}</div>
-                <div class="modal-actions"><button type="button" class="btn btn-outline" data-cip="close">ปิด</button></div>`;
+            box().innerHTML = header() + `<div class="modal-info-box">❌ โหลดไม่สำเร็จ: ${esc(e.message || e)}</div>${closeOnly}`;
         }
+    }
+
+    function orderBox(o, sets) {
+        return `<div class="modal-info-box">เลขที่ผลิต <b>${esc(st.label)}</b> · ออเดอร์ ${esc(o.order_number || '-')}<br>
+            ${esc(o.product_name || '')} <code>${esc(o.product_code || '')}</code> × ${num(sets)}<br>
+            สถานะตอนนี้: <b>${esc(o.tracking_status || '-')}</b></div>`;
     }
 
     function render() {
@@ -115,197 +117,137 @@
         const dmg = Array.isArray(d.damaged_pending) ? d.damaged_pending : [];
         const panels = (Array.isArray(d.panels_used) ? d.panels_used : []).filter(p => Number(p && p.qty) > 0);
         const sets = Math.max(Number(o.quantity) || 1, 1);
+        const mode = d.mode || (d.allowed ? 'finished' : 'not_allowed');
 
-        if (!d.allowed) {
-            box().innerHTML = header() + `<div class="modal-info-box">ใบนี้อยู่สถานะ "${esc(o.tracking_status || '-')}" — ยกเลิกแบบนี้ได้เฉพาะใบ กำลังผลิต / รอ QC / ตรวจเสร็จรอจัดส่ง</div>
-                <div class="modal-actions"><button type="button" class="btn btn-outline" data-cip="close">ปิด</button></div>`;
+        if (mode === 'must_finish') {
+            box().innerHTML = header() + orderBox(o, sets) + `
+                <div class="cip-stop">🔧 <b>ใบนี้จ่ายวัสดุให้ช่างแล้ว — ตามกติกาโรงงานต้องผลิตให้เสร็จก่อน</b><br>
+                    ผลิตเสร็จแล้ว (กด "ผลิตสำเร็จ") ค่อยกลับมากด ❌ ยกเลิก อีกครั้ง → ระบบจะเก็บบานเป็นสต็อกสำรองให้</div>
+                <div class="cip-note">ระหว่างนี้แจ้งช่างว่าลูกค้ายกเลิกแล้ว ไม่ต้องแพ็กส่ง</div>${closeOnly}`;
+            return;
+        }
+        if (mode !== 'return_all' && mode !== 'finished') {
+            box().innerHTML = header() + `<div class="modal-info-box">ใบนี้อยู่สถานะ "${esc(o.tracking_status || '-')}" — ยกเลิกแบบนี้ได้เฉพาะใบ กำลังผลิต / รอ QC / ตรวจเสร็จรอจัดส่ง</div>${closeOnly}`;
             return;
         }
 
-        const modes = Object.keys(MODES).map(k => {
-            const m = MODES[k];
-            const title = k === 'backup' ? `${m.title} ${num(sets)} ชุด` : m.title;
-            return `<label class="cip-mode${st.mode === k ? ' on' : ''}">
-                <input type="radio" name="cipMode" value="${k}"${st.mode === k ? ' checked' : ''}>
-                <span><b>${m.icon} ${esc(title)}</b><small>${esc(m.sub)}</small></span>
-            </label>`;
-        }).join('');
-
-        let mat = '';
-        if (st.mode === 'unfinished') {
-            if (!items.length) {
-                mat = `<div class="cip-note">ใบนี้ไม่มีวัสดุที่ตัดค้างไว้ (เช่น ใช้สต็อกสำรอง หรือกดผลิตสำเร็จจากรอผลิต) — ไม่มีอะไรให้คืน</div>`;
-            } else {
-                const rows = items.map((it, i) => {
-                    const q = Number(it.qty) || 0;
-                    const shelf = Number(it.undispatched_qty) > 0 && !(Number(it.dispatched_qty) > 0);
-                    const tag = shelf
-                        ? '<span class="cip-tag shelf">ยังไม่จ่าย · น่าจะยังอยู่ชั้น</span>'
-                        : (Number(it.dispatched_qty) > 0 ? `<span class="cip-tag out">จ่ายแล้ว${it.dispatched_by ? ' · ' + esc(it.dispatched_by) : ''}</span>` : '');
-                    return `<div class="cip-row" data-row="${i}">
-                        <div class="cip-name">${esc(it.name || it.code)} ${tag}<br>
-                            <code>${esc(it.code)}</code>
-                            <div class="cip-meta">ตัดให้ใบนี้ ${num(q)} ${esc(it.unit || 'ชิ้น')}${it.location ? ' · 📍 ' + esc(it.location) : ''}${it.found === false ? ' · ⚠️ ไม่พบในสต็อก คืนไม่ได้' : ''}</div>
-                        </div>
-                        <div class="cip-in">
-                            <span class="cip-meta">คืน</span>
-                            <input type="number" class="form-field" inputmode="numeric" min="0" max="${q}" step="1" data-ret="${i}" placeholder="?" aria-label="จำนวนที่คืนเข้าสต็อก ${esc(it.name || it.code)}">
-                            <button type="button" class="btn btn-outline btn-sm" data-cip="all1" data-i="${i}" title="คืนทั้งหมด ${q}">หมด</button>
-                            <button type="button" class="btn btn-outline btn-sm" data-cip="none1" data-i="${i}" title="ใช้ไปแล้ว คืน 0">0</button>
-                        </div>
-                    </div>`;
-                }).join('');
-                mat = `<div class="cip-step">2. วัสดุที่เอากลับขึ้นชั้นได้ <span style="color:#ef4444">*</span></div>
-                    <div class="cip-note">ใส่จำนวนที่ <b>เอากลับขึ้นชั้นได้จริง</b> ทุกแถว · ชิ้นที่ตัดหรือประกอบไปแล้วใส่ 0</div>
-                    <div class="cip-quick">
-                        <button type="button" class="btn btn-outline btn-sm" data-cip="all">↩ คืนทั้งหมด</button>
-                        <button type="button" class="btn btn-outline btn-sm" data-cip="shelf">↩ คืนเฉพาะที่ยังไม่จ่าย</button>
-                        <button type="button" class="btn btn-outline btn-sm" data-cip="none">✂️ ใช้ไปแล้วทั้งหมด</button>
-                    </div>
-                    <div id="cipRows">${rows}</div>`;
-                if (panels.length) {
-                    const txt = panels.map(p => `${panelLabel(p.type)} × ${num(p.qty)}`).join(' · ');
-                    mat += `<label class="cip-check"><input type="checkbox" id="cipPanels" checked>
-                        <span>คืนบานเก็บที่ใบนี้เบิกไป กลับเข้าสต๊อกบาน (${esc(txt)})<br><small class="cip-meta">ถ้าบานถูกประกอบเข้ากรอบไปแล้ว ให้เอาติ๊กออก</small></span></label>`;
-                }
+        let body = '';
+        let step = 1;
+        if (mode === 'return_all') {
+            const pcs = items.reduce((a, it) => a + (Number(it.qty) || 0), 0);
+            const missing = items.filter(it => it.found === false);
+            body += items.length
+                ? `<div class="cip-ok">↩ ยังไม่ได้จ่ายวัสดุให้ช่าง — ระบบจะ <b>คืนวัสดุทั้งหมดเข้าสต็อก</b> ${num(items.length)} รายการ ${num(pcs)} ชิ้น และเอาออกจากหน้าเตรียมวัสดุ</div>
+                   <details><summary>ดูรายการวัสดุที่คืน</summary>${items.map(it => `<div class="cip-row">
+                        <div class="cip-name">${esc(it.name || it.code)}<br><code>${esc(it.code)}</code>
+                            ${it.location ? `<div class="cip-meta">📍 ${esc(it.location)}</div>` : ''}</div>
+                        <div class="cip-qty">+${num(it.qty)} ${esc(it.unit || 'ชิ้น')}</div></div>`).join('')}</details>`
+                : '<div class="cip-ok">ใบนี้ไม่มีวัสดุที่ตัดค้างไว้ (เช่น ใช้สต็อกสำรอง) — ไม่มีวัสดุให้คืน ยกเลิกใบได้เลย</div>';
+            if (missing.length) {
+                body += `<div class="cip-warn">⚠️ วัสดุ ${esc(missing.map(it => it.code).join(', '))} ไม่พบในสต็อกแล้ว — ยกเลิกไม่ได้ ให้แจ้งผู้ดูแลระบบ</div>`;
             }
+            if (panels.length) {
+                const txt = panels.map(p => `${panelLabel(p.type)} × ${num(p.qty)}`).join(' · ');
+                body += `<label class="cip-check"><input type="checkbox" id="cipPanels"${st.panels === false ? '' : ' checked'}>
+                    <span>คืนบานเก็บที่ใบนี้เบิกไป กลับเข้าสต๊อกบาน (${esc(txt)})<br><small class="cip-meta">ถ้าบานยังไม่ได้หยิบออกจากชั้น ให้ติ๊กไว้</small></span></label>`;
+            }
+        } else {
+            const canBackup = !d.custom_size && !!o.product_code;
+            const why = d.custom_size
+                ? `งานขนาดพิเศษ ${esc(d.custom_width)} x ${esc(d.custom_height)} ซม. — ขนาดไม่ตรง SKU เก็บเป็นสต็อกสำรองไม่ได้`
+                : 'ใบนี้ไม่มีรหัสสินค้า';
+            const opt = (k, icon, title, sub, disabled) => `<label class="cip-mode${st.choice === k ? ' on' : ''}${disabled ? ' off' : ''}">
+                <input type="radio" name="cipChoice" value="${k}"${st.choice === k ? ' checked' : ''}${disabled ? ' disabled' : ''}>
+                <span><b>${icon} ${esc(title)}</b><small>${sub}</small></span></label>`;
+            body += `<div class="cip-step">${step++}. บานที่ผลิตเสร็จแล้ว เอาไปไหน <span style="color:#ef4444">*</span></div>`
+                + opt('backup', '📦', `เก็บเป็นสต็อกสำรอง ${num(sets)} ชุด`,
+                    canBackup ? 'ออเดอร์ SKU เดียวกันครั้งหน้าดึงไปใช้ได้ · ไม่คืนวัสดุ ไม่ตัดวัสดุซ้ำ' : why, !canBackup)
+                + opt('nostock', '🗑️', 'ไม่เข้าสต็อก', 'ใช้กับงานขนาดพิเศษ หรือบานเสียใช้ต่อไม่ได้ · ไม่คืนวัสดุ', false);
         }
 
-        const dmgHtml = dmg.length
-            ? `<div class="cip-warn">⚠️ มีคำขอวัสดุเสียที่ยังไม่ได้จ่าย ${dmg.length} รายการ (${esc(dmg.map(x => `${x.item} × ${x.qty}`).join(', '))}) — ระบบจะคืนชิ้นทดแทนเข้าสต็อกและยกเลิกคำขอให้เอง</div>`
-            : '';
+        if (dmg.length) {
+            body += `<div class="cip-warn">⚠️ มีคำขอวัสดุเสียที่ยังไม่ได้จ่าย ${dmg.length} รายการ (${esc(dmg.map(x => `${x.item} × ${x.qty}`).join(', '))}) — ระบบจะคืนชิ้นทดแทนเข้าสต็อกและยกเลิกคำขอให้เอง</div>`;
+        }
 
-        const reasonStep = st.mode === 'unfinished' && items.length ? '3' : '2';
-        const keepReason = st.reason || '';
-        box().innerHTML = header() + `
-            <div class="modal-info-box">เลขที่ผลิต <b>${esc(st.label)}</b> · ออเดอร์ ${esc(o.order_number || '-')}<br>
-                ${esc(o.product_name || '')} <code>${esc(o.product_code || '')}</code> × ${num(sets)}<br>
-                สถานะตอนนี้: <b>${esc(o.tracking_status || '-')}</b></div>
-            <div class="cip-step">1. บานตอนนี้เป็นยังไง <span style="color:#ef4444">*</span></div>
-            ${modes}
-            ${mat}
-            ${dmgHtml}
-            ${st.mode ? `<div class="cip-step">${reasonStep}. เหตุผล <span style="color:#ef4444">*</span></div>
-            <input type="text" id="cipReason" class="form-field" maxlength="300" placeholder="เช่น ลูกค้ายกเลิกใน Shopee" value="${esc(keepReason)}">` : ''}
-            <div class="cip-sum" id="cipSum">เลือกข้อ 1 ก่อน</div>
+        box().innerHTML = header() + orderBox(o, sets) + body + `
+            <div class="cip-step">${step}. เหตุผล <span style="color:#ef4444">*</span></div>
+            <input type="text" id="cipReason" class="form-field" maxlength="300" placeholder="เช่น ลูกค้ายกเลิกใน Shopee" value="${esc(st.reason)}">
+            <div class="cip-sum" id="cipSum"></div>
             <div class="modal-actions">
                 <button type="button" class="btn btn-outline" data-cip="close">ปิด</button>
                 <button type="button" class="btn btn-danger-soft" data-cip="submit" id="cipSubmit" disabled>❌ ยืนยันยกเลิกออเดอร์</button>
             </div>`;
-        (st.retValues || []).forEach((v, i) => {
-            const inp = box().querySelector(`input[data-ret="${i}"]`);
-            if (inp && v !== '') inp.value = v;
-        });
         updateSummary();
     }
 
     // อ่านค่าจากหน้าต่าง → ตรวจครบไหม
     function readForm() {
-        const items = Array.isArray(st.data.items) ? st.data.items : [];
-        const out = { mode: st.mode, returns: [], missing: 0, invalid: 0, retPcs: 0, retN: 0, usedPcs: 0, panels: false };
+        const d = st.data;
+        const items = Array.isArray(d.items) ? d.items : [];
         const reasonEl = document.getElementById('cipReason');
-        out.reason = reasonEl ? reasonEl.value.trim() : '';
-        const totalNet = items.reduce((a, it) => a + (Number(it.qty) || 0), 0);
-        if (st.mode !== 'unfinished') { out.usedPcs = totalNet; return out; }
-        items.forEach((it, i) => {
-            const inp = box().querySelector(`input[data-ret="${i}"]`);
-            const raw = inp ? inp.value.trim() : '';
-            const q = Number(it.qty) || 0;
-            const row = inp && inp.closest('.cip-row');
-            if (raw === '') { out.missing++; if (row) row.classList.add('miss'); return; }
-            if (row) row.classList.remove('miss');
-            const v = Number(raw);
-            if (!Number.isInteger(v) || v < 0 || v > q || (v > 0 && it.found === false)) { out.invalid++; return; }
-            if (v > 0) { out.returns.push({ code: it.code, qty: v }); out.retPcs += v; out.retN++; }
-            out.usedPcs += q - v;
-        });
         const pc = document.getElementById('cipPanels');
-        out.panels = !!(pc && pc.checked);
-        return out;
+        return {
+            mode: d.mode,
+            choice: st.choice,
+            reason: reasonEl ? reasonEl.value.trim() : '',
+            panels: !!(pc && pc.checked),
+            retN: items.length,
+            retPcs: items.reduce((a, it) => a + (Number(it.qty) || 0), 0),
+            missingStock: items.some(it => it.found === false)
+        };
+    }
+
+    function outcomeText(f) {
+        const sets = Math.max(Number(st.data.order && st.data.order.quantity) || 1, 1);
+        const dmgN = (st.data.damaged_pending || []).length;
+        let txt;
+        if (f.mode === 'return_all') {
+            txt = f.retN ? `คืนวัสดุเข้าสต็อก ${num(f.retPcs)} ชิ้น (${num(f.retN)} รายการ)` : 'ไม่มีวัสดุให้คืน';
+            if (f.panels) txt += ' · คืนบานเก็บเข้าสต๊อกบาน';
+        } else if (f.choice === 'backup') {
+            txt = `เก็บเป็นสต็อกสำรอง ${num(sets)} ชุด · ไม่คืนวัสดุ`;
+        } else {
+            txt = 'ไม่เข้าสต็อก · ไม่คืนวัสดุ';
+        }
+        if (dmgN) txt += ` · คืนวัสดุเสียที่ยังไม่จ่าย ${dmgN} รายการ`;
+        return txt;
     }
 
     function updateSummary() {
         const sumEl = document.getElementById('cipSum');
         const btn = document.getElementById('cipSubmit');
         if (!sumEl || !btn) return;
-        if (!st.mode) { sumEl.textContent = 'เลือกข้อ 1 ก่อน'; btn.disabled = true; return; }
         const f = readForm();
-        const sets = Math.max(Number(st.data.order && st.data.order.quantity) || 1, 1);
-        const dmgN = (st.data.damaged_pending || []).length;
-        let txt;
-        if (f.mode === 'unfinished') {
-            txt = `คืนเข้าสต็อก <b>${num(f.retPcs)}</b> ชิ้น (${f.retN} รายการ) · ใช้ไปแล้ว <b>${num(f.usedPcs)}</b> ชิ้น`;
-            if (f.panels) txt += ' · คืนบานเก็บเข้าสต๊อกบาน';
-        } else if (f.mode === 'backup') {
-            txt = `เก็บเป็นสต็อกสำรอง <b>${num(sets)}</b> ชุด`
-                + (f.usedPcs > 0 ? ` · วัสดุ ${num(f.usedPcs)} ชิ้นถือว่าใช้ไปกับบานแล้ว (ไม่คืน ไม่ตัดซ้ำ)` : ' · ไม่ตัดวัสดุเพิ่ม');
-        } else {
-            txt = 'ไม่คืนวัสดุ · ไม่เก็บ' + (f.usedPcs > 0 ? ` · วัสดุ ${num(f.usedPcs)} ชิ้นถือว่าใช้ไปแล้ว` : '');
-        }
-        if (dmgN) txt += ` · คืนวัสดุเสียที่ยังไม่จ่าย ${dmgN} รายการ`;
         let warn = '';
-        if (f.missing) warn = `ยังไม่ได้ใส่จำนวนคืน ${f.missing} รายการ`;
-        else if (f.invalid) warn = `จำนวนคืนไม่ถูกต้อง ${f.invalid} รายการ (ต้องเป็นเลขเต็ม ไม่เกินที่ตัดให้ใบนี้)`;
+        if (f.mode === 'finished' && !f.choice) warn = 'เลือกข้อ 1 ก่อน';
+        else if (f.mode === 'return_all' && f.missingStock) warn = 'มีวัสดุที่ไม่พบในสต็อก ยกเลิกไม่ได้';
         else if (f.reason.length < 3) warn = 'ใส่เหตุผลอย่างน้อย 3 ตัวอักษร';
-        sumEl.innerHTML = txt + (warn ? `<br><span style="color:#f59e0b">⚠️ ${esc(warn)}</span>` : '');
+        sumEl.innerHTML = esc(outcomeText(f)) + (warn ? `<br><span style="color:#f59e0b">⚠️ ${esc(warn)}</span>` : '');
         btn.disabled = !!warn || st.busy;
-    }
-
-    function setAll(kind) {
-        const items = Array.isArray(st.data.items) ? st.data.items : [];
-        items.forEach((it, i) => {
-            const inp = box().querySelector(`input[data-ret="${i}"]`);
-            if (!inp) return;
-            const q = Number(it.qty) || 0;
-            if (kind === 'all') inp.value = it.found === false ? 0 : q;
-            else if (kind === 'none') inp.value = 0;
-            else if (kind === 'shelf') {
-                const shelf = Number(it.undispatched_qty) > 0 && !(Number(it.dispatched_qty) > 0);
-                inp.value = shelf && it.found !== false ? q : 0;
-            }
-        });
-        updateSummary();
-    }
-
-    function rememberInputs() {
-        const items = Array.isArray(st.data && st.data.items) ? st.data.items : [];
-        st.retValues = items.map((_, i) => {
-            const inp = box().querySelector(`input[data-ret="${i}"]`);
-            return inp ? inp.value : (st.retValues ? st.retValues[i] || '' : '');
-        });
-        const r = document.getElementById('cipReason');
-        if (r) st.reason = r.value;
     }
 
     function onClick(e) {
         if (!st) return;
-        // แตะพื้นหลังไม่ปิด (กันจำนวนที่กรอกไว้หาย) — ปิดด้วยปุ่ม ✕ / ปิด / Esc
+        // แตะพื้นหลังไม่ปิด (กันเหตุผลที่พิมพ์ไว้หาย) — ปิดด้วยปุ่ม ✕ / ปิด / Esc
         const b = e.target.closest('[data-cip]');
         if (!b) return;
         const a = b.dataset.cip;
         if (a === 'close') { if (!st.busy) close(); return; }
-        if (a === 'all' || a === 'none' || a === 'shelf') { setAll(a); return; }
-        if (a === 'all1' || a === 'none1') {
-            const i = Number(b.dataset.i);
-            const it = (st.data.items || [])[i];
-            const inp = box().querySelector(`input[data-ret="${i}"]`);
-            if (it && inp) inp.value = a === 'all1' ? (it.found === false ? 0 : Number(it.qty) || 0) : 0;
-            updateSummary();
-            return;
-        }
         if (a === 'submit') submit();
     }
 
     function onInput(e) {
         if (!st || !st.data) return;
-        if (e.target.name === 'cipMode') {
-            rememberInputs();
-            st.mode = e.target.value;
-            render();
+        if (e.target.name === 'cipChoice') {
             const r = document.getElementById('cipReason');
-            if (r && !r.value) r.focus();
+            if (r) st.reason = r.value;
+            st.choice = e.target.value;
+            render();
+            const r2 = document.getElementById('cipReason');
+            if (r2 && !r2.value) r2.focus();
             return;
         }
+        if (e.target.id === 'cipPanels') st.panels = e.target.checked;
         updateSummary();
     }
 
@@ -316,26 +258,22 @@
     async function submit() {
         if (!st || st.busy) return;
         const f = readForm();
-        if (!f.mode || f.missing || f.invalid || f.reason.length < 3) { updateSummary(); return; }
+        const btn = document.getElementById('cipSubmit');
+        if (!btn || btn.disabled) { updateSummary(); return; }
         const o = st.data.order || {};
-        const sets = Math.max(Number(o.quantity) || 1, 1);
-        const what = f.mode === 'unfinished'
-            ? `คืนวัสดุเข้าสต็อก ${num(f.retPcs)} ชิ้น (${f.retN} รายการ) · ใช้ไปแล้ว ${num(f.usedPcs)} ชิ้น${f.panels ? ' · คืนบานเก็บ' : ''}`
-            : (f.mode === 'backup' ? `เก็บเป็นสต็อกสำรอง ${num(sets)} ชุด (ไม่คืนวัสดุ)` : 'ไม่คืนวัสดุ ไม่เก็บ');
-        const ok = confirm(`ยืนยันยกเลิกออเดอร์\n\nเลขที่ผลิต: ${st.label}\nออเดอร์: ${o.order_number || '-'}\n${what}\nเหตุผล: ${f.reason}\n\nยกเลิกแล้วย้อนกลับไม่ได้`);
+        const ok = confirm(`ยืนยันยกเลิกออเดอร์\n\nเลขที่ผลิต: ${st.label}\nออเดอร์: ${o.order_number || '-'}\n${outcomeText(f)}\nเหตุผล: ${f.reason}\n\nยกเลิกแล้วย้อนกลับไม่ได้`);
         if (!ok) return;
 
         st.busy = true;
-        const btn = document.getElementById('cipSubmit');
-        if (btn) { btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก...'; }
+        btn.disabled = true;
+        btn.textContent = '⏳ กำลังบันทึก...';
         const order = st.order;
         try {
             const { data, error } = await st.db.rpc('rpc_cancel_in_production', {
                 p_order_id: order.id,
                 p_reason: f.reason,
-                p_returns: f.mode === 'unfinished' ? f.returns : [],
-                p_keep_backup: f.mode === 'backup',
-                p_return_panels: f.mode === 'unfinished' && f.panels
+                p_keep_backup: f.mode === 'finished' && f.choice === 'backup',
+                p_return_panels: f.mode === 'return_all' && f.panels
             });
             if (error) throw error;
             const r = data || {};
@@ -354,7 +292,7 @@
             const msg = (e && e.message) ? e.message : String(e);
             st.log('ยกเลิกไม่สำเร็จ: ' + msg, 'error');
             alert('❌ ยกเลิกไม่สำเร็จ: ' + msg + '\n\nยังไม่ได้บันทึกอะไร');
-            if (btn) { btn.textContent = '❌ ยืนยันยกเลิกออเดอร์'; }
+            btn.textContent = '❌ ยืนยันยกเลิกออเดอร์';
             updateSummary();
         }
     }

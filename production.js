@@ -1270,10 +1270,10 @@ function renderOrderCard(o) {
             <button class="btn btn-sm btn-qc-pass" onclick="qcPass('${o.id}',this)">✔️ ตรวจเสร็จรอจัดส่ง</button>` : ''}`;
     }
 
-    // ❌ ลูกค้ายกเลิกระหว่างผลิต (27/11/2569) — เลือกคืนวัสดุ / เก็บเป็นสต็อกสำรอง ในหน้าต่างเดียว
+    // ❌ ลูกค้ายกเลิกระหว่างผลิต (27/11/2569) — ยังไม่จ่ายวัสดุ = คืนทั้งหมด · จ่ายแล้ว = ผลิตให้เสร็จก่อน · เสร็จแล้ว = สต็อกสำรอง
     if (canCancel && [STATUS_PRODUCING, STATUS_DONE, STATUS_QC_DONE].includes(status)) {
         actionsHtml += `
-        <button class="btn btn-outline btn-sm" style="color:#f87171;border-color:rgba(239,68,68,0.35);" title="ลูกค้ายกเลิกระหว่างผลิต — เลือกคืนวัสดุ / เก็บเป็นสต็อกสำรอง" onclick="openCancelInProduction('${o.id}')">❌ ยกเลิก</button>`;
+        <button class="btn btn-outline btn-sm" style="color:#f87171;border-color:rgba(239,68,68,0.35);" title="ลูกค้ายกเลิกระหว่างผลิต — ยังไม่จ่ายวัสดุ: คืนทั้งหมด · ผลิตเสร็จแล้ว: เก็บเป็นสต็อกสำรอง" onclick="openCancelInProduction('${o.id}')">❌ ยกเลิก</button>`;
     }
 
     actionsHtml += `
