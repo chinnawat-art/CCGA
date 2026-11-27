@@ -16,7 +16,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <script src="auth.js?v=20261119-1"></script>
-    <script src="alu-cut-plan.js?v=20261124-1"></script>
+    <script src="alu-cut-plan.js?v=20261127-1"></script>
     <link rel="stylesheet" href="theme.css">
     <script src="theme.js" defer></script>
     <style>
@@ -504,6 +504,7 @@
     function compute() {
         const A = set.alert_days, T = set.target_days;
         byCode = {};
+        planCache.clear();   // ท่อนเติมเศษใช้ยอดแนะนำ — คิดใหม่ทุกครั้งที่ยอดเปลี่ยน
         rows = stats.map(s => {
             const p = parse(s.product_code);
             if (!p) return null;
@@ -806,7 +807,8 @@
             + '<div class="toolbar" style="margin:8px 0 4px;"><button type="button" class="btn" data-act="recvAll" data-id="' + o.id + '">ใส่ครบตามที่ค้าง</button>'
             + '<button type="button" class="btn" data-act="recvZero" data-id="' + o.id + '">ล้างเป็น 0</button></div>'
             + '<div data-rlist>' + ls.map(l => recvRow(l.product_code, l.qty - l.received_qty,
-                'สั่ง ' + num(l.qty) + ' · ได้แล้ว ' + num(l.received_qty) + ' · ค้าง ' + num(l.qty - l.received_qty))).join('') + '</div>'
+                'สั่ง ' + num(l.qty) + ' · ได้แล้ว ' + num(l.received_qty) + ' · ค้าง ' + num(l.qty - l.received_qty))).join('')
+            + recvFillRows(o) + '</div>'
             + '<div class="frow"><span class="lbl">➕ ได้ขนาดที่ไม่อยู่ในใบ / ได้เพิ่มรายการที่ครบแล้ว<br>'
             + '<input type="text" list="aluCodes" data-xcode placeholder="พิมพ์ค้นหา เช่น ขวางล่าง ขาว 66.2" style="width:100%;margin-top:4px;"></span>'
             + '<input type="number" min="1" max="100000" step="1" inputmode="numeric" data-xqty placeholder="0"> ท่อน'
@@ -815,6 +817,15 @@
             + '<div class="toolbar" style="margin:8px 0 0;"><button type="button" class="btn btn-ok" data-act="recvSave" data-id="' + o.id + '">✅ บันทึกรับของ</button>'
             + '<button type="button" class="btn" data-act="formClose" data-id="' + o.id + '">ปิด</button>'
             + '<span class="meta" data-rsum></span></div></div>';
+    }
+    // ท่อนที่ใบตัดสั่งให้ตัดเพิ่มจากเศษ (ไม่ได้อยู่ในใบ) → ใส่จำนวนตามใบตัดไว้ให้ แก้ตามที่ได้จริง
+    function recvFillRows(o) {
+        const m = new Map();
+        ((o.cut_plan && o.cut_plan.groups) || []).forEach(g => (g.fillers || []).forEach(f => m.set(f.code, (m.get(f.code) || 0) + f.count)));
+        return [...m].map(([code, n]) => {
+            const l = linesOf(o).find(x => x.product_code === code), got = l ? Math.max(l.received_qty - l.qty, 0) : 0;
+            return n - got > 0 && !(l && l.qty - l.received_qty > 0) ? recvRow(code, 0, '♻️ ตัดเพิ่มจากเศษตามใบตัด ' + num(n) + ' ท่อน' + (got ? ' · ได้แล้ว ' + num(got) : '') + ' (ไม่ได้สั่ง)', n - got) : '';
+        }).join('');
     }
     // แถวรับของ 1 รหัส · left = ที่ยังค้าง (0 = ไม่ได้สั่ง/ครบแล้ว ทุกท่อนที่ได้นับเป็นของเกิน)
     function recvRow(code, left, meta, value) {
@@ -1015,6 +1026,32 @@
     }
     function lotSig(id) { return JSON.stringify(planLot[id] || {}); }
     function planFresh(id) { const c = planCache.get(id); return !!(c && c.ver === cutVer && c.fill === planFill && c.lot === lotSig(id)); }
+    // ท่อนที่ตัดเพิ่มจากเศษ (ขนาดอื่นที่ใกล้หมด) ในใบที่เริ่มตัดแล้วแต่ยังไม่ได้รับเข้า → ยังไม่อยู่ในสต็อก/ยอดรอของ ต้องหักเอง กันตัดซ้ำ
+    function fillTransit(exceptId) {
+        const m = new Map();
+        orders.forEach(o => {
+            if (o.id === exceptId || !o.cut_plan || !(o.status === 'open' || o.status === 'partial')) return;
+            ((o.cut_plan.groups) || []).forEach(g => (g.fillers || []).forEach(f => {
+                const l = linesOf(o).find(x => x.product_code === f.code);
+                const left = Math.max(0, f.count - (l ? Math.max(l.received_qty - l.qty, 0) : 0));
+                if (left) m.set(f.code, (m.get(f.code) || 0) + left);
+            }));
+        });
+        return m;
+    }
+    // รหัสอื่นที่ตัดจากเส้นนี้ได้ (เส้นเดียวกันหรือล็อตอื่นของเส้นเดียวกัน) + ระบบแนะนำให้เติม · เรียงใกล้หมดก่อน
+    function fillCands(prof, inOrder, transit) {
+        const fam = profFam(prof), out = [];
+        rows.forEach(r => {
+            if (!(r.sug > 0) || inOrder.has(r.code) || !(r.len > 0)) return;
+            const m = mapRow(r.model, r.part, r.color), mp = m && m.profile_code ? profByCode(m.profile_code) : null;
+            if (!mp || !(mp.code === prof.code || (fam && profFam(mp) === fam))) return;
+            const max = r.sug - (transit.get(r.code) || 0);
+            if (max > 0) out.push({ code: r.code, mm: mmOf(r.len), max, days: r.days, confirmed: !!m.confirmed });
+        });
+        return out.sort((a, b) => a.days - b.days || natCmp(a.code, b.code));
+    }
+    function fillText(f) { return label(f.code) + ' +' + num(f.count); }
     // ใบ 1 ใบ → แยกตามเส้นของโรงงาน (ชิ้นที่ใช้เส้นเดียวกันจัดรวมกัน) → จัดเส้นทีละเส้น · จำผลไว้จนกว่าค่าเส้น/ตัวเลือกจะเปลี่ยน
     function planOrder(o) {
         if (planFresh(o.id)) return planCache.get(o.id).res;
@@ -1042,11 +1079,27 @@
             if (!g.parts.includes(pn)) g.parts.push(pn);
             if (!m.confirmed) g.guess = true;
         });
+        const inOrder = new Set(linesOf(o).filter(l => l.qty > 0).map(l => l.product_code)), transit = planFill ? fillTransit(o.id) : new Map();
         const out = [...groups.values()].sort((a, b) => natCmp(a.prof.code, b.prof.code)).map(g => {
             const dem = new Map();
             g.items.forEach(it => dem.set(it.mm, (dem.get(it.mm) || 0) + it.l.qty));
+            // ขนาดอื่นของเส้นเดียวกันที่ใกล้หมด (ระบบแนะนำให้เติม) → ให้ตัดจากเศษได้ ไม่เกินยอดแนะนำ (หักที่ตัดเพิ่มในใบอื่นที่ยังไม่ได้รับ)
+            const cand = planFill ? fillCands(g.prof, inOrder, transit).filter(c => !dem.has(c.mm)) : [];
+            const fmax = new Map();
+            cand.forEach(c => fmax.set(c.mm, (fmax.get(c.mm) || 0) + c.max));
             g.res = window.AluCutPlan.plan({ barLen: Number(g.prof.bar_mm), trim: PLAN_TRIM, kerf: PLAN_KERF, fill: planFill,
-                demand: [...dem].map(([len, qty]) => ({ len, qty })) });
+                demand: [...dem].map(([len, qty]) => ({ len, qty })), fillers: [...fmax].map(([len, max]) => ({ len, max })) });
+            g.fillPcs = [];
+            if (g.res.ok && cand.length) {
+                // ท่อนที่ได้จากเศษ → แจกให้รหัสที่ใกล้หมดที่สุดก่อน
+                g.res.extra = g.res.extra.filter(e => {
+                    if (!fmax.has(e.len)) return true;
+                    let n = e.count;
+                    cand.filter(c => c.mm === e.len).forEach(c => { const k = Math.min(n, c.max); if (k > 0) { g.fillPcs.push({ code: c.code, len: e.len, count: k }); n -= k; } });
+                    return false;
+                });
+                if (g.fillPcs.some(f => !(cand.find(c => c.code === f.code) || {}).confirmed)) g.guess = true;
+            }
             return g;
         });
         const res = { groups: out, unmapped, bars: out.reduce((a, g) => a + (g.res.ok ? g.res.bars : 0), 0), guess: out.some(g => g.guess) };
@@ -1065,7 +1118,7 @@
         const s = o.cut_plan || {};
         const groups = (s.groups || []).map(g => ({
             prof: { code: g.code, name: g.name || '', color: g.color || '', bar_mm: Number(g.bar_mm), bundle: Number(g.bundle) || 1 },
-            parts: g.parts || [], guess: false, mapped: new Set([g.code]),
+            parts: g.parts || [], guess: false, mapped: new Set([g.code]), fillPcs: g.fillers || [],
             res: { ok: true, bars: Number(g.bars) || 0, patternCount: (g.patterns || []).length, wastePct: g.waste_pct != null ? g.waste_pct : '-',
                    patterns: (g.patterns || []).map(p => ({ bars: p.bars, cuts: p.cuts || [], wasteMm: p.waste_mm || 0 })), extra: g.extra || [], errors: [] }
         }));
@@ -1080,11 +1133,13 @@
                 code: g.prof.code, name: g.prof.name, color: g.prof.color || null, bar_mm: Number(g.prof.bar_mm), bundle: Number(g.prof.bundle) || 1,
                 bars: g.res.bars, waste_pct: g.res.wastePct, parts: g.parts,
                 patterns: g.res.patterns.map(p => ({ bars: p.bars, cuts: p.cuts.map(c => ({ len: c.len, count: c.count })), waste_mm: p.wasteMm })),
-                extra: g.res.extra.map(e => ({ len: e.len, count: e.count }))
+                extra: g.res.extra.map(e => ({ len: e.len, count: e.count })),
+                fillers: (g.fillPcs || []).map(x => ({ code: x.code, len: x.len, count: x.count }))
             })),
             unmapped: r.unmapped.map(u => ({ product_code: u.l.product_code, qty: u.l.qty, why: u.why }))
         };
     }
+    function fillN(r) { return r.groups.reduce((a, g) => a + (g.fillPcs || []).reduce((b, x) => b + x.count, 0), 0); }
     function byName(s) { return String(s || '-').replace(/\s*\([^()]*@[^()]*\)\s*$/, ''); }   // "เมย์ (admin@…)" → "เมย์"
     function planHtml(o) {
         if (!window.AluCutPlan) return '<div class="plan"><span class="warn">❌ โหลดตัวจัดเส้นไม่ได้ (alu-cut-plan.js) — รีเฟรชหน้า</span></div>';
@@ -1096,7 +1151,7 @@
             + (snap ? '<div class="meta"><b>เริ่มตัด ' + fmtDate(o.cut_started_at, true) + ' · ' + esc(o.cut_started_by || '-') + '</b> · หักเส้นเต็มไปแล้ว — แบบตัดนี้ไม่เปลี่ยนตามค่าเส้นที่แก้ทีหลัง</div>' : '')
             + '<div class="meta">หัวเส้น ' + PLAN_TRIM + ' มม. + ใบตัด ' + PLAN_KERF + ' มม./ท่อน (เหมือนแอปโรงงาน) · ขนาดเป็น มม. ตัดทศนิยมทิ้ง'
             + '<br>อ่านว่า "12 เส้น : 812×4 + 912×3" = ตัด 12 เส้น แต่ละเส้นได้ 812 มม. 4 ท่อน และ 912 มม. 3 ท่อน</div>'
-            + (snap ? '' : '<label class="meta" style="display:flex;gap:6px;align-items:center;margin-top:4px;cursor:pointer;"><input type="checkbox" data-planfill' + (planFill ? ' checked' : '') + '> ♻️ เศษที่ยังยาวพอ ตัดเป็นท่อนขนาดในใบเพิ่ม (ไม่เพิ่มเส้น · ได้ของเกินที่สั่ง)</label>');
+            + (snap ? '' : '<label class="meta" style="display:flex;gap:6px;align-items:center;margin-top:4px;cursor:pointer;"><input type="checkbox" data-planfill' + (planFill ? ' checked' : '') + '> ♻️ เศษที่ยังยาวพอ ตัดเป็นท่อนเพิ่ม — ขนาดในใบก่อน แล้วขนาดอื่นของเส้นเดียวกันที่ใกล้หมด (ไม่เพิ่มเส้น · ไม่เกินยอดที่ระบบแนะนำ)</label>');
         if (r.guess) h += '<div class="meta" style="color:#d97706;font-weight:600;">⚠️ บางชิ้นระบบเดาให้ว่าตัดจากเส้นไหน (ยังไม่มีคนยืนยัน) — ตรวจที่แท็บ 📏 เส้นโรงงาน</div>';
         // ยังไม่เริ่มตัด + เริ่มใช้ยอดเส้นเต็มแล้ว → บอกว่าโรงงานมีกี่เส้น + เตือนเส้นไม่พอ
         const live = !snap && barLive();
@@ -1122,6 +1177,7 @@
                     + '<span class="w">เศษ ' + num(pt.wasteMm) + ' มม./เส้น</span></div>' + patBar(pt, Number(g.prof.bar_mm));
             });
             if (R.extra.length) h += '<div class="meta over">ได้เกินที่สั่ง (ใช้เศษให้เป็นท่อน ไม่เพิ่มเส้น): ' + R.extra.map(e => e.len + ' มม. +' + num(e.count)).join(' · ') + '</div>';
+            if ((g.fillPcs || []).length) h += '<div class="meta over">♻️ ตัดเพิ่มจากเศษ (ขนาดที่ใกล้หมด · ไม่ได้อยู่ในใบ): ' + esc(g.fillPcs.map(fillText).join(' · ')) + '</div>';
             h += '</div>';
         });
         if (r.unmapped.length) h += '<div class="pgrp"><div class="warn">❓ จัดเส้นไม่ได้ ' + num(r.unmapped.length) + ' รายการ (ไม่รวมในยอดเส้น)</div>'
@@ -1144,6 +1200,7 @@
             if (!R.ok) { out.push('❌ ' + R.errors.join(' · ')); return; }
             R.patterns.forEach(pt => out.push('• ' + num(pt.bars) + ' เส้น: ' + cutsText(pt.cuts) + ' (เศษ ' + num(pt.wasteMm) + ')'));
             if (R.extra.length) out.push('  ได้เกินที่สั่ง: ' + R.extra.map(e => e.len + ' +' + e.count).join(', '));
+            if ((g.fillPcs || []).length) out.push('  ตัดเพิ่มจากเศษ: ' + g.fillPcs.map(fillText).join(', '));
         });
         if (r.unmapped.length) { out.push(''); out.push('จัดเส้นไม่ได้: ' + r.unmapped.map(u => (u.p ? label(u.l.product_code) : u.l.product_code) + ' ×' + u.l.qty).join(', ')); }
         out.push(''); out.push('รวม ' + num(r.bars) + ' เส้น');
@@ -1162,6 +1219,7 @@
                 + pt.cuts.map(c => '<b>' + c.len + '</b>×' + c.count).join(' + ') + '</td><td class="n">'
                 + pt.cuts.map(c => num(c.count * pt.bars)).join(' + ') + '</td><td class="n">' + num(pt.wasteMm) + '</td><td class="ck"></td></tr>').join('');
             if (R.extra.length) h += '<tr><td colspan="6">ได้เกินที่สั่ง (จากเศษ): ' + esc(R.extra.map(e => e.len + ' มม. +' + e.count).join(', ')) + '</td></tr>';
+            if ((g.fillPcs || []).length) h += '<tr><td colspan="6">♻️ ตัดเพิ่มจากเศษ (ไม่ได้อยู่ในใบ): ' + esc(g.fillPcs.map(x => label(x.code) + ' (' + x.len + ' มม.) +' + x.count).join(', ')) + '</td></tr>';
             return h;
         }).join('');
         document.getElementById('printArea').innerHTML =
@@ -1237,6 +1295,7 @@
         const lines = r.groups.map(g => '• ' + g.prof.code + ' ' + g.prof.name + ': ' + bundleText(g.res.bars, g.prof.bundle) + ' (เหลือ ' + num(barHave(g.prof.code) - g.res.bars) + ')');
         if (!confirm('▶️ เริ่มตัดใบ ' + o.order_no + ' (คนกด: ' + name + ')\n' + lines.slice(0, 20).join('\n') + (lines.length > 20 ? '\n• ... อีก ' + (lines.length - 20) + ' เส้น' : '')
             + '\nรวม ' + num(r.bars) + ' เส้น — หักจากเส้นเต็มที่โรงงานทันที'
+            + (fillN(r) ? '\n♻️ ตัดเพิ่มจากเศษ (ขนาดที่ใกล้หมด) ' + num(fillN(r)) + ' ท่อน — ไม่เพิ่มเส้น · รับเข้าตอนรับของ' : '')
             + (r.guess ? '\n\n⚠️ บางชิ้นยังไม่มีคนยืนยันว่าตัดจากเส้นไหน (ระบบเดา)' : '')
             + (r.unmapped.length ? '\n\n⚠️ จัดเส้นไม่ได้ ' + r.unmapped.length + ' รายการ — ไม่อยู่ในใบตัด ไม่หักเส้น' : '')
             + '\n\nยืนยัน?')) return;

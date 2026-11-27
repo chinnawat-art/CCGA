@@ -322,7 +322,8 @@
   }
 
   /* ---------- ทางเข้าหลัก ----------
-     plan({ barLen, trim?, kerf?, fill?, demand:[{len, qty}] })   fill = เติมเศษเป็นท่อนเพิ่ม (ไม่เพิ่มเส้น)
+     plan({ barLen, trim?, kerf?, fill?, fillers?:[{len, max}], demand:[{len, qty}] })   fill = เติมเศษเป็นท่อนเพิ่ม (ไม่เพิ่มเส้น)
+       fillers = ขนาดอื่นที่ยอมให้ตัดจากเศษได้ (ใช้เมื่อ fill เปิด · ไม่เกิน max ท่อน · ไม่นับเป็นของที่ต้องได้)
      → { ok, bars, lowerBound, patternCount, patterns:[{bars, cuts:[{len,count}], pieces, wasteMm}], wastePct, extra, method, errors } */
   function plan(input) {
     const opt = Object.assign({}, DEFAULTS, input || {});
@@ -348,18 +349,44 @@
     const okc = cands.filter(c => c.ok);
     okc.sort((a, b) => a.bars - b.bars || a.patternCount - b.patternCount || a.wasteMm - b.wasteMm);
     let best = okc[0];
-    // เติมเศษ: เศษที่ยังยาวพอ → ตัดเป็นท่อนขนาดที่อยู่ในใบเดียวกันเพิ่ม (ไม่เพิ่มเส้น · ได้ของเกินที่สั่ง)
+    // เติมเศษ: เศษที่ยังยาวพอ → ตัดเป็นท่อนเพิ่ม (ไม่เพิ่มเส้น · ได้ของเกินที่สั่ง)
+    //   ขั้น 1 ขนาดในใบเดียวกัน (ไม่จำกัดจำนวน · เหมือนเดิม)
+    //   ขั้น 2 ที่ยังเหลือ → ขนาดอื่นของเส้นเดียวกัน (fillers: [{len, max}]) ไม่เกิน max ท่อนรวมทั้งใบ
+    //   เศษยาวสุดได้เลือกก่อน · ถ้าขนาดอื่นหมดโควต้ากลางแบบ → แยกแบบนั้นเป็น 2 แบบ (ส่วนที่ได้เติม / ส่วนที่ไม่ได้)
     if (opt.fill) {
-      const raw = best.patterns.map(p => {
-        const a = sizes.map(s => { const c = p.cuts.find(x => x.len === s.len); return c ? c.count : 0; });
-        const room = cap - a.reduce((s, c, i) => s + c * sizes[i].w, 0);
-        if (room >= Math.min(...sizes.map(s => s.w))) {
-          const kn = knapsack(sizes.map(s => s.w), sizes.map(s => s.w), sizes.map(s => Math.floor(room / s.w)), room);
-          kn.a.forEach((c, i) => { a[i] += c; });
+      const inOrder = new Set(sizes.map(s => s.len)), fm = new Map();
+      for (const f of opt.fillers || []) {
+        const len = Math.round(Number(f && f.len)), mx = Math.round(Number(f && f.max));
+        if (!(len > 0) || !(mx > 0) || inOrder.has(len) || len + opt.kerf > cap) continue;
+        fm.set(len, (fm.get(len) || 0) + mx);
+      }
+      const fl = [...fm.entries()].sort((a, b) => b[0] - a[0]);
+      const all = sizes.concat(fl.map(([len]) => ({ len, w: len + opt.kerf })));
+      const need2 = need.concat(fl.map(() => 0)), left = fl.map(x => x[1]), n0 = sizes.length;
+      const W = all.map(s => s.w), minW = Math.min(...W), raw = [];
+      const pats = best.patterns.slice().sort((a, b) => b.wasteMm - a.wasteMm || b.bars - a.bars);
+      for (const p of pats) {
+        const base = all.map(s => { const c = p.cuts.find(x => x.len === s.len); return c ? c.count : 0; });
+        let room = cap - base.reduce((s, c, i) => s + c * W[i], 0);
+        if (room >= Math.min(...W.slice(0, n0))) {
+          const k1 = knapsack(W, W, W.map((w, i) => i < n0 ? Math.floor(room / w) : 0), room);
+          k1.a.forEach((c, i) => { base[i] += c; });
+          room -= k1.used;
         }
-        return { a, times: p.bars };
-      });
-      best = Object.assign(summarize(sizes, need, cap, raw, barLen, opt), { method: best.method + '+เติมเศษ', filled: true });
+        let T = p.bars;
+        while (T > 0) {
+          const a = base.slice();
+          let q = T;
+          if (fl.length && room >= minW) {
+            const kn = knapsack(W, W, W.map((w, i) => i < n0 ? 0 : Math.min(Math.floor(room / w), left[i - n0])), room);
+            kn.a.forEach((c, i) => { a[i] += c; if (c > 0 && i >= n0) q = Math.min(q, Math.floor(left[i - n0] / c)); });
+            kn.a.forEach((c, i) => { if (i >= n0) left[i - n0] -= c * q; });
+          }
+          raw.push({ a, times: q });
+          T -= q;
+        }
+      }
+      best = Object.assign(summarize(all, need2, cap, raw, barLen, opt), { method: best.method + '+เติมเศษ', filled: true });
     }
     return Object.assign({}, best, { lowerBound: lb, errors: [], alternatives: okc.filter(c => c !== okc[0]) });
   }
